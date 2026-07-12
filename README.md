@@ -3,27 +3,49 @@
 Offline toolkit to replay and tune your Home Assistant rain-probability model against
 real precipitation data.
 
-## Files
+## Quick Start
 
-| File | What it is |
-|------|-----------|
-| `rain_analysis.ipynb` | The notebook — start here. Loads data, runs models, scores & plots. |
-| `rainlib.py` | The engine. All physics, HA-helper reimplementations, models, metrics. Import it; edit it to add features/models. |
-| `build_notebook.py` | Regenerates the `.ipynb` (only needed if you want to rebuild it). |
-| `ha_full.csv` | Your HA history export (sample included). |
-| `om_example.json` | An open-meteo response (sample included). |
-| `yandex_archive/` | Folder of your Yandex `fact` JSON snapshots (sample included). |
-
-## Setup
+### Interactive Analysis (Notebook)
 
 ```bash
 pip install pandas numpy matplotlib jupyter
 jupyter notebook rain_analysis.ipynb
 ```
 
-Then run cells top to bottom. Edit the paths in **§1** to point at your own exports.
+### Automated Analysis (CLI)
 
-## The mental model
+```bash
+# 1. Fetch Home Assistant sensor history
+python fetch_ha_data.py --days 7 --output data/ha.csv
+
+# 2. Run analysis
+python run_analysis.py \
+    --ha-csv data/ha.csv \
+    --om-sources data/openmeteo.json \
+    --yandex-dir data/yandex_archive/ \
+    --output report.json \
+    --plots
+```
+
+See [docs/CLI_RUNNER.md](docs/CLI_RUNNER.md) for full CLI documentation.
+
+## Repository Structure
+
+```
+rain-analysis/
+├── rain_analysis.ipynb      # Interactive Jupyter notebook
+├── rainlib.py                # Core analysis engine (physics, models, metrics)
+├── run_analysis.py           # Automated CLI analysis script
+├── fetch_ha_data.py          # Home Assistant data fetcher
+├── docs/
+│   ├── BASELINE_MODEL.md     # Current model analysis (v0.1)
+│   ├── CLI_RUNNER.md         # CLI script documentation
+│   └── HA_DATA_FETCHER.md    # Data fetching guide
+├── data/                     # Your local data files (gitignored)
+└── requirements.txt
+```
+
+## The Mental Model
 
 ```
   local sensors ─┐
@@ -36,39 +58,106 @@ Then run cells top to bottom. Edit the paths in **§1** to point at your own exp
                         score vs open-meteo precip (precision/recall/F1/lead-time)
 ```
 
-- Every HA helper you built (dew point, spread, absolute humidity, humidex, derivative,
-  rain_probability) has a pure-Python twin in `rainlib.py`, so what you tune here maps
-  straight back to HA templates.
-- Ground truth = open-meteo hourly precipitation. `rain_truth=1` when precip ≥ threshold.
-- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`. Add your own.
+- Every HA helper (dew point, spread, derivative, rain_probability) has a pure-Python twin in `rainlib.py`
+- Ground truth = open-meteo hourly precipitation. `rain_truth=1` when precip ≥ threshold
+- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`
 
-## Adding data over time
+## Data Sources
 
-Just append. Drop new open-meteo JSON files into `OM_SOURCES`, new Yandex snapshots into
-the archive folder, and a longer HA CSV export. Everything scales — no code changes.
+### 1. Home Assistant (Local Sensors)
 
-## Adding a pressure-aware model (recommended next step)
+Required entities:
+- `sensor.datchik_klimata_temperatura` — outdoor temperature
+- `sensor.datchik_klimata_vlazhnost` — outdoor humidity
+- `sensor.rain_probability` — live model output
 
-Once you have a BME280 logging pressure into HA:
+Fetch with:
+```bash
+python fetch_ha_data.py --days 7 --output data/ha.csv
+```
 
-1. Export pressure in the same CSV and add it to `HA_ENTITIES` (e.g. `'sensor.pressure':'pressure'`).
-2. In `rainlib.py`, compute `grid['pressure_deriv'] = derivative(grid['pressure'], '3h')`.
-3. Write `model_pressure_aware(...)` that fires on a pressure **drop rate**, and register it in `MODELS`.
-4. Re-run — the scoring and plots pick it up automatically.
+### 2. Open-Meteo (Ground Truth)
 
-## Tuning knobs (`ModelParams`)
+Historical precipitation data for validation.
+- API: https://open-meteo.com/
+- Location: Minsk (53.930716, 27.596646)
+- See documentation for fetching details
+
+### 3. Yandex Weather (Comparison)
+
+Archive of Yandex weather snapshots for cross-checking.
+- Archive available at: http://10.8.0.4:7005/weather.tgz
+- Updated hourly
+
+## Adding Data Over Time
+
+Just append new data — everything scales without code changes:
+- Drop new open-meteo JSON files into `OM_SOURCES`
+- Add new Yandex snapshots to the archive folder
+- Fetch a longer HA CSV export
+
+## Core Concepts
+
+### ModelParams
+
+All tuning knobs in one place:
 
 | Param | Meaning |
 |-------|---------|
-| `proximity_divisor` | Spread (°C) that maps to 0% proximity. Lower = reaches high prob sooner. |
-| `trend_gain` | Points added per °C/h of spread narrowing. |
-| `trend_floor` / `trend_ceiling` | Clamp on how much the trend term can subtract / add. |
-| `proximity_weight` / `trend_weight` | Blend weights. |
-| `dry_spread_cutoff` / `dry_ceiling` | If spread above cutoff, cap output (suppress dry-air noise). |
-| `hysteresis_decay` | 0 = frozen once high, 1 = no hysteresis. Controls decay speed after a peak. |
-| `derivative_window` | Trailing window for the spread derivative (`1h` twitchy, `3h` smooth). |
+| `proximity_divisor` | Spread (°C) that maps to 0% proximity |
+| `trend_gain` | Points added per °C/h of spread narrowing |
+| `trend_floor` / `trend_ceiling` | Clamp on trend contribution |
+| `proximity_weight` / `trend_weight` | Blend weights |
+| `dry_spread_cutoff` / `dry_ceiling` | Cap output when air is dry |
+| `hysteresis_decay` | Decay speed after peak (0=frozen, 1=instant) |
+| `derivative_window` | Window for spread derivative (1h=twitchy, 3h=smooth) |
 
-## Known findings baked into the design
+### Adding a New Model
 
-- **Post-peak crash:** raw humidity dips mid-rain; hysteresis stops the score collapsing while it's still raining.
-- **Dry-night false positive:** ordinary calm nights close the spread as tightly as real rain nights → surface humidity alone can't separate them. This is *why* pressure is the key missing feature, not just a tuning issue.
+1. Define the model in `rainlib.py`:
+   ```python
+   def model_my_custom(spread, spread_deriv, p=None):
+       # your logic
+       return score_series
+   ```
+
+2. Register it in `MODELS`:
+   ```python
+   MODELS = {
+       "original": model_original,
+       "tuned": model_tuned,
+       "my_custom": model_my_custom,  # ← add here
+   }
+   ```
+
+3. Re-run — it appears everywhere automatically
+
+### Pressure Integration (Recommended Next Step)
+
+The baseline model hits a ceiling without pressure. To add it:
+
+1. Export pressure from HA: `sensor.office_weather_station_pressure`
+2. Add to `HA_ENTITIES`: `'sensor.pressure': 'pressure'`
+3. Compute derivative: `grid['pressure_deriv'] = derivative(grid['pressure'], '3h')`
+4. Write `model_pressure_aware()` that fires on pressure **drop rate**
+5. Register in `MODELS` — scoring/plots work unchanged
+
+## Known Findings
+
+- **Post-peak crash:** Raw humidity dips mid-rain; hysteresis prevents false recovery
+- **Dry-night false positive:** Calm nights close the spread like rain nights → surface humidity alone can't separate them
+- **Pressure is key:** Not a tuning issue — fundamental limitation without barometric data
+
+## Documentation
+
+- [Baseline Model Analysis](docs/BASELINE_MODEL.md) — detailed breakdown of v0.1
+- [CLI Runner Guide](docs/CLI_RUNNER.md) — automated analysis script
+- [HA Data Fetcher](docs/HA_DATA_FETCHER.md) — sensor history export
+
+## Development
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and best practices.
+
+## License
+
+Private repository — Kickoman/rain-analysis
