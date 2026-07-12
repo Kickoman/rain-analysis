@@ -1,0 +1,657 @@
+"""
+rainlib.py — Rain-prediction backtesting toolkit
+=================================================
+
+Reusable building blocks for analysing your Home Assistant rain-probability
+model against ground truth (open-meteo) and a third-party forecast (Yandex).
+
+Design goals
+------------
+* Every Home Assistant helper you built (dew point, spread, derivative,
+  rain_probability) is reimplemented here as a *pure Python function* so you
+  can replay history and see how parameter changes would have behaved.
+* Everything is resampled onto one common time grid so local sensors,
+  open-meteo, and Yandex line up hour-by-hour.
+* No external services are required at run time — you feed it the files/JSON
+  you already collect.
+
+Author: built for your HA weather-station project.
+"""
+
+from __future__ import annotations
+
+import json
+import glob
+import math
+from dataclasses import dataclass, field
+from datetime import datetime, timezone, timedelta
+
+import numpy as np
+import pandas as pd
+
+
+# ---------------------------------------------------------------------------
+# 1. PHYSICS PRIMITIVES  (mirror your HA templates exactly)
+# ---------------------------------------------------------------------------
+
+# Magnus coefficients — same values used in your HA dew point template.
+MAGNUS_A = 17.62
+MAGNUS_B = 243.12
+
+
+def dew_point(temp_c, rh_pct):
+    """Dew point (°C) from temperature (°C) and relative humidity (%).
+
+    Identical to your HA `Outside Dew Point` template:
+        alpha = ln(rh/100) + a*t/(b+t)
+        dp    = b*alpha / (a-alpha)
+    Vectorised: accepts scalars or numpy arrays / pandas Series.
+    """
+    t = np.asarray(temp_c, dtype=float)
+    rh = np.asarray(rh_pct, dtype=float)
+    # guard against rh<=0 which would blow up the log
+    rh = np.clip(rh, 1e-3, 100.0)
+    alpha = np.log(rh / 100.0) + (MAGNUS_A * t) / (MAGNUS_B + t)
+    dp = (MAGNUS_B * alpha) / (MAGNUS_A - alpha)
+    return dp
+
+
+def dew_point_spread(temp_c, rh_pct):
+    """Temp minus dew point (°C). Small spread => air near saturation."""
+    return np.asarray(temp_c, dtype=float) - dew_point(temp_c, rh_pct)
+
+
+def absolute_humidity(temp_c, rh_pct):
+    """Absolute humidity g/m³ — mirrors your HA absolute-humidity template."""
+    t = np.asarray(temp_c, dtype=float)
+    rh = np.clip(np.asarray(rh_pct, dtype=float), 1e-3, 100.0)
+    vp = 6.112 * np.exp(17.62 * t / (243.12 + t)) * rh / 100.0
+    return 216.7 * vp / (273.15 + t)
+
+
+def humidex(temp_c, dewpoint_c):
+    """Humidex 'feels like' (°C) — mirrors your HA humidex template."""
+    t = np.asarray(temp_c, dtype=float)
+    td = np.asarray(dewpoint_c, dtype=float)
+    vp = 6.112 * np.exp(17.62 * td / (243.12 + td))
+    return t + 0.5555 * (vp - 10.0)
+
+
+# ---------------------------------------------------------------------------
+# 2. DERIVATIVE  (mirror of HA "Derivative" helper)
+# ---------------------------------------------------------------------------
+
+def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> pd.Series:
+    """Approximate HA's Derivative helper.
+
+    HA's Derivative helper fits a linear regression (least-squares slope)
+    over a trailing time window and reports the slope per `unit_time`
+    (here: °C per hour). This reproduces that behaviour on an irregular
+    time index.
+
+    Parameters
+    ----------
+    series : pd.Series indexed by tz-aware DatetimeIndex
+    window : trailing time window, e.g. "1h", "3h"
+    min_periods : minimum points required in the window to emit a slope
+
+    Returns
+    -------
+    pd.Series (°C per hour) aligned to `series.index`.
+    """
+    s = series.dropna()
+    if s.empty:
+        return pd.Series(index=series.index, dtype=float)
+
+    # seconds since first sample, as the regression x-axis
+    t0 = s.index[0]
+    x_all = np.array([(ix - t0).total_seconds() for ix in s.index])
+    y_all = s.values.astype(float)
+    win_sec = pd.Timedelta(window).total_seconds()
+
+    out = np.full(len(s), np.nan)
+    for i in range(len(s)):
+        t_now = x_all[i]
+        mask = (x_all <= t_now) & (x_all > t_now - win_sec)
+        if mask.sum() < min_periods:
+            continue
+        xs = x_all[mask]
+        ys = y_all[mask]
+        # least-squares slope in units of value per SECOND
+        xm = xs.mean()
+        denom = ((xs - xm) ** 2).sum()
+        if denom == 0:
+            continue
+        slope_per_sec = ((xs - xm) * (ys - ys.mean())).sum() / denom
+        out[i] = slope_per_sec * 3600.0  # -> per hour
+
+    result = pd.Series(out, index=s.index)
+    return result.reindex(series.index)
+
+
+# ---------------------------------------------------------------------------
+# 3. RAIN-PROBABILITY MODELS  (tunable reimplementations of your HA sensor)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ModelParams:
+    """All tunable knobs for the rain-probability models, in one place.
+
+    Tweak these in the notebook and re-run to see the effect on history.
+    """
+    # proximity term
+    proximity_divisor: float = 7.0     # spread that maps to 0% proximity
+    # trend term
+    trend_gain: float = 20.0           # points per (°C/h) of narrowing
+    trend_floor: float = -15.0         # most a bad trend can subtract
+    trend_ceiling: float = 30.0        # most a good trend can add
+    # blend weights
+    proximity_weight: float = 0.8
+    trend_weight: float = 0.5
+    # dryness sanity ceiling
+    dry_spread_cutoff: float = 10.0    # above this spread, cap output
+    dry_ceiling: float = 40.0
+    # hysteresis (decay fraction toward new lower value each step)
+    hysteresis_decay: float = 0.30     # 0 = frozen, 1 = no hysteresis
+    # derivative window used to feed the trend term
+    derivative_window: str = "3h"
+
+
+def _clamp(x, lo, hi):
+    return np.minimum(np.maximum(x, lo), hi)
+
+
+def model_original(spread: pd.Series, spread_deriv: pd.Series,
+                   p: ModelParams | None = None) -> pd.Series:
+    """Your ORIGINAL formula (proximity*0.7 + trend*0.7, no hysteresis).
+
+    Kept for reference / regression comparison against improved versions.
+    """
+    proximity = _clamp(100.0 - (spread / 8.0 * 100.0), 0, 100)
+    trend_score = _clamp(-spread_deriv * 26.7, -40, 40)
+    total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
+    return total.round(0)
+
+
+def model_tuned(spread: pd.Series, spread_deriv: pd.Series,
+                p: ModelParams | None = None) -> pd.Series:
+    """Improved model: recalibrated proximity + capped trend + hysteresis.
+
+    This is a *stateful* model (hysteresis depends on the previous output),
+    so it is computed iteratively in time order. All knobs come from `p`.
+    """
+    if p is None:
+        p = ModelParams()
+
+    # align the two inputs on a common index, forward-fill gaps
+    df = pd.DataFrame({"spread": spread, "deriv": spread_deriv}).sort_index()
+    df["spread"] = df["spread"].ffill()
+    df["deriv"] = df["deriv"].fillna(0.0)
+
+    out = np.full(len(df), np.nan)
+    prev = None  # None until the first valid sample seeds the state
+    spread_v = df["spread"].values
+    deriv_v = df["deriv"].values
+
+    for i in range(len(df)):
+        s = spread_v[i]
+        d = deriv_v[i]
+
+        # skip samples with no spread yet (leading gaps / dead sensor)
+        if s is None or (isinstance(s, float) and math.isnan(s)):
+            out[i] = prev if prev is not None else np.nan
+            continue
+        if d is None or (isinstance(d, float) and math.isnan(d)):
+            d = 0.0
+
+        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
+        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+
+        raw = proximity * p.proximity_weight + trend_score * p.trend_weight
+        # dryness sanity ceiling
+        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
+        raw = min(max(raw, 0), ceiling)
+
+        # hysteresis: rise instantly, decay slowly
+        if prev is None:
+            total = raw
+        elif raw > prev:
+            total = raw
+        else:
+            total = prev - (prev - raw) * p.hysteresis_decay
+        out[i] = total
+        prev = total
+
+    return pd.Series(out, index=df.index).round(0)
+
+
+def model_trend_dominant(spread: pd.Series, spread_deriv: pd.Series,
+                         p: ModelParams | None = None) -> pd.Series:
+    """Trend-primary variant (trend is the main driver, spread only a ceiling).
+
+    This is the version discussed for catching the *approach* while a
+    3h-window derivative smooths out point noise. Also stateful (hysteresis).
+    """
+    if p is None:
+        p = ModelParams()
+
+    df = pd.DataFrame({"spread": spread, "deriv": spread_deriv}).sort_index()
+    df["spread"] = df["spread"].ffill()
+    df["deriv"] = df["deriv"].fillna(0.0)
+
+    out = np.full(len(df), np.nan)
+    prev = None
+    spread_v = df["spread"].values
+    deriv_v = df["deriv"].values
+
+    for i in range(len(df)):
+        s = spread_v[i]
+        d = deriv_v[i]
+
+        if s is None or (isinstance(s, float) and math.isnan(s)):
+            out[i] = prev if prev is not None else np.nan
+            continue
+        if d is None or (isinstance(d, float) and math.isnan(d)):
+            d = 0.0
+
+        trend_score = min(max(-d * (p.trend_gain * 1.5), -20.0), 100.0)
+        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
+        raw = min(max(trend_score, 0), ceiling)
+
+        if prev is None:
+            total = raw
+        elif raw > prev:
+            total = raw
+        else:
+            total = prev - (prev - raw) * p.hysteresis_decay
+        out[i] = total
+        prev = total
+
+    return pd.Series(out, index=df.index).round(0)
+
+
+# Registry so the notebook can loop over models by name.
+MODELS = {
+    "original": model_original,
+    "tuned": model_tuned,
+    "trend_dominant": model_trend_dominant,
+}
+
+
+# ---------------------------------------------------------------------------
+# 4. DATA LOADERS
+# ---------------------------------------------------------------------------
+
+def _parse_ha_ts(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+
+def load_ha_csv(path: str) -> pd.DataFrame:
+    """Load a Home Assistant history CSV export.
+
+    Expects columns: entity_id, state, last_changed.
+    Returns a *long* DataFrame with columns [time, entity_id, value],
+    dropping unknown/unavailable rows and coercing to float.
+    """
+    df = pd.read_csv(path)
+    df = df[~df["state"].isin(["unknown", "unavailable", ""])].copy()
+    df["value"] = pd.to_numeric(df["state"], errors="coerce")
+    df = df.dropna(subset=["value"])
+    df["time"] = pd.to_datetime(df["last_changed"], utc=True)
+    return df[["time", "entity_id", "value"]].sort_values("time")
+
+
+def ha_wide(df_long: pd.DataFrame, entity_map: dict[str, str]) -> pd.DataFrame:
+    """Pivot selected HA entities into wide columns on a shared time index.
+
+    entity_map: {entity_id: friendly_column_name}
+    Returns a DataFrame indexed by time with one column per mapped entity.
+    Values are placed at their exact timestamps (irregular); resample later.
+    """
+    parts = []
+    for eid, col in entity_map.items():
+        sub = df_long[df_long["entity_id"] == eid][["time", "value"]]
+        sub = sub.rename(columns={"value": col}).set_index("time")
+        parts.append(sub)
+    wide = pd.concat(parts, axis=1).sort_index()
+    return wide
+
+
+def load_open_meteo(obj) -> pd.DataFrame:
+    """Parse an open-meteo /forecast or /archive JSON response.
+
+    `obj` may be a dict (already parsed), a JSON string, or a path to a
+    .json file. Returns a DataFrame indexed by UTC time with whatever of
+    temperature_2m / relative_humidity_2m / precipitation / rain / showers
+    are present.
+    """
+    if isinstance(obj, str):
+        # path or raw json?
+        if obj.strip().startswith("{"):
+            data = json.loads(obj)
+        else:
+            with open(obj) as fh:
+                data = json.load(fh)
+    else:
+        data = obj
+
+    hourly = data["hourly"]
+    tz_offset = data.get("utc_offset_seconds", 0)
+    # open-meteo 'time' is in the requested timezone (local). Convert to UTC.
+    times_local = pd.to_datetime(hourly["time"])
+    times_utc = times_local - pd.to_timedelta(tz_offset, unit="s")
+    times_utc = times_utc.tz_localize("UTC")
+
+    cols = {}
+    for key in ["temperature_2m", "relative_humidity_2m",
+                "precipitation", "rain", "showers"]:
+        if key in hourly:
+            cols[key] = hourly[key]
+    out = pd.DataFrame(cols, index=times_utc)
+    out.index.name = "time"
+    # friendlier names
+    out = out.rename(columns={
+        "temperature_2m": "om_temp",
+        "relative_humidity_2m": "om_rh",
+        "precipitation": "om_precip",
+        "rain": "om_rain",
+        "showers": "om_showers",
+    })
+    return out
+
+
+def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
+    """Load a folder of Yandex JSON snapshots into a DataFrame.
+
+    Accepts either a directory (searched recursively for *.json) or a glob
+    pattern. Extracts the observed `fact` block from each file.
+    Returns a DataFrame indexed by UTC observation time.
+    """
+    if any(ch in folder_or_glob for ch in "*?[]"):
+        files = glob.glob(folder_or_glob, recursive=True)
+    else:
+        files = glob.glob(f"{folder_or_glob.rstrip('/')}/**/*.json", recursive=True)
+
+    rows = {}
+    for f in files:
+        try:
+            d = json.load(open(f))
+        except Exception:
+            continue
+        fact = d.get("fact")
+        if not fact:
+            continue
+        t = datetime.fromtimestamp(d["now"], tz=timezone.utc)
+        cond = fact.get("condition", "")
+        rows[t] = {
+            "yx_condition": cond,
+            "yx_temp": fact.get("temp"),
+            "yx_humidity": fact.get("humidity"),
+            "yx_feels_like": fact.get("feels_like"),
+            "yx_prec_prob": fact.get("prec_prob"),
+            "yx_prec_strength": fact.get("prec_strength"),
+            "yx_pressure_mm": fact.get("pressure_mm"),
+            "yx_wind_speed": fact.get("wind_speed"),
+            "yx_is_rain": 1 if "rain" in cond else 0,
+        }
+    if not rows:
+        return pd.DataFrame()
+    out = pd.DataFrame.from_dict(rows, orient="index").sort_index()
+    out.index.name = "time"
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 5. UNIFIED TIME GRID
+# ---------------------------------------------------------------------------
+
+def build_grid(ha_wide_df: pd.DataFrame | None = None,
+               om_df: pd.DataFrame | None = None,
+               yx_df: pd.DataFrame | None = None,
+               freq: str = "10min",
+               ffill_limit_min: int = 90) -> pd.DataFrame:
+    """Resample every source onto one regular grid and merge.
+
+    * Local HA sensors are irregular (event-based) -> forward-filled onto the
+      grid up to `ffill_limit_min` minutes (so a dead sensor doesn't fill
+      forever).
+    * open-meteo and Yandex are hourly -> reindexed onto the grid; precip is
+      forward-filled within the hour, conditions likewise.
+
+    Returns one tidy DataFrame indexed by the regular UTC grid.
+    """
+    frames = [f for f in (ha_wide_df, om_df, yx_df) if f is not None and not f.empty]
+    if not frames:
+        raise ValueError("No data sources provided to build_grid().")
+
+    start = min(f.index.min() for f in frames)
+    end = max(f.index.max() for f in frames)
+    grid = pd.date_range(start.floor(freq), end.ceil(freq), freq=freq, tz="UTC")
+
+    limit = int(ffill_limit_min / int(pd.Timedelta(freq).total_seconds() / 60))
+    out = pd.DataFrame(index=grid)
+    out.index.name = "time"
+
+    if ha_wide_df is not None and not ha_wide_df.empty:
+        ha_r = ha_wide_df.sort_index().reindex(
+            ha_wide_df.index.union(grid)
+        ).ffill(limit=limit).reindex(grid)
+        out = out.join(ha_r)
+
+    if om_df is not None and not om_df.empty:
+        om_r = om_df.sort_index().reindex(
+            om_df.index.union(grid)
+        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+        out = out.join(om_r)
+
+    if yx_df is not None and not yx_df.empty:
+        yx_r = yx_df.sort_index().reindex(
+            yx_df.index.union(grid)
+        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+        out = out.join(yx_r)
+
+    return out
+
+
+# ---------------------------------------------------------------------------
+# 6. GROUND TRUTH LABELS
+# ---------------------------------------------------------------------------
+
+def label_rain(grid: pd.DataFrame,
+               precip_col: str = "om_precip",
+               threshold_mm: float = 0.1) -> pd.Series:
+    """Boolean 'is it raining' label from open-meteo precipitation.
+
+    open-meteo precip is an hourly *sum* for the preceding hour; any value
+    >= threshold_mm marks that hour as raining. Falls back to Yandex
+    condition if open-meteo precip is unavailable.
+    """
+    if precip_col in grid and grid[precip_col].notna().any():
+        return (grid[precip_col].fillna(0) >= threshold_mm).astype(int)
+    if "yx_is_rain" in grid:
+        return grid["yx_is_rain"].fillna(0).astype(int)
+    raise ValueError("No precipitation or condition column to label from.")
+
+
+# ---------------------------------------------------------------------------
+# 7. METRICS
+# ---------------------------------------------------------------------------
+
+def confusion_at_threshold(pred: pd.Series, truth: pd.Series,
+                           threshold: float = 50.0) -> dict:
+    """Confusion-matrix counts + rates treating pred>=threshold as 'rain'."""
+    df = pd.DataFrame({"pred": pred, "truth": truth}).dropna()
+    yhat = (df["pred"] >= threshold).astype(int)
+    y = df["truth"].astype(int)
+    tp = int(((yhat == 1) & (y == 1)).sum())
+    fp = int(((yhat == 1) & (y == 0)).sum())
+    tn = int(((yhat == 0) & (y == 0)).sum())
+    fn = int(((yhat == 0) & (y == 1)).sum())
+    precision = tp / (tp + fp) if (tp + fp) else float("nan")
+    recall = tp / (tp + fn) if (tp + fn) else float("nan")
+    f1 = (2 * precision * recall / (precision + recall)
+          if precision and recall and not math.isnan(precision)
+          and not math.isnan(recall) and (precision + recall) else float("nan"))
+    return {
+        "threshold": threshold,
+        "tp": tp, "fp": fp, "tn": tn, "fn": fn,
+        "precision": precision, "recall": recall, "f1": f1,
+        "n": len(df),
+    }
+
+
+def sweep_threshold(pred: pd.Series, truth: pd.Series,
+                    thresholds=range(5, 100, 5)) -> pd.DataFrame:
+    """Compute precision/recall/F1 across a range of thresholds."""
+    return pd.DataFrame(
+        [confusion_at_threshold(pred, truth, t) for t in thresholds]
+    ).set_index("threshold")
+
+
+def lead_time(pred: pd.Series, truth: pd.Series,
+              threshold: float = 50.0) -> pd.Timedelta | None:
+    """How long before the first rain hour did pred first cross threshold?
+
+    Positive => early warning. None => never crossed before onset.
+    """
+    df = pd.DataFrame({"pred": pred, "truth": truth}).dropna().sort_index()
+    rain_times = df.index[df["truth"] == 1]
+    if len(rain_times) == 0:
+        return None
+    first_rain = rain_times[0]
+    crossed = df.index[(df["pred"] >= threshold) & (df.index <= first_rain)]
+    if len(crossed) == 0:
+        return None
+    return first_rain - crossed[0]
+
+
+# ---------------------------------------------------------------------------
+# 8. THRESHOLD RECOMMENDATION  (formalises the precision/recall trade-off)
+# ---------------------------------------------------------------------------
+
+def fbeta_at_threshold(pred: pd.Series, truth: pd.Series,
+                       threshold: float, beta: float = 1.0) -> float:
+    """F-beta score at a given threshold.
+
+    beta expresses how much more you care about RECALL than PRECISION:
+        beta = 1   -> F1, recall and precision weighted equally
+        beta = 2   -> recall counts 4x as much as precision
+                      ("a miss is much worse than a false alarm")
+        beta = 0.5 -> precision counts 4x as much as recall
+                      ("a false alarm is much worse than a miss")
+
+    The weighting is beta**2, following the standard F-beta definition.
+    Returns NaN when precision+recall is undefined (no positive predictions
+    and no positives caught).
+    """
+    c = confusion_at_threshold(pred, truth, threshold)
+    p, r = c["precision"], c["recall"]
+    if p != p or r != r:          # NaN guard
+        return float("nan")
+    b2 = beta * beta
+    denom = (b2 * p) + r
+    if denom == 0:
+        return float("nan")
+    return (1 + b2) * p * r / denom
+
+
+def recommend_threshold(pred: pd.Series, truth: pd.Series,
+                        beta: float = 2.0,
+                        min_precision: float = 0.0,
+                        thresholds=range(5, 100, 5)) -> dict:
+    """Pick the threshold that maximises F-beta for your chosen trade-off.
+
+    Parameters
+    ----------
+    beta : how many times worse a MISSED rain is than a FALSE ALARM.
+           beta=2 (default) suits "I'd rather bring the laundry in for
+           nothing than get it soaked". Use beta=1 for balanced, beta=0.5
+           if false alarms annoy you more than misses.
+    min_precision : reject thresholds whose precision falls below this.
+           Without a floor, a high beta will always collapse onto the very
+           lowest threshold (alert-always), which is useless. Setting e.g.
+           0.5 means "at least half my alerts must be real rain" and keeps
+           the recommendation practical. Default 0.0 = no floor.
+
+    Returns a dict with the best threshold and its metrics, plus the full
+    per-threshold table under key 'table' for inspection/plotting.
+    """
+    rows = []
+    for t in thresholds:
+        c = confusion_at_threshold(pred, truth, t)
+        rows.append({
+            "threshold": t,
+            "precision": c["precision"],
+            "recall": c["recall"],
+            "f1": c["f1"],
+            "fbeta": fbeta_at_threshold(pred, truth, t, beta),
+            "tp": c["tp"], "fp": c["fp"], "fn": c["fn"], "tn": c["tn"],
+        })
+    table = pd.DataFrame(rows).set_index("threshold")
+
+    # candidates must clear the precision floor (if any)
+    candidates = table.copy()
+    if min_precision > 0:
+        candidates = candidates[candidates["precision"] >= min_precision]
+
+    # best = highest F-beta; ties broken toward the LOWER threshold
+    # (earlier warning) since for rain that's usually the safer side.
+    valid = candidates["fbeta"].dropna()
+    if valid.empty:
+        best_t = None
+        best_row = None
+    else:
+        best_val = valid.max()
+        best_t = valid[valid >= best_val - 1e-9].index.min()
+        best_row = table.loc[best_t]
+
+    return {
+        "beta": beta,
+        "min_precision": min_precision,
+        "best_threshold": (int(best_t) if best_t is not None else None),
+        "precision": (float(best_row["precision"]) if best_row is not None else None),
+        "recall": (float(best_row["recall"]) if best_row is not None else None),
+        "f1": (float(best_row["f1"]) if best_row is not None else None),
+        "fbeta": (float(best_row["fbeta"]) if best_row is not None else None),
+        "table": table,
+    }
+
+
+def plot_calibration(pred: pd.Series, truth: pd.Series,
+                     betas=(0.5, 1.0, 2.0),
+                     thresholds=range(5, 100, 5),
+                     ax=None, title: str | None = None):
+    """Plot precision / recall / F-beta vs threshold, marking the best pick.
+
+    Draws precision and recall curves, plus one F-beta curve per value in
+    `betas`, and drops a vertical marker at each beta's recommended threshold.
+    Needs matplotlib; pass an existing `ax` to compose into a larger figure.
+    """
+    import matplotlib.pyplot as plt
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(9, 5))
+
+    sw = sweep_threshold(pred, truth, thresholds)
+    ax.plot(sw.index, sw["precision"], "o-", color="tab:blue", label="precision")
+    ax.plot(sw.index, sw["recall"], "s-", color="tab:orange", label="recall")
+
+    colours = ["tab:green", "tab:red", "tab:purple", "tab:brown"]
+    for beta, col in zip(betas, colours):
+        rec = recommend_threshold(pred, truth, beta=beta, thresholds=thresholds)
+        tbl = rec["table"]
+        ax.plot(tbl.index, tbl["fbeta"], "^--", color=col, alpha=0.7,
+                label=f"F(beta={beta})")
+        bt = rec["best_threshold"]
+        if bt is not None:
+            ax.axvline(bt, color=col, ls=":", alpha=0.6)
+            ax.annotate(f"β={beta}→{bt}",
+                        xy=(bt, 0.02), rotation=90, color=col,
+                        fontsize=8, va="bottom", ha="right")
+
+    ax.set_xlabel("alert threshold (%)")
+    ax.set_ylabel("score")
+    ax.set_ylim(0, 1.05)
+    ax.legend(loc="upper right", fontsize=8, ncol=2)
+    ax.set_title(title or "Threshold calibration")
+    return ax
