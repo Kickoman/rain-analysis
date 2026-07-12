@@ -55,6 +55,7 @@ class AnalysisConfig:
     ha_csv: str = ""
     om_sources: list[str] = field(default_factory=list)
     yandex_dir: Optional[str] = None
+    meteostat_json: Optional[str] = None
 
     ha_entities: dict = field(default_factory=lambda: {
         "sensor.datchik_klimata_temperatura": "temp",
@@ -102,7 +103,10 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
     # Yandex
     yx = rl.load_yandex_archive(config.yandex_dir) if config.yandex_dir else pd.DataFrame()
 
-    grid = rl.build_grid(ha, om, yx, freq=config.grid_freq)
+    # Meteostat
+    ms = rl.load_meteostat(config.meteostat_json) if config.meteostat_json else pd.DataFrame()
+
+    grid = rl.build_grid(ha, om, yx, ms, freq=config.grid_freq)
 
     stats = {
         "ha_rows": len(ha_long),
@@ -111,6 +115,8 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
         "om_cols": list(om.columns) if not om.empty else [],
         "yandex_snapshots": len(yx),
         "yandex_cols": list(yx.columns) if not yx.empty else [],
+        "meteostat_hours": len(ms),
+        "meteostat_cols": list(ms.columns) if not ms.empty else [],
         "grid_shape": grid.shape,
         "grid_start": str(grid.index.min()),
         "grid_end": str(grid.index.max()),
@@ -302,8 +308,10 @@ def cross_check(grid: pd.DataFrame) -> dict:
     cmp = grid.resample("1h").last()
 
     sources = {}
-    for col in ["temp", "rh", "om_temp", "om_rh", "yx_temp", "yx_humidity",
-                 "ha_rain_prob", "om_precip", "yx_prec_prob", "yx_condition"]:
+    for col in ["temp", "rh", "om_temp", "om_rh", "ms_temp", "ms_rhum",
+                 "yx_temp", "yx_humidity",
+                 "ha_rain_prob", "om_precip", "ms_precip",
+                 "yx_prec_prob", "yx_condition", "ms_pres"]:
         if col in cmp.columns:
             series = cmp[col].dropna()
             if len(series) > 0:
@@ -341,9 +349,41 @@ def cross_check(grid: pd.DataFrame) -> dict:
     else:
         yandex_vs_truth = None
 
+    # Three-way precipitation comparison
+    three_way = None
+    precip_cols = []
+    if "om_precip" in grid.columns:
+        precip_cols.append(("om", "om_precip"))
+    if "ms_precip" in grid.columns:
+        precip_cols.append(("ms", "ms_precip"))
+    if "yx_is_rain" in grid.columns:
+        precip_cols.append(("yx", "yx_is_rain"))
+
+    if len(precip_cols) >= 2:
+        three_way = {"sources": len(precip_cols)}
+        for name, col in precip_cols:
+            # Resample to hourly and count rain hours
+            hourly = grid[col].resample("1h").max()
+            rain = (hourly > 0).sum() if hourly.dtype in ['float64', 'int64'] else (hourly == 1).sum()
+            three_way[f"{name}_rain_hours"] = int(rain)
+
+        # Calculate agreement between all pairs
+        if len(precip_cols) >= 2:
+            for i in range(len(precip_cols)):
+                for j in range(i + 1, len(precip_cols)):
+                    n1, c1 = precip_cols[i]
+                    n2, c2 = precip_cols[j]
+                    h1 = grid[c1].resample("1h").max()
+                    h2 = grid[c2].resample("1h").max()
+                    h1_rain = (h1 > 0) if h1.dtype in ['float64', 'int64'] else (h1 == 1)
+                    h2_rain = (h2 > 0) if h2.dtype in ['float64', 'int64'] else (h2 == 1)
+                    agree = (h1_rain & h2_rain).sum()
+                    three_way[f"{n1}_{n2}_agree"] = int(agree)
+
     return {
         "data_coverage": sources,
         "yandex_vs_truth": yandex_vs_truth,
+        "precip_comparison": three_way,
     }
 
 
@@ -548,6 +588,8 @@ def main():
                         help="Open-meteo JSON file(s)")
     parser.add_argument("--yandex-dir", default=None,
                         help="Yandex archive directory (recursive JSON glob)")
+    parser.add_argument("--meteostat", default=None,
+                        help="Meteostat JSON file")
     parser.add_argument("--output", "-o", default="analysis_report.json",
                         help="Output JSON report path")
     parser.add_argument("--plots", action="store_true",
@@ -565,6 +607,7 @@ def main():
         ha_csv=args.ha_csv,
         om_sources=args.om_sources,
         yandex_dir=args.yandex_dir,
+        meteostat_json=args.meteostat,
         decision_threshold=args.threshold,
         rain_threshold_mm=args.rain_threshold,
     )
