@@ -316,7 +316,7 @@ def cross_check(grid: pd.DataFrame) -> dict:
                 }
 
     # Condition comparison: Yandex rain-conditions vs actual rain
-    if "yx_condition" in cmp.columns and "rain_truth" in grid.columns:
+    if "yx_condition" in cmp.columns and "rain_truth" in grid.columns and "om_precip" in grid.columns:
         truth_hourly = (
             grid[["rain_truth", "om_precip"]]
             .resample("1h")
@@ -386,7 +386,7 @@ def generate_summary(report: dict) -> str:
     lines.append("--- MODEL PERFORMANCE (at {}% threshold) ---".format(meta["config"]["decision_threshold"]))
     header = f"  {'Model':<22} {'Prec':>6} {'Recall':>6} {'F1':>6} {'TP':>5} {'FP':>5} {'FN':>5}"
     lines.append(header)
-    lines.append("  " + "-" * len(header) + 8)
+    lines.append("  " + "-" * len(header) + "--------")
     for name, s in scores.items():
         if s["precision"] is not None:
             lines.append(
@@ -472,7 +472,7 @@ def save_plots(grid: pd.DataFrame, config: AnalysisConfig, output_dir: str) -> l
 
     # Panel C: Rain predictions + truth
     ax = axes[2]
-    if "rain_truth" in grid.columns:
+    if "rain_truth" in grid.columns and "om_precip" in grid.columns:
         truth_h = grid[["rain_truth", "om_precip"]].resample("1h").max()
         mask = truth_h["rain_truth"] == 1
         if mask.any():
