@@ -36,11 +36,18 @@ rain-analysis/
 ├── rain_analysis.ipynb      # Interactive Jupyter notebook
 ├── rainlib.py                # Core analysis engine (physics, models, metrics)
 ├── run_analysis.py           # Automated CLI analysis script
+├── run_full_analysis.py      # Complete pipeline (fetch + analyze)
 ├── fetch_ha_data.py          # Home Assistant data fetcher
+├── fetch_openmeteo.py        # Open-Meteo API client
+├── fetch_meteostat.py        # Meteostat API client
+├── fetch_yandex_archive.py   # Yandex Weather archive downloader
 ├── docs/
 │   ├── BASELINE_MODEL.md     # Current model analysis (v0.1)
+│   ├── MODELS.md             # All models documentation
 │   ├── CLI_RUNNER.md         # CLI script documentation
-│   └── HA_DATA_FETCHER.md    # Data fetching guide
+│   ├── DATA_SOURCES.md       # Data collection guide
+│   ├── HA_DATA_FETCHER.md    # HA fetcher details
+│   └── CONTRIBUTING.md       # Development guide
 ├── data/                     # Your local data files (gitignored)
 └── requirements.txt
 ```
@@ -150,7 +157,9 @@ The baseline model hits a ceiling without pressure. To add it:
 
 ## Documentation
 
+- [Models Documentation](docs/MODELS.md) — complete guide to all rain prediction models
 - [Baseline Model Analysis](docs/BASELINE_MODEL.md) — detailed breakdown of v0.1
+- [Data Sources Guide](docs/DATA_SOURCES.md) — how to fetch all 4 data sources
 - [CLI Runner Guide](docs/CLI_RUNNER.md) — automated analysis script
 - [HA Data Fetcher](docs/HA_DATA_FETCHER.md) — sensor history export
 
