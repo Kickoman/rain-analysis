@@ -12,6 +12,18 @@ pip install pandas numpy matplotlib jupyter
 jupyter notebook rain_analysis.ipynb
 ```
 
+**Standalone mode:** The notebook can fetch data automatically. Edit the configuration cell at the top:
+
+```python
+# CONFIGURATION
+HA_CSV = 'data/ha.csv'
+OM_SOURCES = ['data/openmeteo.json']
+YANDEX_DIR = 'data/yandex/'
+METEOSTAT_JSON = 'data/meteostat.json'
+```
+
+Then uncomment the optional data fetching cells to run the fetch scripts directly from the notebook.
+
 ### Automated Analysis (CLI)
 
 ```bash
