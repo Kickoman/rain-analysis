@@ -90,7 +90,7 @@ def main():
     )
     parser.add_argument(
         "--config",
-        default="/home/node/.openclaw/workspace/.ha_config.json",
+        default=os.path.expanduser("~/.openclaw/workspace/.ha_config.json"),
         help="Path to HA config JSON (url + token)",
     )
     parser.add_argument(

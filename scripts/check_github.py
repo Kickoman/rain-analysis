@@ -14,7 +14,7 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 import requests
 
-WORKSPACE = Path("/home/node/.openclaw/workspace")
+WORKSPACE = Path.home() / ".openclaw/workspace"
 REPO = "Kickoman/rain-analysis"
 STATE_FILE = WORKSPACE / "memory/heartbeat-state.json"
 
