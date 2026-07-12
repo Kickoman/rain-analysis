@@ -4,12 +4,13 @@ How to obtain all three data sources required for the rain analysis pipeline.
 
 ## Overview
 
-The analysis pipeline needs three data sources aligned on one time grid:
+The analysis pipeline needs four data sources aligned on one time grid:
 
 | Source | What | Format | How to get |
 |--------|------|--------|------------|
 | **Home Assistant** | Local sensors (temp, humidity, model output) | CSV | `fetch_ha_data.py` |
 | **Open-Meteo** | Ground truth precipitation | JSON | `fetch_openmeteo.py` |
+| **Meteostat** | Historical weather station data (incl. pressure!) | JSON | `fetch_meteostat.py` |
 | **Yandex Weather** | Independent weather data for comparison | JSON archive | `fetch_yandex_archive.py` |
 
 ## 1. Home Assistant Data
@@ -125,7 +126,55 @@ python run_analysis.py \
 
 Rainlib concatenates them automatically, deduplicating on time.
 
-## 3. Yandex Weather Data
+## 3. Meteostat Data (Ground Truth #2 + Pressure)
+
+### Location
+
+Station 26850 — Minsk
+
+### Fetch
+
+```bash
+python fetch_meteostat.py --days 7 --output data/meteostat.json
+```
+
+Uses [Meteostat API](https://dev.meteostat.net/api/) hourly station data.
+
+### Output Format
+
+```json
+{
+  "meta": { "station": { "id": "26850" } },
+  "data": [
+    {
+      "time": "2026-07-05 00:00:00",
+      "temp": 14.5,
+      "rhum": 89.0,
+      "prcp": 0.0,
+      "pres": 1007.7,
+      "dwpt": 12.9,
+      "wdir": 320.0,
+      "wspd": 7.0
+    },
+    ...
+  ]
+}
+```
+
+**Key fields in rainlib:**
+- `ms_precip` — hourly precipitation (ground truth #2)
+- `ms_pres` — atmospheric pressure (for pressure-aware model!)
+- `ms_temp`, `ms_rhum` — temperature, humidity (cross-check)
+- `ms_wspd`, `ms_wdir` — wind (future use)
+
+### Why Meteostat?
+
+Unlike Open-Meteo (reanalysis) and Yandex (spot observations), Meteostat provides:
+- **Real weather station data** (station 26850 = Minsk)
+- **Pressure data** — essential for pressure-aware model
+- **Third vote** — can use majority voting for rain detection
+
+## 4. Yandex Weather Data
 
 ### Archive Location
 
@@ -207,9 +256,17 @@ python fetch_openmeteo.py \
     --output "${OUTDIR}/openmeteo.json" \
     --quiet
 
-echo "=== 3/3: Yandex ==="
-python fetch_yandex_archive.py \
-    --output "${OUTDIR}/yandex/" \
+echo "=== 3/4: Open-Meteo ==="
+python fetch_openmeteo.py \
+    --use-forecast \
+    --days 7 \
+    --output "${OUTDIR}/openmeteo.json" \
+    --quiet
+
+echo "=== 4/4: Meteostat ==="
+python fetch_meteostat.py \
+    --days 7 \
+    --output "${OUTDIR}/meteostat.json" \
     --quiet
 
 echo "✓ All data collected in ${OUTDIR}/"
@@ -218,6 +275,7 @@ echo "=== Running Analysis ==="
 python run_analysis.py \
     --ha-csv "${OUTDIR}/ha.csv" \
     --om-sources "${OUTDIR}/openmeteo.json" \
+    --meteostat "${OUTDIR}/meteostat.json" \
     --yandex-dir "${OUTDIR}/yandex/" \
     --output "reports/${DATE}.json" \
     --plots

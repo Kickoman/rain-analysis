@@ -117,17 +117,28 @@ def main():
         "--output", str(yandex_dir),
     ], "2/3: Downloading Yandex Weather archive")
 
-    # Step 3: Open-Meteo (allow failure — network issues on sandbox)
+    # Step 3: Open-Meteo
     om_success = run_command([
         args.python, "fetch_openmeteo.py",
         "--days", str(args.days),
         "--output", str(om_json),
-    ], "3/3: Fetching Open-Meteo data", allow_fail=True)
+    ], "3/4: Fetching Open-Meteo data", allow_fail=True)
+
+    # Step 4: Meteostat
+    ms_json = data_dir / f"meteostat_{timestamp}.json"
+    ms_success = run_command([
+        args.python, "fetch_meteostat.py",
+        "--days", str(args.days),
+        "--output", str(ms_json),
+    ], "4/4: Fetching Meteostat data", allow_fail=True)
 
     if not om_success:
         print("\n⚠️  Open-Meteo fetch failed (network timeout?)")
-        print("    Analysis will continue without precipitation ground truth")
-        print("    This is expected on sandbox hosts with restricted network")
+        print("    Analysis will continue without Open-Meteo ground truth")
+    
+    if not ms_success:
+        print("\n⚠️  Meteostat fetch failed")
+        print("    Analysis will continue without pressure/precip data from Meteostat")
 
     # Step 4: Run analysis
     analysis_cmd = [
@@ -139,6 +150,9 @@ def main():
     
     if om_success and om_json.exists():
         analysis_cmd.extend(["--om-sources", str(om_json)])
+    
+    if ms_success and ms_json.exists():
+        analysis_cmd.extend(["--meteostat", str(ms_json)])
     
     if not args.skip_plots:
         analysis_cmd.append("--plots")

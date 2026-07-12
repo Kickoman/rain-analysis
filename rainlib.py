@@ -401,6 +401,48 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
     return out
 
 
+def load_meteostat(json_path: str) -> pd.DataFrame:
+    """Load Meteostat hourly data from JSON.
+
+    Expects JSON from Meteostat API:
+    {
+      "meta": {...},
+      "data": [
+        {"time": "2026-07-05 00:00:00", "temp": 14.5, "prcp": 0.0, "pres": 1007.7, ...},
+        ...
+      ]
+    }
+
+    Returns DataFrame with columns: ms_temp, ms_rhum, ms_precip, ms_pres, ms_dwpt
+    """
+    with open(json_path) as f:
+        data = json.load(f)
+
+    records = data.get("data", [])
+    if not records:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(records)
+    df["time"] = pd.to_datetime(df["time"], utc=True)
+    df = df.set_index("time").sort_index()
+
+    # Rename to ms_ prefix
+    rename_map = {
+        "temp": "ms_temp",
+        "rhum": "ms_rhum",
+        "prcp": "ms_precip",
+        "pres": "ms_pres",
+        "dwpt": "ms_dwpt",
+        "wdir": "ms_wdir",
+        "wspd": "ms_wspd",
+    }
+    df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
+
+    # Keep only the columns we renamed
+    keep_cols = [v for v in rename_map.values() if v in df.columns]
+    return df[keep_cols]
+
+
 # ---------------------------------------------------------------------------
 # 5. UNIFIED TIME GRID
 # ---------------------------------------------------------------------------
@@ -408,6 +450,7 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
 def build_grid(ha_wide_df: pd.DataFrame | None = None,
                om_df: pd.DataFrame | None = None,
                yx_df: pd.DataFrame | None = None,
+               ms_df: pd.DataFrame | None = None,
                freq: str = "10min",
                ffill_limit_min: int = 90) -> pd.DataFrame:
     """Resample every source onto one regular grid and merge.
@@ -415,12 +458,12 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
     * Local HA sensors are irregular (event-based) -> forward-filled onto the
       grid up to `ffill_limit_min` minutes (so a dead sensor doesn't fill
       forever).
-    * open-meteo and Yandex are hourly -> reindexed onto the grid; precip is
-      forward-filled within the hour, conditions likewise.
+    * open-meteo, Yandex, and Meteostat are hourly -> reindexed onto the grid;
+      precip is forward-filled within the hour, conditions likewise.
 
     Returns one tidy DataFrame indexed by the regular UTC grid.
     """
-    frames = [f for f in (ha_wide_df, om_df, yx_df) if f is not None and not f.empty]
+    frames = [f for f in (ha_wide_df, om_df, yx_df, ms_df) if f is not None and not f.empty]
     if not frames:
         raise ValueError("No data sources provided to build_grid().")
 
@@ -450,6 +493,12 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
         ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
         out = out.join(yx_r)
 
+    if ms_df is not None and not ms_df.empty:
+        ms_r = ms_df.sort_index().reindex(
+            ms_df.index.union(grid)
+        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+        out = out.join(ms_r)
+
     return out
 
 
@@ -460,14 +509,16 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
 def label_rain(grid: pd.DataFrame,
                precip_col: str = "om_precip",
                threshold_mm: float = 0.1) -> pd.Series:
-    """Boolean 'is it raining' label from open-meteo precipitation.
+    """Boolean 'is it raining' label from precipitation data.
 
     open-meteo precip is an hourly *sum* for the preceding hour; any value
-    >= threshold_mm marks that hour as raining. Falls back to Yandex
-    condition if open-meteo precip is unavailable.
+    >= threshold_mm marks that hour as raining. Falls back to Meteostat,
+    then Yandex condition if open-meteo precip is unavailable.
     """
     if precip_col in grid and grid[precip_col].notna().any():
         return (grid[precip_col].fillna(0) >= threshold_mm).astype(int)
+    if "ms_precip" in grid and grid["ms_precip"].notna().any():
+        return (grid["ms_precip"].fillna(0) > 0).astype(int)
     if "yx_is_rain" in grid:
         return grid["yx_is_rain"].fillna(0).astype(int)
     raise ValueError("No precipitation or condition column to label from.")
