@@ -16,9 +16,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 import subprocess
 
-WORKSPACE = Path("/home/node/.openclaw/workspace/rain-prediction-project/rain-analysis")
+WORKSPACE = Path.home() / ".openclaw/workspace/rain-prediction-project/rain-analysis"
 REPORTS_DIR = WORKSPACE / "reports"
-VENV_PYTHON = "/home/node/.openclaw/workspace/gmail_venv/bin/python"
+VENV_PYTHON = str(Path.home() / ".openclaw/workspace/gmail_venv/bin/python")
 
 def run_cmd(cmd, cwd=WORKSPACE):
     """Run command and return output."""
