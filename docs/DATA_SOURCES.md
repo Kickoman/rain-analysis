@@ -251,7 +251,6 @@ python fetch_ha_data.py \
 
 echo "=== 2/4: Open-Meteo ==="
 python fetch_openmeteo.py \
-    --use-forecast \
     --days 7 \
     --output "${OUTDIR}/openmeteo.json" \
     --quiet
