@@ -87,40 +87,109 @@ From `BASELINE_MODEL.md`:
 
 ### Algorithm
 
-Enhanced version of `original` with **hysteresis** and **state persistence**:
+Weighted blend of dew-point proximity and trend score:
 
 ```python
-# Compute base score (same as original)
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
-score = proximity + trend
+spread = dew_point_spread  # from sensor.outside_dew_point_spread
+trend = dew_point_spread_trend  # from sensor.outside_dew_point_spread_trend (°C/h)
 
-# Hysteresis: decay previous state towards current score
-if previous_state > score:
-    current_state = previous_state * hysteresis_decay + score * (1 - hysteresis_decay)
-else:
-    current_state = score
+# Proximity score: 0°C spread = 100, 8°C+ spread = 0
+proximity = 100 - (spread / 8 * 100)
+proximity = clamp(proximity, 0, 100)
 
-rain_probability = current_state
+# Trend score: narrowing spread (-1.5°C/h or faster) boosts score,
+# widening reduces it. Scaled to ±40 points.
+trend_score = -trend * 26.7
+trend_score = clamp(trend_score, -40, 40)
+
+# Weighted blend
+rain_probability = proximity * 0.7 + trend_score * 0.7
+rain_probability = clamp(rain_probability, 0, 100)
 ```
 
 ### Parameters
 
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
-| `proximity_divisor` | 10 | Same as original |
-| `trend_gain` | 20 | Same as original |
-| `hysteresis_decay` | 0.3 | State persistence (0=instant, 1=frozen) |
-| `decision_threshold` | 50% | Rain/no-rain cutoff |
+| `proximity_divisor` | 8 | Spread normalization (°C) |
+| `trend_multiplier` | 26.7 | Maps trend to ±40 point range |
+| `proximity_weight` | 0.7 | Proximity contribution |
+| `trend_weight` | 0.7 | Trend contribution |
+
+### Production Implementation
+
+**Template Sensor:**
+
+```jinja
+{% set spread = states('sensor.outside_dew_point_spread') | float(10) %}
+{% set trend = states('sensor.outside_dew_point_spread_trend') | float(0) %}
+
+{# Proximity score: 0°C spread = 100, 8°C+ spread = 0 #}
+{% set proximity = (100 - (spread / 8 * 100)) | round(0) %}
+{% set proximity = [proximity, 0] | max %}
+{% set proximity = [proximity, 100] | min %}
+
+{# Trend score: narrowing fast (-1.5°C/h or more) boosts score,
+   widening reduces it. Scaled to +/-40 points. #}
+{% set trend_score = (-trend * 26.7) | round(0) %}
+{% set trend_score = [trend_score, -40] | max %}
+{% set trend_score = [trend_score, 40] | min %}
+
+{# Weighted blend: proximity matters more than trend #}
+{% set total = (proximity * 0.7) + (trend_score * 0.7) %}
+{% set total = [total, 0] | max %}
+{% set total = [total, 100] | min %}
+{{ total | round(0) }}
+```
+
+**Automation:**
+
+```yaml
+alias: Possible rain notification
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.outside_dew_point_spread
+    below: 4
+    for:
+      minutes: 5
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.outside_dew_point_spread_trend
+    below: -0.5
+actions:
+  - action: telegram_bot.send_message
+    data:
+      entity_id: notify.telegram_bot_kastus
+      message: >-
+        🌧️ Chutka mažlivy doždž!
+        
+        Roznaść pamiž temperaturaj pavietra i punktam rasy ŭžo
+        {{ states('sensor.outside_dew_point_spread') }}°C i zvužvajecca z
+        chutkaściu {{ states('sensor.outside_dew_point_spread_trend') }}°C/h.
+mode: single
+```
+
+**Trigger:** Dew point spread < 4°C for 5+ minutes AND narrowing faster than -0.5°C/h
+
+**Sensors Used:**
+- `sensor.outside_dew_point_spread` — temperature minus dew point (°C)
+- `sensor.outside_dew_point_spread_trend` — 1-hour rate of change (°C/h)
+
+**Note:** `sensor.pressure_rain_score` exists but is currently unused (for testing/experimentation only).
 
 ### How It Works
 
-**Hysteresis** provides temporal smoothing:
+**Proximity score** measures saturation:
+- spread = 0°C (100% RH) → proximity = 100
+- spread = 8°C → proximity = 0
+- Linear interpolation between
 
-- When score rises → follow immediately (rain event starting)
-- When score falls → decay slowly (rain might resume)
+**Trend score** detects approaching weather systems:
+- Narrowing at -1.5°C/h → +40 points
+- Widening at +1.5°C/h → -40 points
+- No change → 0 points
 
-This reduces "flapping" — rapid on/off transitions that create noise.
+**Weighted sum:** Both components weighted at 0.7 (yes, this means effective max is 140 before clamping, but result is always clamped to 0-100).
 
 ### Improvements Over Original
 
@@ -128,17 +197,15 @@ This reduces "flapping" — rapid on/off transitions that create noise.
 ✅ **+17% recall** (0.389 → 0.455) — catches more rain  
 ✅ **+2% precision** (0.507 → 0.519) — slightly fewer false positives
 
-### Why It's Better
-
-Hysteresis captures **rain event continuity**:
-- Real rain is persistent (lasts minutes to hours)
-- Dry-night false positives are transient spikes
-
-By smoothing state over time, `ha_live` filters some noise.
-
 ### Remaining Issues
 
-Still suffers from dry-night false positives — hysteresis helps but doesn't eliminate them. **Precision 0.519** means **48% of alerts are still false**.
+Still suffers from dry-night false positives — **precision 0.519** means **48% of alerts are still false**.
+
+The tighter spread threshold (8°C vs 10°C) and trend contribution help, but don't fully distinguish between:
+- **Real rain:** weather system with falling pressure + closed spread
+- **Dry night:** radiative cooling with stable pressure + closed spread
+
+Next step: add pressure awareness (see `pressure_aware` model below).
 
 ---
 
@@ -393,5 +460,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-12  
+**Last Updated:** 2026-07-13  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)

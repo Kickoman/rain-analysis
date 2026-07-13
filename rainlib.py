@@ -270,11 +270,29 @@ def model_trend_dominant(spread: pd.Series, spread_deriv: pd.Series,
     return pd.Series(out, index=df.index).round(0)
 
 
+def model_ha_live(spread: pd.Series, spread_deriv: pd.Series,
+                  p: ModelParams | None = None) -> pd.Series:
+    """Current Home Assistant production model (no hysteresis, simple weighted blend).
+
+    Formula matches the actual HA template sensor deployed in production:
+        proximity = clamp(100 - (spread / 8 * 100), 0, 100)
+        trend_score = clamp(-trend * 26.7, -40, 40)
+        rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
+
+    This is stateless (no hysteresis), so each output depends only on current inputs.
+    """
+    proximity = _clamp(100.0 - (spread / 8.0 * 100.0), 0, 100)
+    trend_score = _clamp(-spread_deriv * 26.7, -40, 40)
+    total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
+    return total.round(0)
+
+
 # Registry so the notebook can loop over models by name.
 MODELS = {
     "original": model_original,
     "tuned": model_tuned,
     "trend_dominant": model_trend_dominant,
+    "ha_live": model_ha_live,
 }
 
 
