@@ -237,36 +237,34 @@ The `load_yandex_archive()` function in rainlib.py extracts:
 
 ```bash
 #!/bin/bash
-# collect_all_data.sh — fetch all three sources for analysis
+# collect_all_data.sh — fetch all four sources for analysis
 
 DATE=$(date +%Y-%m-%d)
 OUTDIR="data/${DATE}"
 mkdir -p "${OUTDIR}"
 
-echo "=== 1/3: Home Assistant ==="
+echo "=== 1/4: Home Assistant ==="
 python fetch_ha_data.py \
     --days 7 \
     --output "${OUTDIR}/ha.csv" \
     --quiet
 
-echo "=== 2/3: Open-Meteo ==="
+echo "=== 2/4: Open-Meteo ==="
 python fetch_openmeteo.py \
     --use-forecast \
     --days 7 \
     --output "${OUTDIR}/openmeteo.json" \
     --quiet
 
-echo "=== 3/4: Open-Meteo ==="
-python fetch_openmeteo.py \
-    --use-forecast \
-    --days 7 \
-    --output "${OUTDIR}/openmeteo.json" \
-    --quiet
-
-echo "=== 4/4: Meteostat ==="
+echo "=== 3/4: Meteostat ==="
 python fetch_meteostat.py \
     --days 7 \
     --output "${OUTDIR}/meteostat.json" \
+    --quiet
+
+echo "=== 4/4: Yandex Weather ==="
+python fetch_yandex_archive.py \
+    --output "${OUTDIR}/yandex/" \
     --quiet
 
 echo "✓ All data collected in ${OUTDIR}/"
