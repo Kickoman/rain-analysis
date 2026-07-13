@@ -72,8 +72,9 @@ python fetch_openmeteo.py \
 Uses [Open-Meteo Archive API](https://archive-api.open-meteo.com/v1/archive).
 Good for: older data, exact date ranges.
 
-> **Note:** If the Open-Meteo API times out, try the forecast API variant (`--use-forecast`)
-> which may be routed differently.
+> **Note:** If the Open-Meteo API times out, check network connectivity first.
+> The Forecast API (`--use-forecast`) is a **different data source** — do NOT use it as
+> a timeout fallback for archive data; the results may not be comparable.
 
 ### Manual Fetch (Curl)
 
