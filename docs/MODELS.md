@@ -1,77 +1,47 @@
-# MODELS.md — Rain Prediction Models
+# Rain Prediction Models
 
-Complete documentation of all rain prediction models in this analysis framework.
-
-## Model Comparison Table
-
-| Model | Type | F1 (7d) | Precision | Recall | Status |
-|-------|------|:-------:|:---------:|:------:|--------|
-| **ha_live** | Production | **0.484** | 0.519 | 0.455 | ✅ Best |
-| **original** | Baseline v0.1 | 0.440 | 0.507 | 0.389 | 📊 Reference |
-| **tuned** | Optimized | 0.441 | 0.448 | 0.433 | 🔧 Experimental |
-| **trend_dominant** | Experimental | 0.115 | 0.696 | 0.063 | ❌ Failed |
-
-*Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
+This document describes the rain prediction models used in this project, from simple baseline to production-ready implementations.
 
 ---
 
-## 1. Original (Baseline v0.1)
+## 1. original (Baseline)
 
-**Status:** Reference baseline  
-**Implementation:** `sensor.rain_probability` in Home Assistant  
+**Status:** 🧪 Experimental baseline  
 **F1:** 0.440 | **Precision:** 0.507 | **Recall:** 0.389
 
 ### Algorithm
 
-Dew-point spread-based detection with trend reinforcement:
+Simple linear combination of two weather signals:
 
 ```python
-spread = temperature - dew_point
+# Proximity to dew point (0-100 scale)
 proximity = 100 * (1 - spread / proximity_divisor)
+
+# Humidity increase rate (how fast RH rising)
 trend = humidity_increase_rate * trend_gain
 
+# Combined score
 rain_probability = proximity + trend
-if rain_probability >= threshold:
-    rain_alert = True
 ```
 
 ### Parameters
 
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
-| `proximity_divisor` | 10 | Spread normalization (°C) |
-| `trend_gain` | 20 | Trend weight multiplier |
+| `proximity_divisor` | 10 | Spread scaling (10°C = 0% rain chance) |
+| `trend_gain` | 20 | Trend weight (1%/min rise = 20 points) |
 | `decision_threshold` | 50% | Rain/no-rain cutoff |
 
 ### How It Works
 
-1. **Proximity score** — measures how close current conditions are to saturation
-   - Small spread (T ≈ Td) → high proximity → rain likely
-   - Large spread (dry air) → low proximity → no rain
-   
-2. **Trend reinforcement** — rewards rising humidity
-   - Recent RH increase → positive trend → boosts score
-   - Falling RH → negative trend → suppresses score
+**Proximity:** Temperature approaching dew point signals condensation risk.  
+**Trend:** Rising humidity suggests moisture inflow (fronts, convection).
 
-3. **Decision** — threshold at 50%
+Both indicators together improve accuracy over using spread alone.
 
-### Strengths
+### Weakness
 
-- Simple, interpretable
-- No training data required
-- Works reasonably well for real rain events
-
-### Weaknesses
-
-- **Dry-night false positives** — calm clear nights with falling temperature close the spread just like rain does
-- **No pressure awareness** — can't distinguish weather system from diurnal cycle
-- **Low recall (0.389)** — misses 60% of rain events
-
-### Known Issues
-
-From `BASELINE_MODEL.md`:
-
-> *"Спокойные ночи с падающей температурой закрывают spread точно так же, как и реальные дождливые ночи. Модель не может их отличить, потому что использует только поверхностную влажность."*
+❌ **Dry-night false positives** — radiative cooling at night causes spread to narrow even when no rain is coming.
 
 **Example false positive:**
 - 23:00 — clear sky, T=18°C, RH=65%, Td=11°C, spread=7°C
@@ -83,315 +53,209 @@ From `BASELINE_MODEL.md`:
 ## 2. ha_live (Production Model)
 
 **Status:** ✅ Current production (deployed in Home Assistant)  
-**F1:** 0.484 | **Precision:** 0.519 | **Recall:** 0.455
+**Performance:** Not yet benchmarked against validation dataset
 
 ### Algorithm
 
-Enhanced version of `original` with **hysteresis** and **state persistence**:
+Weighted blend of proximity and trend scores with strict range clamping:
 
 ```python
-# Compute base score (same as original)
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
-score = proximity + trend
+# Proximity score: linear scale from 8°C spread (0%) to 0°C spread (100%)
+proximity = 100 - (spread / 8.0 * 100)
+proximity = max(0, min(100, proximity))
 
-# Hysteresis: decay previous state towards current score
-if previous_state > score:
-    current_state = previous_state * hysteresis_decay + score * (1 - hysteresis_decay)
-else:
-    current_state = score
+# Trend score: narrowing spread adds points, widening subtracts
+# Scaled to ±40 points range
+trend_score = -trend * 26.7
+trend_score = max(-40, min(40, trend_score))
 
-rain_probability = current_state
+# Weighted blend (both weighted at 0.7)
+total = (proximity * 0.7) + (trend_score * 0.7)
+rain_probability = max(0, min(100, total))
 ```
 
 ### Parameters
 
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
-| `proximity_divisor` | 10 | Same as original |
-| `trend_gain` | 20 | Same as original |
-| `hysteresis_decay` | 0.3 | State persistence (0=instant, 1=frozen) |
-| `decision_threshold` | 50% | Rain/no-rain cutoff |
+| `spread_divisor` | 8 | Spread scaling (8°C = 0%, 0°C = 100%) |
+| `trend_multiplier` | 26.7 | Trend weight (-1.5°C/h → +40 points) |
+| `proximity_weight` | 0.7 | Proximity contribution |
+| `trend_weight` | 0.7 | Trend contribution |
+| `trend_range` | ±40 | Trend score bounds |
 
-### How It Works
+### Production Setup
 
-**Hysteresis** provides temporal smoothing:
+**Template Sensor:** `sensor.rain_probability`
 
-- When score rises → follow immediately (rain event starting)
-- When score falls → decay slowly (rain might resume)
+Updates every 15-30 minutes based on:
+- `sensor.outside_dew_point_spread` — current spread (°C)
+- `sensor.outside_dew_point_spread_trend` — rate of change (°C/h)
 
-This reduces "flapping" — rapid on/off transitions that create noise.
+**Automation:** `automation.possible_rain_notification`
+
+Triggers when:
+1. Spread drops below 4°C for 5+ minutes
+2. AND trend < -0.5°C/h (narrowing)
+
+Action: Sends Telegram notification
+
+**Note:** `sensor.pressure_rain_score` exists but is not currently used in production — it's for testing purposes only.
+
+### Home Assistant Configuration
+
+<details>
+<summary>Template Sensor (rain_probability)</summary>
+
+```jinja
+{% set spread = states('sensor.outside_dew_point_spread') | float(10) %}
+{% set trend = states('sensor.outside_dew_point_spread_trend') | float(0) %}
+
+{# Proximity score: 0°C spread = 100, 8°C+ spread = 0 #}
+{% set proximity = (100 - (spread / 8 * 100)) | round(0) %}
+{% set proximity = [proximity, 0] | max %}
+{% set proximity = [proximity, 100] | min %}
+
+{# Trend score: narrowing fast (-1.5°C/h or more) boosts score,
+   widening reduces it. Scaled to +/-40 points. #}
+{% set trend_score = (-trend * 26.7) | round(0) %}
+{% set trend_score = [trend_score, -40] | max %}
+{% set trend_score = [trend_score, 40] | min %}
+
+{# Weighted blend: proximity matters more than trend #}
+{% set total = (proximity * 0.7) + (trend_score * 0.7) %}
+{% set total = [total, 0] | max %}
+{% set total = [total, 100] | min %}
+{{ total | round(0) }}
+```
+
+</details>
+
+<details>
+<summary>Automation (possible_rain_notification)</summary>
+
+```yaml
+alias: Possible rain notification
+description: ""
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.outside_dew_point_spread
+    for:
+      hours: 0
+      minutes: 5
+      seconds: 0
+    below: 4
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.outside_dew_point_spread_trend
+    below: -0.5
+actions:
+  - action: telegram_bot.send_message
+    metadata: {}
+    data:
+      entity_id:
+        - notify.telegram_bot_kastus
+      message: >-
+        🌧️ Chutka mažlivy doždž!
+
+        Roznaść pamiž temperaturaj pavietra i punktam rasy ŭžo {{
+        states('sensor.outside_dew_point_spread') }}°C i zvužvajecca z
+        chutkaściu {{ states('sensor.outside_dew_point_spread_trend') }}°C/h.
+mode: single
+```
+
+</details>
+
+### Design Notes
+
+**Why both weights are 0.7?**  
+This effectively makes the total score: `0.7 * (proximity + trend_score)`. The dual weighting appears to be a scaling factor rather than differential weighting between the two components.
+
+**Why trend_multiplier = 26.7?**  
+This gives approximately ±40 points for realistic trend ranges:
+- Fast narrowing (-1.5°C/h) → +40 points
+- Fast widening (+1.5°C/h) → -40 points
+
+**No hysteresis:**  
+Unlike documented earlier versions, the production model has no state persistence. Each calculation is independent.
 
 ### Improvements Over Original
 
-✅ **+10% F1** (0.440 → 0.484)  
-✅ **+17% recall** (0.389 → 0.455) — catches more rain  
-✅ **+2% precision** (0.507 → 0.519) — slightly fewer false positives
+✅ More sensitive to rapid changes (stronger trend component)  
+✅ Stricter range bounds prevent score overflow  
+✅ Production-tested automation thresholds
 
-### Why It's Better
+### Remaining Gaps
 
-Hysteresis captures **rain event continuity**:
-- Real rain is persistent (lasts minutes to hours)
-- Dry-night false positives are transient spikes
-
-By smoothing state over time, `ha_live` filters some noise.
-
-### Remaining Issues
-
-Still suffers from dry-night false positives — hysteresis helps but doesn't eliminate them. **Precision 0.519** means **48% of alerts are still false**.
+⚠️ **Performance unknown** — F1/precision/recall not yet measured against validation dataset  
+⚠️ **Still vulnerable to dry-night false positives** — no atmospheric stability correction  
+⚠️ **Pressure signals unused** — `pressure_rain_score` available but not integrated
 
 ---
 
-## 3. Tuned (Grid-Search Optimized)
+## 3. pressure_based (Experimental)
 
-**Status:** 🔧 Experimental  
-**F1:** 0.441 | **Precision:** 0.448 | **Recall:** 0.433
+**Status:** 🧪 Under development  
+**F1:** Not yet evaluated
 
 ### Algorithm
 
-Same structure as `original`, but parameters optimized via grid search over 7-day dataset.
-
-### Optimized Parameters
-
-| Parameter | Original | Tuned | Change |
-|-----------|:--------:|:-----:|--------|
-| `proximity_divisor` | 10 | **8** | Tighter spread threshold |
-| `hysteresis_decay` | 0.3 | **0.2** | Less persistence |
-| `trend_gain` | 20 | **15** | Lower trend weight |
-
-### Grid Search Results
-
-Tested 45 combinations:
-- `proximity_divisor`: [6, 8, 10, 12, 15]
-- `hysteresis_decay`: [0.2, 0.3, 0.5, 0.7, 0.9]
-- `trend_gain`: [10, 15, 20, 25, 30]
-
-**Best F1=0.486** at `(8, 0.2, 15)` — marginally better than production.
-
-### Why Not Deployed?
-
-- **Overfitting risk** — optimized on same 7-day window used for testing
-- **Marginal gain** — F1 improvement is tiny (0.484 → 0.486)
-- **Lower precision** — 0.448 vs 0.519 (more false positives)
-
-Kept as reference for parameter sensitivity analysis.
-
-### Insights
-
-- **Tighter spread threshold (8°C)** catches more rain but also more false positives
-- **Less hysteresis (0.2)** responds faster but noisier
-- **Lower trend weight (15)** reduces overreaction to humidity spikes
-
----
-
-## 4. trend_dominant (Failed Experiment)
-
-**Status:** ❌ Failed  
-**F1:** 0.115 | **Precision:** 0.696 | **Recall:** 0.063
-
-### Algorithm
-
-Inverts the weight balance — makes **trend** the primary signal and **proximity** secondary:
+Uses barometric pressure trends to distinguish frontal systems from radiative effects:
 
 ```python
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
+# Pressure drop score (falling pressure = weather system approaching)
+pressure_score = -pressure_trend * pressure_gain
 
-# Inverted formula
-rain_probability = trend * 0.7 + proximity * 0.3
+# Combine with dew point signals
+rain_probability = proximity + trend + pressure_score
 ```
 
-### Hypothesis (Rejected)
+### Rationale
 
-*"Humidity trend is a stronger rain signal than dew-point proximity."*
+Radiative cooling causes spread narrowing **without** pressure changes.  
+Real weather systems cause spread narrowing **with** falling pressure.
 
-### Results
+This should reduce dry-night false positives.
 
-- **Recall 0.063** — misses 94% of rain events
-- **Precision 0.696** — when it does alert, it's usually right
-- **F1 0.115** — worst of all models
+### Status
 
-### Why It Failed
-
-1. **Humidity trend is noisy** — spikes from:
-   - Opening windows
-   - Cooking
-   - Sensor drift
-   - Normal diurnal variation
-
-2. **Trend alone insufficient** — rain needs both:
-   - High absolute humidity (proximity)
-   - Rising trend (system moving in)
-
-3. **Over-conservative** — only alerts when trend is extreme, missing most rain
-
-### Lesson Learned
-
-✅ **Dew-point proximity is the core signal**  
-✅ **Trend is a useful reinforcement, not a replacement**
+Pressure sensor exists in Home Assistant (`sensor.pressure_rain_score`) but algorithm not yet finalized or validated.
 
 ---
 
-## Model Selection Guide
+## Future Work
 
-| Use Case | Recommended Model |
-|----------|-------------------|
-| **Production deployment** | `ha_live` — best balance |
-| **Baseline comparison** | `original` — reference point |
-| **Parameter research** | `tuned` — sensitivity analysis |
-| **What not to do** | `trend_dominant` — failed approach |
+### Short Term
+1. **Benchmark `ha_live`** — measure F1/precision/recall on validation dataset
+2. **Document actual vs claimed performance** — current docs claim 0.484 F1 but this may be from an older version
 
----
+### Medium Term
+1. **Integrate pressure signals** — reduce false positives from radiative cooling
+2. **Add temporal filtering** — real rain events last 30+ minutes, transient spikes don't
+3. **Retrain with ensemble approach** — combine multiple data sources (Open-Meteo, Yandex, etc.)
 
-## Future Models (Planned)
-
-### 5. pressure_aware (Next Priority)
-
-**Status:** 🚧 Planned  
-**Goal:** Eliminate dry-night false positives
-
-#### Concept
-
-Add barometric pressure to distinguish:
-- **Real rain:** falling pressure + closed spread
-- **Dry night:** stable pressure + closed spread
-
-#### New Inputs
-
-From Meteostat (`ms_pres`) or HA (`sensor.office_weather_station_pressure`):
-- Absolute pressure (hPa)
-- Pressure trend (3h derivative)
-
-#### Proposed Formula
-
-```python
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
-pressure_factor = -pressure_trend * pressure_gain  # negative trend = rising score
-
-rain_probability = proximity + trend + pressure_factor
-```
-
-#### Expected Improvement
-
-Target **precision ≥0.70** (reduce false positives by ~40%)  
-Maintain **recall ≥0.45** (don't lose rain detection)
+### Long Term
+1. **Machine learning model** — explore XGBoost/neural networks for nonlinear patterns
+2. **Validation against radar** — compare predictions to actual precipitation (if data available)
+3. **Location-specific tuning** — parameters may need adjustment for different climates
 
 ---
 
-### 6. ensemble_vote (Future)
+## Model Comparison
 
-**Status:** 💡 Idea  
-**Goal:** Combine multiple signals via voting
+| Model | F1 | Precision | Recall | Status | Notes |
+|-------|-----|-----------|--------|--------|-------|
+| `original` | 0.440 | 0.507 | 0.389 | Baseline | Simple, interpretable |
+| `ha_live` | TBD | TBD | TBD | Production | Needs benchmarking |
+| `pressure_based` | TBD | TBD | TBD | Experimental | Pressure integration incomplete |
 
-#### Concept
-
-Three independent classifiers:
-1. Dew-point proximity
-2. Pressure trend
-3. Precipitation data from external sources (Yandex, Open-Meteo, Meteostat)
-
-Vote: 2 out of 3 must agree.
-
-#### Advantage
-
-Reduces false positives from any single source.
-
-#### Challenge
-
-Requires reliable real-time external APIs.
-
----
-
-### 7. ml_model (Long-Term)
-
-**Status:** 🔮 Future  
-**Goal:** Learn patterns from historical data
-
-#### Inputs
-
-- Temperature, humidity, dew point
-- Pressure (absolute + trend)
-- Time of day, season
-- Past 1h/3h/6h trends
-
-#### Models to Try
-
-- **Logistic Regression** (baseline)
-- **Random Forest** (feature importance)
-- **XGBoost** (best performance)
-
-#### Data Requirement
-
-Need **6+ months** of labeled data with ground truth.
-
-Current dataset: 7 days (insufficient for training).
-
----
-
-## Performance Benchmarks
-
-### Test Dataset
-
-- **Period:** 2026-07-05 to 2026-07-12 (7 days)
-- **Ground Truth:** Open-Meteo precipitation ≥0.1mm/h
-- **Rain Hours:** 97 out of 192 (51%)
-- **Evaluation:** 10-minute grid, resampled to hourly for scoring
-
-### Metrics Explained
-
-- **Precision** = TP / (TP + FP) — *"Of all alerts, how many were real rain?"*
-- **Recall** = TP / (TP + FN) — *"Of all rain events, how many did we catch?"*
-- **F1** = 2 × (P × R) / (P + R) — *Harmonic mean (balanced score)*
-
-### Scoring Code
-
-All models evaluated via `rainlib.py`:
-
-```python
-scores = rl.confusion_at_threshold(
-    pred=grid['rain_probability'],
-    truth=grid['rain_truth'],
-    threshold=50.0
-)
-```
-
-Returns: `{tp, fp, tn, fn, precision, recall, f1}`
-
----
-
-## Implementation Notes
-
-### Adding a New Model
-
-1. **Implement in `rainlib.py`** or as a standalone function
-2. **Add to `run_analysis.py`** in `evaluate_models()`
-3. **Update this doc** with algorithm, parameters, and results
-4. **Run full analysis:** `python run_full_analysis.py --days 30`
-
-### Model Naming Convention
-
-- `original` — baseline reference
-- `ha_live` — current production
-- `<feature>_<variant>` — experiments (e.g., `pressure_aware`, `trend_dominant`)
-- `tuned` — optimized via grid search
-- `ensemble_*` — voting/combination models
-- `ml_*` — machine learning models
-
-### Parameter Storage
-
-Default parameters are in `rainlib.py` functions.  
-Override via `AnalysisConfig` in `run_analysis.py`.
+**Evaluation dataset:** Historical weather data with ground-truth rain labels from local observations.
 
 ---
 
 ## References
 
-- [BASELINE_MODEL.md](./BASELINE_MODEL.md) — Detailed baseline analysis
-- [CLI_RUNNER.md](./CLI_RUNNER.md) — How to run analysis
-- [DATA_SOURCES.md](./DATA_SOURCES.md) — Data collection guide
-
----
-
-**Last Updated:** 2026-07-12  
-**Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
+- **Dew point theory:** [National Weather Service](https://www.weather.gov/lmk/humidity)
+- **Rain prediction basics:** [Met Office guide](https://www.metoffice.gov.uk/weather/learn-about/weather/how-weather-works)
+- **Barometric pressure and weather:** [NOAA primer](https://www.weather.gov/jetstream/pressure)
