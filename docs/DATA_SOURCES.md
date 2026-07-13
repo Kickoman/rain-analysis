@@ -72,8 +72,8 @@ python fetch_openmeteo.py \
 Uses [Open-Meteo Archive API](https://archive-api.open-meteo.com/v1/archive).
 Good for: older data, exact date ranges.
 
-> **Note:** If the Open-Meteo API times out, try the forecast API variant (`--use-forecast`)
-> which may be routed differently.
+> **Note:** The `--use-forecast` flag uses the forecast API which is meant for recent + future data.
+> For historical analysis, use the archive API with `--start` and `--end` dates instead.
 
 ### Manual Fetch (Curl)
 
@@ -289,7 +289,6 @@ python run_analysis.py \
 ### Open-Meteo timeout
 
 - Network might be restricted on the analysis machine
-- Try `--use-forecast` flag (different API endpoint)
 - Try curl manually to check connectivity
 - Pre-fetch the data on a machine with internet access
 
