@@ -167,8 +167,8 @@ def model_original(spread: pd.Series, spread_deriv: pd.Series,
 
     Kept for reference / regression comparison against improved versions.
     """
-    proximity = _clamp(100.0 - (spread / 8.0 * 100.0), 0, 100)
-    trend_score = _clamp(-spread_deriv * 26.7, -40, 40)
+    proximity = _clamp(100.0 - (spread / 10.0 * 100.0), 0, 100)
+    trend_score = _clamp(-spread_deriv * 20.0, -40, 40)
     total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
     return total.round(0)
 
