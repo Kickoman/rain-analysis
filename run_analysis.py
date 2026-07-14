@@ -135,8 +135,8 @@ def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame
     grid["humidex"] = rl.humidex(grid["temp"], grid["dew_point"])
     grid["spread_deriv"] = rl.derivative(grid["spread"], window=config.deriv_window)
 
-    # Unified pressure column from HA / Meteostat / Yandex
-    pressure_series = rl.compute_unified_pressure(grid)
+    # Build pressure column, filling gaps: HA → Meteostat → Yandex
+    pressure_series = rl.build_pressure_series(grid)
     if pressure_series is not None:
         grid["pressure"] = pressure_series
         grid["pressure_deriv"] = rl.derivative(

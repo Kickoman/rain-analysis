@@ -128,31 +128,39 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     result = pd.Series(out, index=s.index)
     return result.reindex(series.index)
 
-def compute_unified_pressure(grid: pd.DataFrame,
+def build_pressure_series(grid: pd.DataFrame,
                               ha_pressure_col: str = "pressure",
                               ms_pres_col: str = "ms_pres",
                               yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
-    """Build a unified pressure series from multiple sources, priority-ordered.
+    """Build a single pressure series with data-gap filling across sources.
 
-    Priority: HA filtered_pressure (hPa) > Meteostat pres (hPa) > Yandex (mm Hg).
-    Yandex pressure in mm Hg is converted to hPa (1 mm Hg = 1.33322 hPa).
+    This is NOT a model ensemble — it builds ONE column by filling missing values
+    from fallback sources. The model receives a single pressure feature regardless.
+
+    Priority fallback chain:
+      1. HA filtered_pressure (hPa) — primary source
+      2. Meteostat pres (hPa) — fills gaps where HA was offline
+      3. Yandex pressure_mm (mm Hg → hPa) — last resort for old data
+
+    In production (HA-only), the fallbacks are inert; the function simply returns
+    the HA column unchanged.
 
     Returns None if no pressure data is available from any source.
     """
-    unified = pd.Series(index=grid.index, dtype=float)
+    pressure = pd.Series(index=grid.index, dtype=float)
 
     if ha_pressure_col in grid.columns:
-        unified = grid[ha_pressure_col].copy()
+        pressure = grid[ha_pressure_col].copy()
 
     if ms_pres_col in grid.columns:
-        unified = unified.fillna(grid[ms_pres_col])
+        pressure = pressure.fillna(grid[ms_pres_col])
 
     if yx_pressure_col in grid.columns:
-        unified = unified.fillna(grid[yx_pressure_col] * 1.33322)
+        pressure = pressure.fillna(grid[yx_pressure_col] * 1.33322)
 
-    if unified.isna().all():
+    if pressure.isna().all():
         return None
-    return unified
+    return pressure
 
 
 # ---------------------------------------------------------------------------
