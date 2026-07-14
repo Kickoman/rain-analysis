@@ -244,17 +244,98 @@ class TestEdgeCases:
         assert result["precision"] == 0.5
         assert result["recall"] == 1.0
     
-    def test_nan_values_ignored(self):
-        """NaN values should be filtered out."""
+    def test_nan_values_dropped_by_default(self):
+        """With drop_unknown=True (default), rows with NaN truth are dropped."""
         pred = pd.Series([100, np.nan, 0, 100])
         truth = pd.Series([1, 1, 0, np.nan])
         result = confusion_at_threshold(pred, truth, threshold=50)
         
-        # Should only count valid pairs: (100,1) and (0,0)
+        # Only rows 0 and 2 have non-NaN truth: (100,1) and (0,0)
+        assert result["n"] == 2
         assert result["tp"] == 1
         assert result["tn"] == 1
         assert result["fp"] == 0
         assert result["fn"] == 0
+
+
+class TestDropUnknown:
+    """Tests for drop_unknown parameter in confusion_at_threshold."""
+
+    def test_drop_unknown_true_excludes_nan_truth(self):
+        """drop_unknown=True (default): NaN truth rows are excluded."""
+        pred = pd.Series([100, 50, 100, 50])
+        truth = pd.Series([1, np.nan, 0, np.nan])
+        result = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=True)
+
+        assert result["n"] == 2  # only rows 0 and 2
+        assert result["tp"] == 1
+        assert result["fp"] == 1
+        assert result["tn"] == 0
+        assert result["fn"] == 0
+
+    def test_drop_unknown_false_treats_nan_as_no_rain(self):
+        """drop_unknown=False: NaN truth → 0 (no-rain)."""
+        pred = pd.Series([100, 50, 100, 50])
+        truth = pd.Series([1, np.nan, 0, np.nan])
+        result = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=False)
+
+        assert result["n"] == 4  # all rows, NaN→0
+        assert result["tp"] == 1  # row 0: pred≥50, truth=1
+        # rows 1,3: pred≥50, truth→0 → FP; row 2: pred≥50, truth=0 → FP
+        assert result["fp"] == 3
+        assert result["tn"] == 0
+        assert result["fn"] == 0
+
+    def test_drop_unknown_false_nan_truth_does_not_inflate_recall(self):
+        """NaN→0 only adds TN/FP, never TP — recall is unaffected."""
+        pred = pd.Series([100, 10, 10])
+        truth = pd.Series([1, np.nan, 0])
+
+        result_true = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=True)
+        result_false = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=False)
+
+        # Recall should be identical (NaN→0 never creates new TP)
+        assert result_true["recall"] == result_false["recall"]
+        # But precision differs: drop_unknown=False inflates denominator with FP
+
+    def test_drop_unknown_false_can_lower_precision(self):
+        """drop_unknown=False can produce more FP → lower precision."""
+        pred = pd.Series([100, 100, 10])
+        truth = pd.Series([1, np.nan, 0])
+
+        result_true = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=True)
+        result_false = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=False)
+
+        # drop_unknown=True: only 2 rows, TP=1, FP=0, precision=1.0
+        # drop_unknown=False: 3 rows, TP=1, FP=1 (NaN→0), precision=0.5
+        assert result_true["precision"] == 1.0
+        assert result_false["precision"] == 0.5
+
+    def test_drop_unknown_true_with_all_nan_truth(self):
+        """drop_unknown=True with all-NaN truth → empty → NaN metrics."""
+        pred = pd.Series([100, 50, 10])
+        truth = pd.Series([np.nan, np.nan, np.nan])
+        result = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=True)
+
+        assert result["n"] == 0
+        assert result["tp"] == 0
+        assert result["fp"] == 0
+        assert result["tn"] == 0
+        assert result["fn"] == 0
+        assert np.isnan(result["precision"])
+        assert np.isnan(result["recall"])
+        assert np.isnan(result["f1"])
+
+    def test_drop_unknown_false_with_all_nan_truth(self):
+        """drop_unknown=False with all-NaN truth → all treated as no-rain."""
+        pred = pd.Series([100, 50, 10])
+        truth = pd.Series([np.nan, np.nan, np.nan])
+        result = confusion_at_threshold(pred, truth, threshold=50, drop_unknown=False)
+
+        assert result["n"] == 3
+        assert result["tp"] == 0
+        assert result["fp"] == 2  # 100 and 50 predicted rain, truth→0
+        assert result["tn"] == 1  # 10 predicted no-rain, truth→0
 
 
 class TestRealWorldScenarios:
