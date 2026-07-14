@@ -558,9 +558,12 @@ def confusion_at_threshold(pred: pd.Series, truth: pd.Series,
     fn = int(((yhat == 0) & (y == 1)).sum())
     precision = tp / (tp + fp) if (tp + fp) else float("nan")
     recall = tp / (tp + fn) if (tp + fn) else float("nan")
-    f1 = (2 * precision * recall / (precision + recall)
-          if precision and recall and not math.isnan(precision)
-          and not math.isnan(recall) and (precision + recall) else float("nan"))
+    if precision is None or recall is None or math.isnan(precision) or math.isnan(recall):
+        f1 = float("nan")
+    elif (precision + recall) == 0:
+        f1 = 0.0
+    else:
+        f1 = 2 * precision * recall / (precision + recall)
     return {
         "threshold": threshold,
         "tp": tp, "fp": fp, "tn": tn, "fn": fn,
