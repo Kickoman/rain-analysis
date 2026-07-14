@@ -42,7 +42,7 @@ import numpy as np
 
 # Use rainlib — no reinvention
 import rainlib as rl
-from rainlib import ModelParams, MODELS
+from rainlib import ModelParams, ModelContext, MODELS
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,7 @@ class AnalysisConfig:
         "sensor.datchik_klimata_temperatura": "temp",
         "sensor.datchik_klimata_vlazhnost": "rh",
         "sensor.rain_probability": "ha_rain_prob",
+        "sensor.filtered_pressure": "pressure",
     })
 
     grid_freq: str = "10min"
@@ -76,8 +77,6 @@ class AnalysisConfig:
         "proximity_divisor": [5, 6, 7, 8],
         "hysteresis_decay": [0.2, 0.3, 0.5],
         "trend_gain": [15, 20, 30],
-        "pressure_gain": [10, 15, 20],
-        "pressure_weight": [0.2, 0.3, 0.5],
     })
 
     # F-beta recommendations to compute
@@ -128,7 +127,13 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
 
 
 def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame:
-    """§3: Compute physical features (dew point, spread, derivative, pressure)."""
+    """§3: Compute physical features (dew point, spread, derivative, pressure).
+
+    The raw HA pressure column ("pressure") is preserved unchanged for model
+    evaluation — this mirrors exactly what the model sees in production.
+    A separate "pressure_filled" column is built by gap-filling with
+    Meteostat / Yandex data and is kept for diagnostic / coverage analysis only.
+    """
     grid = grid.copy()
     grid["dew_point"] = rl.dew_point(grid["temp"], grid["rh"])
     grid["spread"] = rl.dew_point_spread(grid["temp"], grid["rh"])
@@ -136,22 +141,21 @@ def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame
     grid["humidex"] = rl.humidex(grid["temp"], grid["dew_point"])
     grid["spread_deriv"] = rl.derivative(grid["spread"], window=config.deriv_window)
 
-    # Pressure derivative (for pressure-aware model)
-    # Priority: ms_pres (Meteostat), fallback to yx_pressure_mm (Yandex, convert to hPa)
-    pres_col = None
-    if "ms_pres" in grid.columns and grid["ms_pres"].notna().any():
-        pres_col = "ms_pres"
-    elif "yx_pressure_mm" in grid.columns:
-        # Convert mmHg to hPa: 1 mmHg ≈ 1.333 hPa
-        grid["_pressure_hpa"] = grid["yx_pressure_mm"] * 1.333
-        if grid["_pressure_hpa"].notna().any():
-            pres_col = "_pressure_hpa"
-
-    if pres_col:
+    # Pressure derivative for model evaluation: raw HA data only.
+    # NaNs where HA sensor was unavailable are intentional — the model must
+    # gracefully degrade without synthetic data it won't have in production.
+    if "pressure" in grid.columns and grid["pressure"].notna().any():
         grid["pressure_deriv"] = rl.derivative(
-            grid[pres_col].resample("1h").mean().reindex(grid.index).ffill(limit=6),
+            grid["pressure"],
             window=config.model_params.get("pressure_window", "3h"),
         )
+
+    # Diagnostic-only column: gap-filled series (HA → Meteostat → Yandex).
+    # Never passed to ModelContext; only used for coverage / visualization.
+    pressure_filled = rl.build_pressure_series(grid)
+    if pressure_filled is not None:
+        grid["pressure_filled"] = pressure_filled
+
     return grid
 
 
@@ -194,17 +198,16 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
 
     params = ModelParams(**config.model_params)
 
+    ctx = ModelContext(
+        spread=grid["spread"],
+        spread_deriv=grid["spread_deriv"],
+        pressure=grid.get("pressure"),
+    )
+
     model_stats = {}
-    for name in MODELS:
+    for name, func in MODELS.items():
         col = f"model_{name}"
-        # Pass pressure_deriv for pressure-aware model
-        if name == "pressure" and "pressure_deriv" in grid.columns:
-            grid[col] = MODELS[name](
-                grid["spread"], grid["spread_deriv"], params,
-                pressure_deriv=grid["pressure_deriv"],
-            )
-        else:
-            grid[col] = MODELS[name](grid["spread"], grid["spread_deriv"], params)
+        grid[col] = func(ctx, params)
         model_stats[name] = {
             "mean": float(grid[col].mean()),
             "std": float(grid[col].std()),
@@ -309,7 +312,8 @@ def param_tuning(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     for combo in itertools.product(*config.param_grid.values()):
         kw = dict(zip(keys, combo))
         p = ModelParams(**kw)
-        pred = rl.model_tuned(grid["spread"], grid["spread_deriv"], p)
+        ctx = ModelContext(spread=grid["spread"], spread_deriv=grid["spread_deriv"])
+        pred = rl.model_tuned(ctx, p)
         c = rl.confusion_at_threshold(pred, grid["rain_truth"], config.decision_threshold)
         results.append({
             **kw,
@@ -337,8 +341,8 @@ def cross_check(grid: pd.DataFrame) -> dict:
     for col in ["temp", "rh", "om_temp", "om_rh", "ms_temp", "ms_rhum",
                  "yx_temp", "yx_humidity",
                  "ha_rain_prob", "om_precip", "ms_precip",
-                 "yx_prec_prob", "yx_condition",
-                 "ms_pres", "pressure_deriv"]:
+                 "yx_prec_prob", "yx_condition", "ms_pres",
+                 "pressure", "pressure_deriv", "pressure_filled", "yx_pressure_mm"]:
         if col in cmp.columns:
             series = cmp[col].dropna()
             if len(series) > 0:

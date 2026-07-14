@@ -128,6 +128,40 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     result = pd.Series(out, index=s.index)
     return result.reindex(series.index)
 
+def build_pressure_series(grid: pd.DataFrame,
+                              ha_pressure_col: str = "pressure",
+                              ms_pres_col: str = "ms_pres",
+                              yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
+    """Build a single pressure series with data-gap filling across sources.
+
+    This is NOT a model ensemble — it builds ONE column by filling missing values
+    from fallback sources. The model receives a single pressure feature regardless.
+
+    Priority fallback chain:
+      1. HA filtered_pressure (hPa) — primary source
+      2. Meteostat pres (hPa) — fills gaps where HA was offline
+      3. Yandex pressure_mm (mm Hg → hPa) — last resort for old data
+
+    In production (HA-only), the fallbacks are inert; the function simply returns
+    the HA column unchanged.
+
+    Returns None if no pressure data is available from any source.
+    """
+    pressure = pd.Series(index=grid.index, dtype=float)
+
+    if ha_pressure_col in grid.columns:
+        pressure = grid[ha_pressure_col].copy()
+
+    if ms_pres_col in grid.columns:
+        pressure = pressure.fillna(grid[ms_pres_col])
+
+    if yx_pressure_col in grid.columns:
+        pressure = pressure.fillna(grid[yx_pressure_col] * 1.33322)
+
+    if pressure.isna().all():
+        return None
+    return pressure
+
 
 # ---------------------------------------------------------------------------
 # 3. RAIN-PROBABILITY MODELS  (tunable reimplementations of your HA sensor)
@@ -151,35 +185,49 @@ class ModelParams:
     # dryness sanity ceiling
     dry_spread_cutoff: float = 10.0    # above this spread, cap output
     dry_ceiling: float = 40.0
+    # pressure-aware parameters
+    pressure_weight: float = 0.35       # weight of pressure term in blend
+    pressure_gain: float = 25.0         # points per (hPa/h) of pressure drop
+    pressure_floor: float = -15.0       # most rising pressure can subtract
+    pressure_ceiling: float = 35.0      # most falling pressure can add
+    pressure_window: str = "3h"         # trailing window for pressure derivative
+    pressure_drop_threshold: float = -0.5  # hPa/h below which pressure signal activates
     # hysteresis (decay fraction toward new lower value each step)
     hysteresis_decay: float = 0.30     # 0 = frozen, 1 = no hysteresis
     # derivative window used to feed the trend term
     derivative_window: str = "3h"
-    # pressure-aware model parameters
-    pressure_gain: float = 15.0        # multiplier for pressure_deriv → score
-    pressure_weight: float = 0.3       # weight of pressure term in blend
-    pressure_floor: float = -10.0      # max penalty from rising pressure
-    pressure_ceiling: float = 15.0     # max bonus from falling pressure
-    pressure_window: str = "3h"        # derivative window for pressure
+
+
+@dataclass
+class ModelContext:
+    """Unified input context for all models.
+
+    Each model receives the same context and extracts what it needs.
+    New data sources (wind, UV, etc.) are added here without changing
+    model dispatch code.
+    """
+    spread: pd.Series
+    spread_deriv: pd.Series
+    pressure: pd.Series | None = None
 
 
 def _clamp(x, lo, hi):
     return np.minimum(np.maximum(x, lo), hi)
 
 
-def model_original(spread: pd.Series, spread_deriv: pd.Series,
+def model_original(ctx: ModelContext,
                    p: ModelParams | None = None) -> pd.Series:
     """Your ORIGINAL formula (proximity*0.7 + trend*0.7, no hysteresis).
 
     Kept for reference / regression comparison against improved versions.
     """
-    proximity = _clamp(100.0 - (spread / 10.0 * 100.0), 0, 100)
-    trend_score = _clamp(-spread_deriv * 20.0, -40, 40)
+    proximity = _clamp(100.0 - (ctx.spread / 10.0 * 100.0), 0, 100)
+    trend_score = _clamp(-ctx.spread_deriv * 20.0, -40, 40)
     total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
     return total.round(0)
 
 
-def model_tuned(spread: pd.Series, spread_deriv: pd.Series,
+def model_tuned(ctx: ModelContext,
                 p: ModelParams | None = None) -> pd.Series:
     """Improved model: recalibrated proximity + capped trend + hysteresis.
 
@@ -190,7 +238,7 @@ def model_tuned(spread: pd.Series, spread_deriv: pd.Series,
         p = ModelParams()
 
     # align the two inputs on a common index, forward-fill gaps
-    df = pd.DataFrame({"spread": spread, "deriv": spread_deriv}).sort_index()
+    df = pd.DataFrame({"spread": ctx.spread, "deriv": ctx.spread_deriv}).sort_index()
     df["spread"] = df["spread"].ffill()
     df["deriv"] = df["deriv"].fillna(0.0)
 
@@ -231,7 +279,7 @@ def model_tuned(spread: pd.Series, spread_deriv: pd.Series,
     return pd.Series(out, index=df.index).round(0)
 
 
-def model_trend_dominant(spread: pd.Series, spread_deriv: pd.Series,
+def model_trend_dominant(ctx: ModelContext,
                          p: ModelParams | None = None) -> pd.Series:
     """Trend-primary variant (trend is the main driver, spread only a ceiling).
 
@@ -241,7 +289,7 @@ def model_trend_dominant(spread: pd.Series, spread_deriv: pd.Series,
     if p is None:
         p = ModelParams()
 
-    df = pd.DataFrame({"spread": spread, "deriv": spread_deriv}).sort_index()
+    df = pd.DataFrame({"spread": ctx.spread, "deriv": ctx.spread_deriv}).sort_index()
     df["spread"] = df["spread"].ffill()
     df["deriv"] = df["deriv"].fillna(0.0)
 
@@ -276,7 +324,7 @@ def model_trend_dominant(spread: pd.Series, spread_deriv: pd.Series,
     return pd.Series(out, index=df.index).round(0)
 
 
-def model_ha_live(spread: pd.Series, spread_deriv: pd.Series,
+def model_ha_live(ctx: ModelContext,
                   p: ModelParams | None = None) -> pd.Series:
     """Current Home Assistant production model (no hysteresis, simple weighted blend).
 
@@ -287,66 +335,82 @@ def model_ha_live(spread: pd.Series, spread_deriv: pd.Series,
 
     This is stateless (no hysteresis), so each output depends only on current inputs.
     """
-    proximity = _clamp(100.0 - (spread / 8.0 * 100.0), 0, 100)
-    trend_score = _clamp(-spread_deriv * 26.7, -40, 40)
+    proximity = _clamp(100.0 - (ctx.spread / 8.0 * 100.0), 0, 100)
+    trend_score = _clamp(-ctx.spread_deriv * 26.7, -40, 40)
     total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
     return total.round(0)
 
 
-def model_pressure(spread: pd.Series, spread_deriv: pd.Series,
-                   p: ModelParams | None = None,
-                   pressure_deriv: pd.Series | None = None) -> pd.Series:
-    """Pressure-aware variant of model_tuned.
+def model_pressure_aware(ctx: ModelContext,
+                         p: ModelParams | None = None) -> pd.Series:
+    """Pressure-aware model: proximity + spread trend + pressure trend.
 
-    Adds a pressure trend term to the tuned model: falling pressure
-    (approaching low) boosts rain probability, rising pressure
-    (clearing) suppresses it. The magnitude is controlled by
-    pressure_gain and pressure_weight in ModelParams.
+    Adds atmospheric pressure tendency as a third predictive factor
+    alongside spread proximity and spread derivative.
 
-    When pressure_deriv is None, falls back to model_tuned behaviour.
+    Meteorology: falling pressure signals an approaching cyclone/storm
+    system and is a well-established predictor of precipitation. Rising
+    pressure indicates clearing weather (anticyclone).
+
+    If ctx.pressure is None (no pressure data available), falls back to
+    the tuned model behaviour (only proximity + trend).
+
+    Stateful (hysteresis on the combined output).
     """
-    if pressure_deriv is None:
-        return model_tuned(spread, spread_deriv, p)
-
     if p is None:
         p = ModelParams()
 
     df = pd.DataFrame({
-        "spread": spread,
-        "deriv": spread_deriv,
-        "pres_deriv": pressure_deriv,
+        "spread": ctx.spread,
+        "deriv": ctx.spread_deriv,
     }).sort_index()
     df["spread"] = df["spread"].ffill()
     df["deriv"] = df["deriv"].fillna(0.0)
-    df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
+
+    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
+    if use_pressure:
+        p_aligned = ctx.pressure.reindex(df.index).ffill()
+        df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window)
+        df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
 
     out = np.full(len(df), np.nan)
     prev = None
     spread_v = df["spread"].values
     deriv_v = df["deriv"].values
-    pres_deriv_v = df["pres_deriv"].values
+    pres_v = df["pres_deriv"].values if use_pressure else np.zeros(len(df))
 
     for i in range(len(df)):
         s = spread_v[i]
         d = deriv_v[i]
-        pd_ = pres_deriv_v[i]
+        pd_val = pres_v[i]
 
         if s is None or (isinstance(s, float) and math.isnan(s)):
             out[i] = prev if prev is not None else np.nan
             continue
         if d is None or (isinstance(d, float) and math.isnan(d)):
             d = 0.0
-        if pd_ is None or (isinstance(pd_, float) and math.isnan(pd_)):
-            pd_ = 0.0
+        if pd_val is None or (isinstance(pd_val, float) and math.isnan(pd_val)):
+            pd_val = 0.0
 
         proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
         trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
-        # Pressure: falling pressure (negative deriv) → positive contribution
-        pressure_score = min(max(-pd_ * p.pressure_gain, p.pressure_floor), p.pressure_ceiling)
 
-        raw = (proximity * p.proximity_weight
-               + trend_score * p.trend_weight
-               + pressure_score * p.pressure_weight)
+        # Pressure: falling pressure adds to rain prob, rising subtracts
+        if abs(pd_val) < abs(p.pressure_drop_threshold):
+            pressure_score = 0.0
+        else:
+            pressure_score = min(max(-pd_val * p.pressure_gain,
+                                     p.pressure_floor),
+                                 p.pressure_ceiling)
+
+        if use_pressure:
+            raw = (proximity * p.proximity_weight +
+                   trend_score * p.trend_weight +
+                   pressure_score * p.pressure_weight)
+        else:
+            raw = (proximity * p.proximity_weight +
+                   trend_score * p.trend_weight)
+
         ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
         raw = min(max(raw, 0), ceiling)
 
@@ -368,7 +432,7 @@ MODELS = {
     "tuned": model_tuned,
     "trend_dominant": model_trend_dominant,
     "ha_live": model_ha_live,
-    "pressure": model_pressure,
+    "pressure_aware": model_pressure_aware,
 }
 
 
