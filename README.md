@@ -58,8 +58,8 @@ rain-analysis/
 │   ├── MODELS.md             # All models documentation
 │   ├── CLI_RUNNER.md         # CLI script documentation
 │   ├── DATA_SOURCES.md       # Data collection guide
-│   ├── HA_DATA_FETCHER.md    # HA fetcher details
-│   └── CONTRIBUTING.md       # Development guide
+│   └── HA_DATA_FETCHER.md    # HA fetcher details
+├── CONTRIBUTING.md           # Development guide
 ├── data/                     # Your local data files (gitignored)
 └── requirements.txt
 ```
@@ -79,7 +79,7 @@ rain-analysis/
 
 - Every HA helper (dew point, spread, derivative, rain_probability) has a pure-Python twin in `rainlib.py`
 - Ground truth = open-meteo hourly precipitation. `rain_truth=1` when precip ≥ threshold
-- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`
+- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`, `ha_live`
 
 ## Data Sources
 
