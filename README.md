@@ -69,7 +69,7 @@ rain-analysis/
 ```
   local sensors ─┐
   open-meteo   ──┼──►  one 10-min UTC grid  ──►  derive spread/derivative
-  yandex       ─┘                                        │
+  yandex        ─┘                                       │
                                                          ▼
                           candidate models (tunable ModelParams)
                                                          │
