@@ -155,6 +155,12 @@ class ModelParams:
     hysteresis_decay: float = 0.30     # 0 = frozen, 1 = no hysteresis
     # derivative window used to feed the trend term
     derivative_window: str = "3h"
+    # pressure-aware model parameters
+    pressure_gain: float = 15.0        # multiplier for pressure_deriv → score
+    pressure_weight: float = 0.3       # weight of pressure term in blend
+    pressure_floor: float = -10.0      # max penalty from rising pressure
+    pressure_ceiling: float = 15.0     # max bonus from falling pressure
+    pressure_window: str = "3h"        # derivative window for pressure
 
 
 def _clamp(x, lo, hi):
@@ -287,12 +293,82 @@ def model_ha_live(spread: pd.Series, spread_deriv: pd.Series,
     return total.round(0)
 
 
+def model_pressure(spread: pd.Series, spread_deriv: pd.Series,
+                   p: ModelParams | None = None,
+                   pressure_deriv: pd.Series | None = None) -> pd.Series:
+    """Pressure-aware variant of model_tuned.
+
+    Adds a pressure trend term to the tuned model: falling pressure
+    (approaching low) boosts rain probability, rising pressure
+    (clearing) suppresses it. The magnitude is controlled by
+    pressure_gain and pressure_weight in ModelParams.
+
+    When pressure_deriv is None, falls back to model_tuned behaviour.
+    """
+    if pressure_deriv is None:
+        return model_tuned(spread, spread_deriv, p)
+
+    if p is None:
+        p = ModelParams()
+
+    df = pd.DataFrame({
+        "spread": spread,
+        "deriv": spread_deriv,
+        "pres_deriv": pressure_deriv,
+    }).sort_index()
+    df["spread"] = df["spread"].ffill()
+    df["deriv"] = df["deriv"].fillna(0.0)
+    df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
+
+    out = np.full(len(df), np.nan)
+    prev = None
+    spread_v = df["spread"].values
+    deriv_v = df["deriv"].values
+    pres_deriv_v = df["pres_deriv"].values
+
+    for i in range(len(df)):
+        s = spread_v[i]
+        d = deriv_v[i]
+        pd_ = pres_deriv_v[i]
+
+        if s is None or (isinstance(s, float) and math.isnan(s)):
+            out[i] = prev if prev is not None else np.nan
+            continue
+        if d is None or (isinstance(d, float) and math.isnan(d)):
+            d = 0.0
+        if pd_ is None or (isinstance(pd_, float) and math.isnan(pd_)):
+            pd_ = 0.0
+
+        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
+        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+        # Pressure: falling pressure (negative deriv) → positive contribution
+        pressure_score = min(max(-pd_ * p.pressure_gain, p.pressure_floor), p.pressure_ceiling)
+
+        raw = (proximity * p.proximity_weight
+               + trend_score * p.trend_weight
+               + pressure_score * p.pressure_weight)
+        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
+        raw = min(max(raw, 0), ceiling)
+
+        if prev is None:
+            total = raw
+        elif raw > prev:
+            total = raw
+        else:
+            total = prev - (prev - raw) * p.hysteresis_decay
+        out[i] = total
+        prev = total
+
+    return pd.Series(out, index=df.index).round(0)
+
+
 # Registry so the notebook can loop over models by name.
 MODELS = {
     "original": model_original,
     "tuned": model_tuned,
     "trend_dominant": model_trend_dominant,
     "ha_live": model_ha_live,
+    "pressure": model_pressure,
 }
 
 
