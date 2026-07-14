@@ -127,7 +127,13 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
 
 
 def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame:
-    """§3: Compute physical features (dew point, spread, derivative)."""
+    """§3: Compute physical features (dew point, spread, derivative, pressure).
+
+    The raw HA pressure column ("pressure") is preserved unchanged for model
+    evaluation — this mirrors exactly what the model sees in production.
+    A separate "pressure_filled" column is built by gap-filling with
+    Meteostat / Yandex data and is kept for diagnostic / coverage analysis only.
+    """
     grid = grid.copy()
     grid["dew_point"] = rl.dew_point(grid["temp"], grid["rh"])
     grid["spread"] = rl.dew_point_spread(grid["temp"], grid["rh"])
@@ -135,14 +141,20 @@ def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame
     grid["humidex"] = rl.humidex(grid["temp"], grid["dew_point"])
     grid["spread_deriv"] = rl.derivative(grid["spread"], window=config.deriv_window)
 
-    # Build pressure column, filling gaps: HA → Meteostat → Yandex
-    pressure_series = rl.build_pressure_series(grid)
-    if pressure_series is not None:
-        grid["pressure"] = pressure_series
+    # Pressure derivative for model evaluation: raw HA data only.
+    # NaNs where HA sensor was unavailable are intentional — the model must
+    # gracefully degrade without synthetic data it won't have in production.
+    if "pressure" in grid.columns and grid["pressure"].notna().any():
         grid["pressure_deriv"] = rl.derivative(
             grid["pressure"],
             window=config.model_params.get("pressure_window", "3h"),
         )
+
+    # Diagnostic-only column: gap-filled series (HA → Meteostat → Yandex).
+    # Never passed to ModelContext; only used for coverage / visualization.
+    pressure_filled = rl.build_pressure_series(grid)
+    if pressure_filled is not None:
+        grid["pressure_filled"] = pressure_filled
 
     return grid
 
@@ -330,7 +342,7 @@ def cross_check(grid: pd.DataFrame) -> dict:
                  "yx_temp", "yx_humidity",
                  "ha_rain_prob", "om_precip", "ms_precip",
                  "yx_prec_prob", "yx_condition", "ms_pres",
-                 "pressure", "pressure_deriv", "yx_pressure_mm"]:
+                 "pressure", "pressure_deriv", "pressure_filled", "yx_pressure_mm"]:
         if col in cmp.columns:
             series = cmp[col].dropna()
             if len(series) > 0:
