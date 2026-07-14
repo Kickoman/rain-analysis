@@ -65,7 +65,7 @@ def absolute_humidity(temp_c, rh_pct):
     """Absolute humidity g/m³ — mirrors your HA absolute-humidity template."""
     t = np.asarray(temp_c, dtype=float)
     rh = np.clip(np.asarray(rh_pct, dtype=float), 1e-3, 100.0)
-    vp = 6.112 * np.exp(17.62 * t / (243.12 + t)) * rh / 100.0
+    vp = 6.112 * np.exp(MAGNUS_A * t / (MAGNUS_B + t)) * rh / 100.0
     return 216.7 * vp / (273.15 + t)
 
 
@@ -73,7 +73,7 @@ def humidex(temp_c, dewpoint_c):
     """Humidex 'feels like' (°C) — mirrors your HA humidex template."""
     t = np.asarray(temp_c, dtype=float)
     td = np.asarray(dewpoint_c, dtype=float)
-    vp = 6.112 * np.exp(17.62 * td / (243.12 + td))
+    vp = 6.112 * np.exp(MAGNUS_A * td / (MAGNUS_B + td))
     return t + 0.5555 * (vp - 10.0)
 
 
