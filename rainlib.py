@@ -128,6 +128,63 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     result = pd.Series(out, index=s.index)
     return result.reindex(series.index)
 
+# ---------------------------------------------------------------------------
+# 2b. PRESSURE DERIVATIVE  (pressure tendency in hPa/h)
+# ---------------------------------------------------------------------------
+
+def pressure_deriv(pressure: pd.Series, window: str = "3h", min_periods: int = 2) -> pd.Series:
+    """Compute pressure tendency (derivative) in hPa/h.
+
+    Uses the same least-squares slope method as the spread derivative.
+    Negative values = falling pressure (approaching low → rain signal).
+    Positive values = rising pressure (clearing trend).
+
+    Parameters
+    ----------
+    pressure : pd.Series indexed by tz-aware DatetimeIndex, values in hPa
+    window : trailing time window, e.g. "3h", "6h"
+    min_periods : minimum points required in the window
+
+    Returns
+    -------
+    pd.Series (hPa/h) aligned to pressure.index.
+    """
+    # Reuse the derivative function — it's generic for any series
+    return derivative(pressure, window=window, min_periods=min_periods)
+
+
+def compute_unified_pressure(grid: pd.DataFrame,
+                              ha_pressure_col: str = "pressure",
+                              ms_pres_col: str = "ms_pres",
+                              yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
+    """Build a unified pressure series from multiple sources.
+
+    Priority: HA filtered_pressure (hPa) > Meteostat pres (hPa) > Yandex (mm Hg → hPa).
+    Yandex pressure in mm Hg is converted to hPa (1 mm Hg = 1.33322 hPa).
+
+    Returns None if no pressure data is available.
+    """
+    unified = pd.Series(index=grid.index, dtype=float)
+
+    # Priority 1: Home Assistant (already in hPa)
+    if ha_pressure_col in grid.columns:
+        unified = grid[ha_pressure_col].copy()
+
+    # Priority 2: Meteostat (hPa)
+    if ms_pres_col in grid.columns:
+        ms_pres = grid[ms_pres_col]
+        unified = unified.fillna(ms_pres)
+
+    # Priority 3: Yandex (mm Hg → convert to hPa)
+    if yx_pressure_col in grid.columns:
+        yx_hpa = grid[yx_pressure_col] * 1.33322
+        unified = unified.fillna(yx_hpa)
+
+    if unified.isna().all():
+        return None
+
+    return unified
+
 
 # ---------------------------------------------------------------------------
 # 3. RAIN-PROBABILITY MODELS  (tunable reimplementations of your HA sensor)
@@ -151,6 +208,13 @@ class ModelParams:
     # dryness sanity ceiling
     dry_spread_cutoff: float = 10.0    # above this spread, cap output
     dry_ceiling: float = 40.0
+    # --- pressure-aware params (NEW) ---
+    pressure_weight: float = 0.35       # weight of pressure term in blend
+    pressure_gain: float = 25.0         # points per (hPa/h) of pressure drop
+    pressure_floor: float = -15.0       # most rising pressure can subtract
+    pressure_ceiling: float = 35.0      # most falling pressure can add
+    pressure_window: str = "3h"         # trailing window for pressure derivative
+    pressure_drop_threshold: float = -0.5  # hPa/h below which pressure signal activates
     # hysteresis (decay fraction toward new lower value each step)
     hysteresis_decay: float = 0.30     # 0 = frozen, 1 = no hysteresis
     # derivative window used to feed the trend term
@@ -287,12 +351,110 @@ def model_ha_live(spread: pd.Series, spread_deriv: pd.Series,
     return total.round(0)
 
 
+def model_pressure_aware(spread: pd.Series, spread_deriv: pd.Series,
+                         p: ModelParams | None = None,
+                         pressure: pd.Series | None = None) -> pd.Series:
+    """Pressure-aware model: proximity + spread trend + pressure trend.
+
+    Adds atmospheric pressure tendency as a third predictive factor:
+
+    1. Proximity term: how close the air is to saturation (from spread)
+    2. Trend term: rate at which saturation is increasing (spread derivative)
+    3. Pressure term: rate of pressure change (falling pressure → rain)
+
+    Falling pressure indicates an approaching low-pressure system and is a
+    well-established meteorological predictor of precipitation.
+
+    If `pressure` is None (no pressure data available), falls back to the
+    tuned model behaviour (only proximity + trend).
+
+    Stateful (hysteresis on the combined output).
+    """
+    if p is None:
+        p = ModelParams()
+
+    df = pd.DataFrame({"spread": spread, "deriv": spread_deriv}).sort_index()
+    df["spread"] = df["spread"].ffill()
+    df["deriv"] = df["deriv"].fillna(0.0)
+
+    # Pressure term
+    use_pressure = pressure is not None and not pressure.dropna().empty
+    if use_pressure:
+        # Align pressure to the same index
+        p_aligned = pressure.reindex(df.index).ffill()
+        df["pres_deriv"] = pressure_deriv(p_aligned, window=p.pressure_window)
+        df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
+
+    out = np.full(len(df), np.nan)
+    prev = None
+    spread_v = df["spread"].values
+    deriv_v = df["deriv"].values
+    pres_v = df["pres_deriv"].values if use_pressure else np.zeros(len(df))
+
+    for i in range(len(df)):
+        s = spread_v[i]
+        d = deriv_v[i]
+        pd_val = pres_v[i]
+
+        if s is None or (isinstance(s, float) and math.isnan(s)):
+            out[i] = prev if prev is not None else np.nan
+            continue
+        if d is None or (isinstance(d, float) and math.isnan(d)):
+            d = 0.0
+        if pd_val is None or (isinstance(pd_val, float) and math.isnan(pd_val)):
+            pd_val = 0.0
+
+        # Proximity: spread → saturation
+        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
+
+        # Trend: spread derivative → approach speed
+        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+
+        # Pressure: falling pressure adds to rain prob, rising subtracts
+        # pd_val is hPa/h — negative = falling, positive = rising
+        # Only activate below drop_threshold to avoid noise
+        if abs(pd_val) < abs(p.pressure_drop_threshold):
+            pressure_score = 0.0
+        else:
+            # Negative pd_val (falling) → positive contribution
+            # Scale: -1 hPa/h gives pressure_gain points (~25)
+            pressure_score = min(max(-pd_val * p.pressure_gain,
+                                     p.pressure_floor),
+                                 p.pressure_ceiling)
+
+        # Blend
+        if use_pressure:
+            raw = (proximity * p.proximity_weight +
+                   trend_score * p.trend_weight +
+                   pressure_score * p.pressure_weight)
+        else:
+            raw = (proximity * p.proximity_weight +
+                   trend_score * p.trend_weight)
+
+        # Dryness sanity ceiling
+        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
+        raw = min(max(raw, 0), ceiling)
+
+        # Hysteresis: rise instantly, decay slowly
+        if prev is None:
+            total = raw
+        elif raw > prev:
+            total = raw
+        else:
+            total = prev - (prev - raw) * p.hysteresis_decay
+        out[i] = total
+        prev = total
+
+    return pd.Series(out, index=df.index).round(0)
+
+
 # Registry so the notebook can loop over models by name.
 MODELS = {
     "original": model_original,
     "tuned": model_tuned,
     "trend_dominant": model_trend_dominant,
     "ha_live": model_ha_live,
+    "pressure_aware": model_pressure_aware,
 }
 
 

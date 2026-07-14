@@ -156,13 +156,14 @@ class TestModelComparison:
         assert max_diff > 1.0
     
     def test_all_models_registered(self):
-        """All four models are in the MODELS registry."""
+        """All five models are in the MODELS registry."""
         assert "original" in MODELS
         assert "tuned" in MODELS
         assert "trend_dominant" in MODELS
         assert "ha_live" in MODELS
+        assert "pressure_aware" in MODELS
         
-        assert len(MODELS) == 4
+        assert len(MODELS) == 5
     
     def test_all_models_callable(self):
         """All registered models can be called."""
