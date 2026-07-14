@@ -14,6 +14,7 @@ Author: Karasik (AI assistant for Kickoman/rain-analysis)
 
 import argparse
 import json
+import os
 import sys
 import csv
 from datetime import datetime, timedelta, timezone
