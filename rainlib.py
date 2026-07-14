@@ -527,18 +527,31 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
 def label_rain(grid: pd.DataFrame,
                precip_col: str = "om_precip",
                threshold_mm: float = 0.1) -> pd.Series:
-    """Boolean 'is it raining' label from precipitation data.
+    """Rain label (0/1/NaN) from precipitation data.
 
-    open-meteo precip is an hourly *sum* for the preceding hour; any value
-    >= threshold_mm marks that hour as raining. Falls back to Meteostat,
-    then Yandex condition if open-meteo precip is unavailable.
+    Returns a float Series with:
+      - 1.0 : rain detected above threshold
+      - 0.0 : no rain detected
+      - NaN : unknown (precipitation data missing)
+
+    NaN is preserved instead of fillna(0) — missing precipitation data
+    means ground truth is unknown, not "no rain". Scoring functions
+    automatically drop NaN rows to avoid penalising the model for
+    unknown hours.
+
+    Falls back to Meteostat, then Yandex condition if the primary
+    source is unavailable.
     """
     if precip_col in grid and grid[precip_col].notna().any():
-        return (grid[precip_col].fillna(0) >= threshold_mm).astype(int)
+        result = (grid[precip_col] >= threshold_mm).astype(float)
+        result[grid[precip_col].isna()] = np.nan
+        return result
     if "ms_precip" in grid and grid["ms_precip"].notna().any():
-        return (grid["ms_precip"].fillna(0) > 0).astype(int)
+        result = (grid["ms_precip"] > 0).astype(float)
+        result[grid["ms_precip"].isna()] = np.nan
+        return result
     if "yx_is_rain" in grid:
-        return grid["yx_is_rain"].fillna(0).astype(int)
+        return grid["yx_is_rain"].astype(float)
     raise ValueError("No precipitation or condition column to label from.")
 
 
@@ -547,9 +560,19 @@ def label_rain(grid: pd.DataFrame,
 # ---------------------------------------------------------------------------
 
 def confusion_at_threshold(pred: pd.Series, truth: pd.Series,
-                           threshold: float = 50.0) -> dict:
-    """Confusion-matrix counts + rates treating pred>=threshold as 'rain'."""
-    df = pd.DataFrame({"pred": pred, "truth": truth}).dropna()
+                           threshold: float = 50.0,
+                           drop_unknown: bool = True) -> dict:
+    """Confusion-matrix counts + rates treating pred>=threshold as 'rain'.
+
+    With drop_unknown=True (default), rows where truth is NaN are
+    dropped: unknown ground truth doesn't penalise the model.
+    Set to False to treat NaN truth as no-rain (old behaviour).
+    """
+    df = pd.DataFrame({"pred": pred, "truth": truth})
+    if drop_unknown:
+        df = df.dropna()
+    else:
+        df = df.fillna({"truth": 0})
     yhat = (df["pred"] >= threshold).astype(int)
     y = df["truth"].astype(int)
     tp = int(((yhat == 1) & (y == 1)).sum())
