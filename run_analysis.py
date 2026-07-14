@@ -76,8 +76,6 @@ class AnalysisConfig:
         "proximity_divisor": [5, 6, 7, 8],
         "hysteresis_decay": [0.2, 0.3, 0.5],
         "trend_gain": [15, 20, 30],
-        "pressure_gain": [10, 15, 20],
-        "pressure_weight": [0.2, 0.3, 0.5],
     })
 
     # F-beta recommendations to compute
@@ -128,30 +126,13 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
 
 
 def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame:
-    """§3: Compute physical features (dew point, spread, derivative, pressure)."""
+    """§3: Compute physical features (dew point, spread, derivative)."""
     grid = grid.copy()
     grid["dew_point"] = rl.dew_point(grid["temp"], grid["rh"])
     grid["spread"] = rl.dew_point_spread(grid["temp"], grid["rh"])
     grid["abs_humidity"] = rl.absolute_humidity(grid["temp"], grid["rh"])
     grid["humidex"] = rl.humidex(grid["temp"], grid["dew_point"])
     grid["spread_deriv"] = rl.derivative(grid["spread"], window=config.deriv_window)
-
-    # Pressure derivative (for pressure-aware model)
-    # Priority: ms_pres (Meteostat), fallback to yx_pressure_mm (Yandex, convert to hPa)
-    pres_col = None
-    if "ms_pres" in grid.columns and grid["ms_pres"].notna().any():
-        pres_col = "ms_pres"
-    elif "yx_pressure_mm" in grid.columns:
-        # Convert mmHg to hPa: 1 mmHg ≈ 1.333 hPa
-        grid["_pressure_hpa"] = grid["yx_pressure_mm"] * 1.333
-        if grid["_pressure_hpa"].notna().any():
-            pres_col = "_pressure_hpa"
-
-    if pres_col:
-        grid["pressure_deriv"] = rl.derivative(
-            grid[pres_col].resample("1h").mean().reindex(grid.index).ffill(limit=6),
-            window=config.model_params.get("pressure_window", "3h"),
-        )
     return grid
 
 
@@ -197,14 +178,7 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     model_stats = {}
     for name in MODELS:
         col = f"model_{name}"
-        # Pass pressure_deriv for pressure-aware model
-        if name == "pressure" and "pressure_deriv" in grid.columns:
-            grid[col] = MODELS[name](
-                grid["spread"], grid["spread_deriv"], params,
-                pressure_deriv=grid["pressure_deriv"],
-            )
-        else:
-            grid[col] = MODELS[name](grid["spread"], grid["spread_deriv"], params)
+        grid[col] = MODELS[name](grid["spread"], grid["spread_deriv"], params)
         model_stats[name] = {
             "mean": float(grid[col].mean()),
             "std": float(grid[col].std()),
@@ -337,8 +311,7 @@ def cross_check(grid: pd.DataFrame) -> dict:
     for col in ["temp", "rh", "om_temp", "om_rh", "ms_temp", "ms_rhum",
                  "yx_temp", "yx_humidity",
                  "ha_rain_prob", "om_precip", "ms_precip",
-                 "yx_prec_prob", "yx_condition",
-                 "ms_pres", "pressure_deriv"]:
+                 "yx_prec_prob", "yx_condition", "ms_pres"]:
         if col in cmp.columns:
             series = cmp[col].dropna()
             if len(series) > 0:
