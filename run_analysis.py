@@ -42,7 +42,7 @@ import numpy as np
 
 # Use rainlib — no reinvention
 import rainlib as rl
-from rainlib import ModelParams, MODELS
+from rainlib import ModelParams, ModelContext, MODELS
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +61,7 @@ class AnalysisConfig:
         "sensor.datchik_klimata_temperatura": "temp",
         "sensor.datchik_klimata_vlazhnost": "rh",
         "sensor.rain_probability": "ha_rain_prob",
+        "sensor.filtered_pressure": "pressure",
     })
 
     grid_freq: str = "10min"
@@ -133,6 +134,16 @@ def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame
     grid["abs_humidity"] = rl.absolute_humidity(grid["temp"], grid["rh"])
     grid["humidex"] = rl.humidex(grid["temp"], grid["dew_point"])
     grid["spread_deriv"] = rl.derivative(grid["spread"], window=config.deriv_window)
+
+    # Unified pressure column from HA / Meteostat / Yandex
+    pressure_series = rl.compute_unified_pressure(grid)
+    if pressure_series is not None:
+        grid["pressure"] = pressure_series
+        grid["pressure_deriv"] = rl.derivative(
+            grid["pressure"],
+            window=config.model_params.get("pressure_window", "3h"),
+        )
+
     return grid
 
 
@@ -175,10 +186,16 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
 
     params = ModelParams(**config.model_params)
 
+    ctx = ModelContext(
+        spread=grid["spread"],
+        spread_deriv=grid["spread_deriv"],
+        pressure=grid.get("pressure"),
+    )
+
     model_stats = {}
-    for name in MODELS:
+    for name, func in MODELS.items():
         col = f"model_{name}"
-        grid[col] = MODELS[name](grid["spread"], grid["spread_deriv"], params)
+        grid[col] = func(ctx, params)
         model_stats[name] = {
             "mean": float(grid[col].mean()),
             "std": float(grid[col].std()),
@@ -283,7 +300,8 @@ def param_tuning(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     for combo in itertools.product(*config.param_grid.values()):
         kw = dict(zip(keys, combo))
         p = ModelParams(**kw)
-        pred = rl.model_tuned(grid["spread"], grid["spread_deriv"], p)
+        ctx = ModelContext(spread=grid["spread"], spread_deriv=grid["spread_deriv"])
+        pred = rl.model_tuned(ctx, p)
         c = rl.confusion_at_threshold(pred, grid["rain_truth"], config.decision_threshold)
         results.append({
             **kw,
@@ -311,7 +329,8 @@ def cross_check(grid: pd.DataFrame) -> dict:
     for col in ["temp", "rh", "om_temp", "om_rh", "ms_temp", "ms_rhum",
                  "yx_temp", "yx_humidity",
                  "ha_rain_prob", "om_precip", "ms_precip",
-                 "yx_prec_prob", "yx_condition", "ms_pres"]:
+                 "yx_prec_prob", "yx_condition", "ms_pres",
+                 "pressure", "pressure_deriv", "yx_pressure_mm"]:
         if col in cmp.columns:
             series = cmp[col].dropna()
             if len(series) > 0:

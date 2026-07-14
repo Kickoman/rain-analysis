@@ -27,6 +27,7 @@ DEFAULT_ENTITIES = [
     "sensor.datchik_klimata_temperatura",
     "sensor.datchik_klimata_vlazhnost",
     "sensor.rain_probability",
+    "sensor.filtered_pressure",
 ]
 
 
