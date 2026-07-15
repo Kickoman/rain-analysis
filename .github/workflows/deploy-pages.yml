@@ -1,0 +1,130 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'reports/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master
+        uses: actions/checkout@v3
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Checkout gh-pages
+        run: |
+          git fetch origin gh-pages
+          git checkout gh-pages
+
+      - name: Copy conversion script
+        run: |
+          git checkout master -- scripts/md_to_html.py
+
+      - name: Generate HTML from latest reports
+        run: |
+          # Get latest 10 reports
+          git checkout master -- reports/*.md
+          
+          # Convert to HTML
+          for report in reports/*.md; do
+            if [ -f "$report" ]; then
+              filename=$(basename "$report" .md)
+              python3 scripts/md_to_html.py "$report" "history/${filename}.html"
+            fi
+          done
+          
+          # Latest report to current/
+          latest=$(ls -1 reports/*.md | tail -1)
+          if [ -f "$latest" ]; then
+            python3 scripts/md_to_html.py "$latest" "current/index.html"
+          fi
+          
+          # Clean up temporary files
+          rm -rf reports/
+
+      - name: Update history index
+        run: |
+          python3 << 'EOF'
+          from pathlib import Path
+          import re
+          
+          history_dir = Path('history')
+          reports = sorted(history_dir.glob('*.html'), reverse=True)
+          
+          cards = []
+          for report in reports:
+            if report.name == 'index.html':
+              continue
+            date = report.stem
+            # Read first few lines to extract best model
+            content = report.read_text()
+            match = re.search(r'Best overall.*?:\s*(\w+)', content)
+            model = match.group(1) if match else 'N/A'
+            
+            cards.append(f'''                <div class="card">
+                    <h3>{date}</h3>
+                    <p>Best model: {model}</p>
+                    <a href="{report.name}">View Report →</a>
+                </div>''')
+          
+          html = f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>History — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Automated performance tracking and reports</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html" class="active">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+    </nav>
+
+    <main>
+        <section>
+            <h2>📅 Historical Reports</h2>
+            <p>Daily analysis reports, newest first.</p>
+            
+            <div class="cards">
+{chr(10).join(cards)}
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+    </footer>
+</body>
+</html>'''
+          
+          Path('history/index.html').write_text(html)
+          print('✅ Updated history/index.html')
+          EOF
+
+      - name: Commit and push
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update GitHub Pages: $(date -u '+%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
+          git push origin gh-pages
