@@ -427,12 +427,38 @@ def model_pressure_aware(ctx: ModelContext,
 
 
 # Registry so the notebook can loop over models by name.
+def _get_pressure_variant(name):
+    """Lazy-load pressure variant models to avoid circular imports."""
+    from pressure_variants import (model_pressure_absolute, model_pressure_long_window,
+                                   model_pressure_lagged, model_pressure_combined)
+    variants = {
+        "pressure_absolute": model_pressure_absolute,
+        "pressure_long_window": model_pressure_long_window,
+        "pressure_lagged": model_pressure_lagged,
+        "pressure_combined": model_pressure_combined,
+    }
+    return variants[name]
+
+
+class _LazyModel:
+    """Lazy-loading wrapper for pressure variants."""
+    def __init__(self, name):
+        self._name = name
+    
+    def __call__(self, *args, **kwargs):
+        return _get_pressure_variant(self._name)(*args, **kwargs)
+
+
 MODELS = {
     "original": model_original,
     "tuned": model_tuned,
     "trend_dominant": model_trend_dominant,
     "ha_live": model_ha_live,
     "pressure_aware": model_pressure_aware,
+    "pressure_absolute": _LazyModel("pressure_absolute"),
+    "pressure_long_window": _LazyModel("pressure_long_window"),
+    "pressure_lagged": _LazyModel("pressure_lagged"),
+    "pressure_combined": _LazyModel("pressure_combined"),
 }
 
 
