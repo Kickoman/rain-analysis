@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rain Analysis — Model Performance Reports</title>
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Automated performance tracking and reports</p>
+    </header>
+
+    <nav>
+        <a href="index.html" class="active">Home</a>
+        <a href="current/index.html">Latest Report</a>
+        <a href="history/index.html">History</a>
+        <a href="metrics/index.html">Metrics Timeline</a>
+    </nav>
+
+    <main>
+        <section class="intro">
+            <h2>About This Project</h2>
+            <p>This site tracks the performance of multiple rain prediction models, comparing their accuracy against real precipitation data from multiple sources.</p>
+            
+            <h3>Current Models</h3>
+            <ul>
+                <li><strong>original</strong> — Baseline ECMWF model</li>
+                <li><strong>tuned</strong> — Calibrated threshold version</li>
+                <li><strong>trend_dominant</strong> — Pressure trend based predictor</li>
+                <li><strong>ha_live</strong> — Home Assistant live sensor fusion</li>
+                <li><strong>pressure_aware</strong> — Pressure-corrected model</li>
+            </ul>
+        </section>
+
+        <section class="latest">
+            <h2>Latest Results</h2>
+            <div class="report-card">
+                <h3>Daily Report — 2026-07-15</h3>
+                <p>Best model: <strong>ha_live</strong> (F1: 0.303)</p>
+                <a href="current/index.html" class="btn">View Full Report →</a>
+            </div>
+        </section>
+
+        <section class="quick-links">
+            <h2>Quick Links</h2>
+            <div class="cards">
+                <div class="card">
+                    <h3>📊 Current Performance</h3>
+                    <p>Latest model metrics and comparisons</p>
+                    <a href="current/index.html">View →</a>
+                </div>
+                <div class="card">
+                    <h3>📅 Historical Reports</h3>
+                    <p>Browse past analysis results</p>
+                    <a href="history/index.html">Browse →</a>
+                </div>
+                <div class="card">
+                    <h3>📈 Metrics Timeline</h3>
+                    <p>Track performance trends over time</p>
+                    <a href="metrics/index.html">Explore →</a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Last updated: <span id="last-update">2026-07-15</span></p>
+    </footer>
+</body>
+</html>

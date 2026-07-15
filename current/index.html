@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026/07/15 — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Automated performance tracking and reports</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html" class="active">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+    </nav>
+
+    <main>
+        <section class="report-content">
+<h1>Daily Model Analysis — 2026-07-15</h1>
+
+<strong>Generated:</strong> 2026-07-15T08:00:50.705638+00:00
+
+<h2>Model Performance (7-day window)</h2>
+
+<table>
+<thead><tr>
+<th>Model</th>
+<th>F1</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Status</th>
+</tr></thead><tbody>
+<tr>
+<td>original</td>
+<td>0.262</td>
+<td>0.256</td>
+<td>0.269</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.217</td>
+<td>0.230</td>
+<td>0.206</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.121</td>
+<td>0.692</td>
+<td>0.066</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>ha_live</td>
+<td>0.303</td>
+<td>0.290</td>
+<td>0.317</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.217</td>
+<td>0.230</td>
+<td>0.206</td>
+<td>📊</td>
+</tr>
+</tbody></table>
+
+<strong>Best overall (F-beta=2):</strong> ha_live @ 5%
+
+<h2>Precipitation Source Comparison</h2>
+
+<strong>Sources:</strong> 3
+
+<table>
+<thead><tr>
+<th>Source</th>
+<th>Rain Hours</th>
+<th>Agreement</th>
+</tr></thead><tbody>
+<tr>
+<td>OM</td>
+<td>74</td>
+<td>ms=32, yx=28</td>
+</tr>
+<tr>
+<td>MS</td>
+<td>42</td>
+<td>yx=23</td>
+</tr>
+<tr>
+<td>YX</td>
+<td>100</td>
+<td></td>
+</tr>
+</tbody></table>
+
+<h2>Observations & Recommendations</h2>
+
+<p>⚠️ <strong>Precision <0.55</strong> — dry-night false positives remain a problem. Pressure-aware model is the priority.</p>
+
+<p>⚠️ <strong>F1 <0.45</strong> — performance degraded. Review recent data quality.</p>
+
+<p>✅ <strong>Next step:</strong> Implement pressure_aware model using ms_pres data.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-07-15 16:59 UTC</p>
+    </footer>
+</body>
+</html>
