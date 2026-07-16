@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - 'reports/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
