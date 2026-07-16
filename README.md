@@ -79,7 +79,7 @@ rain-analysis/
 
 - Every HA helper (dew point, spread, derivative, rain_probability) has a pure-Python twin in `rainlib.py`
 - Ground truth = open-meteo hourly precipitation. `rain_truth=1` when precip ≥ threshold
-- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`, `ha_live`
+- Models are in the `MODELS` registry: `original`, `tuned`, `trend_dominant`, `ha_live`, `pressure_aware`, `pressure_absolute`, `pressure_long_window`, `pressure_lagged`, `pressure_combined`
 
 ## Data Sources
 
@@ -88,6 +88,7 @@ rain-analysis/
 Required entities:
 - `sensor.datchik_klimata_temperatura` — outdoor temperature
 - `sensor.datchik_klimata_vlazhnost` — outdoor humidity
+- `sensor.filtered_pressure` — atmospheric pressure (for pressure-aware models)
 - `sensor.rain_probability` — live model output
 
 Fetch with:
@@ -130,12 +131,17 @@ All tuning knobs in one place:
 | `dry_spread_cutoff` / `dry_ceiling` | Cap output when air is dry |
 | `hysteresis_decay` | Decay speed after peak (0=frozen, 1=instant) |
 | `derivative_window` | Window for spread derivative (1h=twitchy, 3h=smooth) |
+| `pressure_weight` | Weight of pressure term in blend |
+| `pressure_gain` | Points per hPa/h of pressure drop |
+| `pressure_floor` / `pressure_ceiling` | Clamp on pressure contribution |
+| `pressure_window` | Time window for pressure derivative |
+| `pressure_drop_threshold` | Min hPa/h to activate pressure signal |
 
 ### Adding a New Model
 
 1. Define the model in `rainlib.py`:
    ```python
-   def model_my_custom(spread, spread_deriv, p=None):
+   def model_my_custom(ctx: ModelContext, p: ModelParams | None = None) -> pd.Series:
        # your logic
        return score_series
    ```
@@ -151,15 +157,35 @@ All tuning knobs in one place:
 
 3. Re-run — it appears everywhere automatically
 
-### Pressure Integration (Recommended Next Step)
+### Pressure Integration (✅ Implemented)
 
-The baseline model hits a ceiling without pressure. To add it:
+Barometric pressure is now integrated into the analysis framework. Five
+pressure-aware models are available:
 
-1. Export pressure from HA: `sensor.office_weather_station_pressure`
-2. Add to `HA_ENTITIES`: `'sensor.pressure': 'pressure'`
-3. Compute derivative: `grid['pressure_deriv'] = derivative(grid['pressure'], '3h')`
-4. Write `model_pressure_aware()` that fires on pressure **drop rate**
-5. Register in `MODELS` — scoring/plots work unchanged
+| Model | Description |
+|-------|-------------|
+| `pressure_aware` | Baseline pressure-trend model (proximity + trend + pressure derivative) |
+| `pressure_absolute` | Adds absolute pressure level bonus (<1000 hPa = rain indicator) |
+| `pressure_long_window` | Uses 12h pressure derivative window for slow weather systems |
+| `pressure_lagged` | Uses pressure lagged by 6h to account for storm travel time |
+| `pressure_combined` | Combines all techniques (long window + lagged + absolute) |
+
+**Required sensor:** `sensor.filtered_pressure` (hPa) — from Home Assistant's
+filter integration smoothing raw pressure readings.
+
+**Pressure data sources** (via `build_pressure_series()`):
+
+| Priority | Source | Column | Unit |
+|----------|--------|--------|------|
+| 1 | HA `filtered_pressure` | `pressure` | hPa |
+| 2 | Meteostat | `ms_pres` | hPa |
+| 3 | Yandex Archive | `yx_pressure_mm` | mm Hg → hPa |
+
+When no pressure data is available, models gracefully fall back to
+spread+trend only (same as `tuned`).
+
+For details, see [MODELS.md#pressure-aware-models](docs/MODELS.md) and
+`pressure_variants.py`.
 
 ## Known Findings
 
