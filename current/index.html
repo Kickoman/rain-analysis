@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>pressure_variants_2026/07/15 — Rain Analysis</title>
+    <title>2026/07/16 — Rain Analysis</title>
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
@@ -21,20 +21,11 @@
 
     <main>
         <section class="report-content">
-<h1>Pressure Model Variants Comparison</h1>
+<h1>Daily Model Analysis — 2026-07-16</h1>
 
-<strong>Date:</strong> 2026-07-15  
-<strong>Analysis period:</strong> 7 days  
-<strong>Pressure data available from:</strong> 2026-07-08 00:00:00+00:00
+<strong>Generated:</strong> 2026-07-16T08:00:44.987331+00:00
 
-<h2>Variants Tested</h2>
-
-<p>- <strong>A (absolute):</strong> Pressure trend + absolute pressure bonus
-- <strong>B (long_window):</strong> 12h window instead of 3h
-- <strong>C (lagged):</strong> 6h lagged pressure
-- <strong>D (combined):</strong> All techniques combined</p>
-
-<h2>Results</h2>
+<h2>Model Performance (7-day window)</h2>
 
 <table>
 <thead><tr>
@@ -42,101 +33,115 @@
 <th>F1</th>
 <th>Precision</th>
 <th>Recall</th>
-<th>TP</th>
-<th>FP</th>
-<th>FN</th>
+<th>Status</th>
 </tr></thead><tbody>
 <tr>
+<td>original</td>
+<td>0.164</td>
+<td>0.154</td>
+<td>0.176</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.159</td>
+<td>0.162</td>
+<td>0.157</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.096</td>
+<td>0.571</td>
+<td>0.052</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>ha_live</td>
+<td>0.211</td>
+<td>0.186</td>
+<td>0.242</td>
+<td>✅</td>
+</tr>
+<tr>
 <td>pressure_aware</td>
-<td>0.231</td>
-<td>0.237</td>
-<td>0.225</td>
-<td>86</td>
-<td>277</td>
-<td>297</td>
+<td>0.159</td>
+<td>0.162</td>
+<td>0.157</td>
+<td>📊</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.235</td>
-<td>0.233</td>
-<td>0.238</td>
-<td>91</td>
-<td>300</td>
-<td>292</td>
+<td>0.158</td>
+<td>0.153</td>
+<td>0.163</td>
+<td>📊</td>
 </tr>
 <tr>
 <td>pressure_long_window</td>
-<td>0.221</td>
-<td>0.237</td>
-<td>0.206</td>
-<td>79</td>
-<td>254</td>
-<td>304</td>
+<td>0.161</td>
+<td>0.165</td>
+<td>0.157</td>
+<td>📊</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.209</td>
-<td>0.220</td>
-<td>0.198</td>
-<td>76</td>
-<td>270</td>
-<td>307</td>
+<td>0.159</td>
+<td>0.162</td>
+<td>0.157</td>
+<td>📊</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.234</td>
-<td>0.241</td>
-<td>0.227</td>
-<td>87</td>
-<td>274</td>
-<td>296</td>
+<td>0.159</td>
+<td>0.159</td>
+<td>0.160</td>
+<td>📊</td>
 </tr>
 </tbody></table>
 
-<h2>Analysis</h2>
+<strong>Best overall (F-beta=2):</strong> ha_live @ 5%
 
-<strong>Best model:</strong> pressure_absolute (F1=0.235)  
-<strong>Baseline:</strong> pressure_aware (F1=0.231)  
-<strong>Change:</strong> +0.005 (≈+2.1%) — negligible improvement
+<h2>Precipitation Source Comparison</h2>
 
-<h3>Key findings:</h3>
+<strong>Sources:</strong> 3
 
-<p>1. <strong>Absolute pressure (Variant A)</strong> gives the best F1 (0.235) — a tiny +2.1% over baseline. The logic: even when pressure is rising short-term, staying in a low-pressure zone (<1000 hPa) indicates persistent stormy weather.</p>
+<table>
+<thead><tr>
+<th>Source</th>
+<th>Rain Hours</th>
+<th>Agreement</th>
+</tr></thead><tbody>
+<tr>
+<td>OM</td>
+<td>55</td>
+<td>ms=18, yx=14</td>
+</tr>
+<tr>
+<td>MS</td>
+<td>25</td>
+<td>yx=10</td>
+</tr>
+<tr>
+<td>YX</td>
+<td>100</td>
+<td></td>
+</tr>
+</tbody></table>
 
-<p>2. <strong>Combined approach (Variant D)</strong> is close second (F1=0.234) with better precision (0.241). It trades recall for fewer false positives.</p>
+<h2>Observations & Recommendations</h2>
 
-<p>3. <strong>Longer windows (Variant B, F1=0.221)</strong> actually hurt performance. The 12h window smooths out the pressure signal too much — you lose the short-term drops that precede rain.</p>
+<p>⚠️ <strong>Precision <0.55</strong> — dry-night false positives remain a problem. Pressure-aware model is the priority.</p>
 
-<p>4. <strong>Lagged pressure (Variant C, F1=0.209)</strong> is the worst. 6h lag is too long — by the time the lagged signal registers, the rain is already happening.</p>
+<p>⚠️ <strong>F1 <0.45</strong> — performance degraded. Review recent data quality.</p>
 
-<p>5. <strong>None of the variants significantly outperform baseline.</strong> The pressure signal from July 12 data is too weak and too short (only 3 days of pressure data) for pressure to be a meaningful predictor. The dominant signals remain spread proximity and spread derivative.</p>
-
-<h3>Recommendation:</h3>
-
-<strong>Merge pressure_absolute</strong> as the primary pressure model variant (replacing pressure_aware). It's strictly better (same code, plus the absolute pressure bonus), never regresses, and will become more useful as we accumulate more pressure data.
-
-<p>Also keep pressure_combined as secondary variant — its higher precision may be useful for alert-threshold tuning.</p>
-
-<h2>Observations</h2>
-
-<p>- Pressure data only available since July 12 (Meteostat fills earlier gaps). Only 3 days with pressure ≠ NaN. This is too short for meaningful statistical separation.
-- All 5 models have essentially identical performance because <strong>spread + derivative are the dominant signals</strong> (not pressure).
-- Low absolute pressure (<1000 hPa) in July 12-15 data correlates with rainy periods — the absolute bonus slightly edges out other variants.
-- Need >>30 days of pressure data to see which variant truly works best.
-- The original issue (pressure_aware == tuned metrics) is caused by pressure signal being too weak, not by code bugs.</p>
-
-<h2>Observations</h2>
-
-<p>_Add manual observations here after reviewing the results._</p>
-
-<p>---
-Generated by test_pressure_variants.py for issue #40</p>
+<p>✅ <strong>Next step:</strong> Implement pressure_aware model using ms_pres data.</p>
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-07-16 08:00 UTC</p>
+        <p>Generated: 2026-07-16 12:27 UTC</p>
     </footer>
 </body>
 </html>
