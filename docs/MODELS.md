@@ -10,6 +10,11 @@ Complete documentation of all rain prediction models in this analysis framework.
 | **original** | Baseline v0.1 | 0.440 | 0.507 | 0.389 | 📊 Reference |
 | **tuned** | Optimized | 0.441 | 0.448 | 0.433 | 🔧 Experimental |
 | **trend_dominant** | Experimental | 0.115 | 0.696 | 0.063 | ❌ Failed |
+| **pressure_aware** | Experimental | 0.440 | 0.507 | 0.389 | 🔧 Testing |
+| **pressure_absolute** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
+| **pressure_long_window** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
+| **pressure_lagged** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
+| **pressure_combined** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
 
 *Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
 
@@ -310,93 +315,102 @@ rain_probability = trend * 0.7 + proximity * 0.3
 
 ---
 
-## Future Models (Planned)
+## Pressure-Aware Models (✅ Implemented)
 
-### 5. pressure_aware (Next Priority)
+### 5. pressure_aware (Baseline Pressure Model)
 
-**Status:** 🚧 Planned  
-**Goal:** Eliminate dry-night false positives
+**Status:** ✅ Implemented  
+**Implementation:** `rainlib.py::model_pressure_aware`  
+**Goal:** Add barometric pressure to eliminate dry-night false positives
 
-#### Concept
+#### Algorithm
 
-Add barometric pressure to distinguish:
-- **Real rain:** falling pressure + closed spread
-- **Dry night:** stable pressure + closed spread
-
-#### New Inputs
-
-From Meteostat (`ms_pres`) or HA (`sensor.office_weather_station_pressure`):
-- Absolute pressure (hPa)
-- Pressure trend (3h derivative)
-
-#### Proposed Formula
+Adds atmospheric pressure tendency as a third predictive factor:
+- **Falling pressure** → approaching cyclone/storm → boosts rain probability
+- **Rising pressure** → clearing weather → suppresses rain probability
+- **Stable pressure** → no pressure signal → behaves like tuned model
 
 ```python
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
-pressure_factor = -pressure_trend * pressure_gain  # negative trend = rising score
+proximity = clamp(100 - spread / proximity_divisor * 100, 0, 100)
+trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
 
-rain_probability = proximity + trend + pressure_factor
+# Pressure derivative score — falling pressure adds, rising subtracts
+pressure_change = derivative(pressure, window=pressure_window)
+if abs(pressure_change) < abs(pressure_drop_threshold):
+    pressure_score = 0.0    # no signal — stable pressure
+else:
+    pressure_score = clamp(-pressure_change * pressure_gain,
+                           pressure_floor, pressure_ceiling)
+
+# Weighted blend with hysteresis
+raw = proximity * proximity_weight + trend_score * trend_weight + pressure_score * pressure_weight
+result = hysteretic_decay(raw)  # rise instantly, decay slowly
 ```
 
-#### Expected Improvement
+#### Parameters
 
-Target **precision ≥0.70** (reduce false positives by ~40%)  
-Maintain **recall ≥0.45** (don't lose rain detection)
+| Parameter | Default | Purpose |
+|-----------|---------|---------|
+| `pressure_weight` | 0.35 | Weight of pressure in blend |
+| `pressure_gain` | 25.0 | Multiplier for pressure change rate |
+| `pressure_floor` | -15.0 | Max suppression from rising pressure |
+| `pressure_ceiling` | 35.0 | Max boost from falling pressure |
+| `pressure_window` | "3h" | Time window for derivative |
+| `pressure_drop_threshold` | -0.5 | Minimum hPa/h to activate signal |
 
----
+#### Key Design Decision: Weighted Blend + Hysteresis (not additive)
 
-### 6. ensemble_vote (Future)
-
-**Status:** 💡 Idea  
-**Goal:** Combine multiple signals via voting
-
-#### Concept
-
-Three independent classifiers:
-1. Dew-point proximity
-2. Pressure trend
-3. Precipitation data from external sources (Yandex, Open-Meteo, Meteostat)
-
-Vote: 2 out of 3 must agree.
-
-#### Advantage
-
-Reduces false positives from any single source.
-
-#### Challenge
-
-Requires reliable real-time external APIs.
+The actual implementation uses a **weighted blend** with hysteresis, NOT the originally proposed additive formula (`proximity + trend + pressure_factor`). This was chosen because:
+1. **Weighted blend** allows independent tuning of each signal's contribution
+2. **Hysteresis** prevents the score from crashing when pressure briefly rises mid-storm
+3. The additive approach created excessive noise when pressure was fluctuating
 
 ---
 
-### 7. ml_model (Long-Term)
+### 5b. pressure_absolute (Variant A)
 
-**Status:** 🔮 Future  
-**Goal:** Learn patterns from historical data
+**Status:** 🔧 Testing  
+**Implementation:** `pressure_variants.py::model_pressure_absolute`
 
-#### Inputs
+**Hypothesis:** Low absolute pressure (<1000 hPa) is itself a rain indicator, even when pressure is currently rising (cyclone recovery).
 
-- Temperature, humidity, dew point
-- Pressure (absolute + trend)
-- Time of day, season
-- Past 1h/3h/6h trends
-
-#### Models to Try
-
-- **Logistic Regression** (baseline)
-- **Random Forest** (feature importance)
-- **XGBoost** (best performance)
-
-#### Data Requirement
-
-Need **6+ months** of labeled data with ground truth.
-
-Current dataset: 7 days (insufficient for training).
+Adds absolute pressure bonus to the pressure derivative signal:
+- < 990 hPa: +20 bonus (deep cyclone)
+- < 1000 hPa: +10 bonus (low pressure system)
+- < 1005 hPa: +5 bonus (slightly low)
 
 ---
 
-## Performance Benchmarks
+### 5c. pressure_long_window (Variant B)
+
+**Status:** 🔧 Testing  
+**Implementation:** `pressure_variants.py::model_pressure_long_window`
+
+**Hypothesis:** 3h is too short to catch slow pressure changes preceding weather systems. Uses a 12h window with relaxed threshold (0.1 hPa/h).
+
+---
+
+### 5d. pressure_lagged (Variant C)
+
+**Status:** 🔧 Testing  
+**Implementation:** `pressure_variants.py::model_pressure_lagged`
+
+**Hypothesis:** Pressure changes 6 hours ago predict rain now. Uses pressure lagged by 6h for derivative calculation, accounting for storm travel time.
+
+---
+
+### 5e. pressure_combined (Variant D)
+
+**Status:** 🔧 Testing  
+**Implementation:** `pressure_variants.py::model_pressure_combined`
+
+**Hypothesis:** Multiple pressure signals together work better than any single one. Combines: 12h long window + 3h lagged short window + absolute pressure bonus.
+
+---
+
+## Future Models (Planned)
+
+### 6. ensemble_vote (Future)## Performance Benchmarks
 
 ### Test Dataset
 
@@ -460,5 +474,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-13  
+**Last Updated:** 2026-07-16  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
