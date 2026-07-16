@@ -27,20 +27,29 @@ Dew-point spread-based detection with trend reinforcement:
 
 ```python
 spread = temperature - dew_point
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
-
-rain_probability = proximity + trend
+# Proximity: 0°C spread = 100%, 10°C+ spread = 0%
+proximity = clamp(100.0 - (spread / proximity_divisor * 100.0), 0, 100)
+# Trend: narrowing spread (negative spread_deriv) boosts score
+trend_score = clamp(-spread_deriv * trend_gain, -40, 40)
+# Weighted blend (not additive) — both components contribute independently
+rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
 if rain_probability >= threshold:
     rain_alert = True
 ```
+
+> **Note:** The original v0.1 model uses hardcoded constants (divisor=10, gain=20,
+> weights=0.7, trend bounds=[-40, 40]) rather than `ModelParams`. This was fixed
+> in PR #58 to make parameter tuning meaningful. When no params are provided,
+> the v0.1 defaults are used for backward compatibility.
 
 ### Parameters
 
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
-| `proximity_divisor` | 10 | Spread normalization (°C) |
-| `trend_gain` | 20 | Trend weight multiplier |
+| `proximity_divisor` | 10 | Spread that maps to 0% proximity (°C) |
+| `trend_gain` | 20 | Points per °C/h of spread narrowing |
+| `trend_bounds` | [-40, 40] | Clamp on trend contribution |
+| `blend_weights` | [0.7, 0.7] | Proximity and trend blend weights |
 | `decision_threshold` | 50% | Rain/no-rain cutoff |
 
 ### How It Works
@@ -49,9 +58,10 @@ if rain_probability >= threshold:
    - Small spread (T ≈ Td) → high proximity → rain likely
    - Large spread (dry air) → low proximity → no rain
    
-2. **Trend reinforcement** — rewards rising humidity
-   - Recent RH increase → positive trend → boosts score
-   - Falling RH → negative trend → suppresses score
+2. **Trend reinforcement** — spread narrowing rate (°C/h)
+   - Spread closing fast (negative `spread_deriv`) → positive trend score → boosts probability
+   - Spread widening (positive `spread_deriv`) → negative trend score → suppresses probability
+   - Both components clamped: `trend_score ∈ [-40, 40]`, `proximity ∈ [0, 100]`
 
 3. **Decision** — threshold at 50%
 
