@@ -26,11 +26,15 @@
             
             <h3>Current Models</h3>
             <ul>
-                <li><strong>original</strong> — Baseline ECMWF model</li>
+                <li><strong>original</strong> — Baseline dew-point spread model (v0.1)</li>
                 <li><strong>tuned</strong> — Calibrated threshold version</li>
-                <li><strong>trend_dominant</strong> — Pressure trend based predictor</li>
+                <li><strong>trend_dominant</strong> — Humidity trend based predictor</li>
                 <li><strong>ha_live</strong> — Home Assistant live sensor fusion</li>
-                <li><strong>pressure_aware</strong> — Pressure-corrected model</li>
+                <li><strong>pressure_aware</strong> — Pressure-trend aware model</li>
+                <li><strong>pressure_absolute</strong> — Absolute pressure + trend</li>
+                <li><strong>pressure_long_window</strong> — 12h pressure window</li>
+                <li><strong>pressure_lagged</strong> — Lagged pressure (6h)</li>
+                <li><strong>pressure_combined</strong> — Combined pressure signals</li>
             </ul>
         </section>
 
@@ -67,7 +71,7 @@
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Last updated: <span id="last-update">2026-07-15</span></p>
+        <p>Last updated: <span id="last-update">2026-07-16</span></p>
     </footer>
 </body>
 </html>
