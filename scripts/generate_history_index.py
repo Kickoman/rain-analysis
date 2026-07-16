@@ -5,6 +5,28 @@ from pathlib import Path
 import re
 
 
+def extract_best_model(html_content):
+    """Extract best model + F1 from report HTML content."""
+    # Strip HTML tags for text search
+    text = re.sub(r'<[^>]+>', '', html_content)
+    
+    # Try: "Best model: model_name (F1: 0.XXX)"
+    m = re.search(r'Best model:\s*([\w_]+)\s+\(F1:\s*([0-9.]+)\)', text)
+    if m:
+        return f"{m.group(1)} (F1: {m.group(2)})"
+    
+    # Try: table row with model name and F1
+    m = re.search(r'Best overall[^:]*:\s*(\w+)', text)
+    if m:
+        model = m.group(1)
+        f1_m = re.search(f'{model}</td>\\s*<td>([0-9.]+)', html_content)
+        if f1_m:
+            return f"{model} (F1: {f1_m.group(1)})"
+        return model
+    
+    return 'N/A'
+
+
 def main():
     history_dir = Path('history')
     reports = sorted(history_dir.glob('*.html'), reverse=True)
@@ -14,14 +36,12 @@ def main():
         if report.name == 'index.html':
             continue
         date = report.stem
-        # Read first few lines to extract best model
         content = report.read_text()
-        match = re.search(r'Best overall.*?:\s*(\w+)', content)
-        model = match.group(1) if match else 'N/A'
+        best = extract_best_model(content)
         
         cards.append(f'''                <div class="card">
                     <h3>{date}</h3>
-                    <p>Best model: {model}</p>
+                    <p>Best model: {best}</p>
                     <a href="{report.name}">View Report →</a>
                 </div>''')
     
