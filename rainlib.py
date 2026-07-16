@@ -128,39 +128,132 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     result = pd.Series(out, index=s.index)
     return result.reindex(series.index)
 
-def build_pressure_series(grid: pd.DataFrame,
-                              ha_pressure_col: str = "pressure",
-                              ms_pres_col: str = "ms_pres",
-                              yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
-    """Build a single pressure series with data-gap filling across sources.
 
-    This is NOT a model ensemble — it builds ONE column by filling missing values
-    from fallback sources. The model receives a single pressure feature regardless.
-
-    Priority fallback chain:
-      1. HA filtered_pressure (hPa) — primary source
-      2. Meteostat pres (hPa) — fills gaps where HA was offline
-      3. Yandex pressure_mm (mm Hg → hPa) — last resort for old data
-
-    In production (HA-only), the fallbacks are inert; the function simply returns
-    the HA column unchanged.
-
-    Returns None if no pressure data is available from any source.
+def build_pressure_series_ha(grid: pd.DataFrame,
+                             ha_pressure_col: str = "pressure") -> pd.Series | None:
+    """Build pressure series from Home Assistant sensor only.
+    
+    This is the production function — uses only local HA sensor data.
+    No fallbacks to external sources.
+    
+    Parameters
+    ----------
+    grid : pd.DataFrame
+        Unified time grid with pressure data
+    ha_pressure_col : str
+        Column name for HA pressure (hPa)
+    
+    Returns
+    -------
+    pd.Series or None
+        Pressure series in hPa, or None if column doesn't exist
     """
-    pressure = pd.Series(index=grid.index, dtype=float)
-
-    if ha_pressure_col in grid.columns:
-        pressure = grid[ha_pressure_col].copy()
-
-    if ms_pres_col in grid.columns:
-        pressure = pressure.fillna(grid[ms_pres_col])
-
-    if yx_pressure_col in grid.columns:
-        pressure = pressure.fillna(grid[yx_pressure_col] * 1.33322)
-
+    if ha_pressure_col not in grid.columns:
+        return None
+    
+    pressure = grid[ha_pressure_col].copy()
     if pressure.isna().all():
         return None
     return pressure
+
+
+def build_pressure_series_meteostat(grid: pd.DataFrame,
+                                    ms_pres_col: str = "ms_pres") -> pd.Series | None:
+    """Build pressure series from Meteostat data only.
+    
+    For testing/validation purposes. Meteostat provides historical weather
+    station data that can be used to validate model behavior on different
+    pressure sources.
+    
+    Parameters
+    ----------
+    grid : pd.DataFrame
+        Unified time grid with pressure data
+    ms_pres_col : str
+        Column name for Meteostat pressure (hPa)
+    
+    Returns
+    -------
+    pd.Series or None
+        Pressure series in hPa, or None if column doesn't exist
+    """
+    if ms_pres_col not in grid.columns:
+        return None
+    
+    pressure = grid[ms_pres_col].copy()
+    if pressure.isna().all():
+        return None
+    return pressure
+
+
+def build_pressure_series_yandex(grid: pd.DataFrame,
+                                 yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
+    """Build pressure series from Yandex Weather archive data only.
+    
+    For testing/validation purposes. Yandex archive provides historical
+    forecast data including atmospheric pressure.
+    
+    Note: Yandex reports pressure in mm Hg, so we convert to hPa:
+    hPa = mm Hg × 1.33322
+    
+    Parameters
+    ----------
+    grid : pd.DataFrame
+        Unified time grid with pressure data
+    yx_pressure_col : str
+        Column name for Yandex pressure (mm Hg)
+    
+    Returns
+    -------
+    pd.Series or None
+        Pressure series in hPa, or None if column doesn't exist
+    """
+    if yx_pressure_col not in grid.columns:
+        return None
+    
+    pressure = grid[yx_pressure_col].copy() * 1.33322  # mm Hg → hPa
+    if pressure.isna().all():
+        return None
+    return pressure
+
+
+# Backward compatibility: keep old function name but redirect to HA-only
+def build_pressure_series(grid: pd.DataFrame,
+                          ha_pressure_col: str = "pressure",
+                          ms_pres_col: str = "ms_pres",
+                          yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
+    """Deprecated: Use build_pressure_series_ha() for production.
+    
+    This function is kept for backward compatibility but now only returns
+    HA sensor data (no fallback mixing). For isolated source testing, use:
+    - build_pressure_series_ha() — HA sensors only (production)
+    - build_pressure_series_meteostat() — Meteostat only (testing)
+    - build_pressure_series_yandex() — Yandex only (testing)
+    """
+    return build_pressure_series_ha(grid, ha_pressure_col)
+
+
+# Keep the old function available but mark as legacy
+def build_pressure_series_legacy(grid: pd.DataFrame,
+                                 ha_pressure_col: str = "pressure",
+                                 ms_pres_col: str = "ms_pres",
+                                 yx_pressure_col: str = "yx_pressure_mm") -> pd.Series | None:
+    """Legacy fallback-chain pressure builder (deprecated).
+    
+    This was the original implementation that mixed sources with fallback.
+    Kept for historical comparison only. New code should use isolated functions.
+    """
+    pressure = pd.Series(index=grid.index, dtype=float)
+    if ha_pressure_col in grid.columns:
+        pressure = grid[ha_pressure_col].copy()
+    if ms_pres_col in grid.columns:
+        pressure = pressure.fillna(grid[ms_pres_col])
+    if yx_pressure_col in grid.columns:
+        pressure = pressure.fillna(grid[yx_pressure_col] * 1.33322)
+    if pressure.isna().all():
+        return None
+    return pressure
+
 
 
 # ---------------------------------------------------------------------------
