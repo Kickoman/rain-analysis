@@ -122,7 +122,7 @@ def main():
         grid,
         ha_pressure_col="pressure",
         ms_pres_col="ms_pres",
-        yx_pressure_col="p_yx",
+        yx_pressure_col="yx_pressure_mm",
     )
 
     # Ground truth
