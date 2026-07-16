@@ -13,400 +13,321 @@ Variants:
 - B (long_window): Use longer time windows (6h/12h) to catch slow trends
 - C (lagged): Use lagged pressure (6h ago) as predictor
 - D (combined): Combination of all above approaches
+
+Refactored (issue #51): Common interpolation loop extracted into
+_pressure_variant_base() to eliminate ~70% code duplication.
 """
 
 from __future__ import annotations
 import math
 import numpy as np
 import pandas as pd
-from rainlib import ModelContext, ModelParams, derivative
+from rainlib import ModelContext, ModelParams, derivative, _clamp
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _is_invalid(val) -> bool:
+    """Return True if *val* is None or a float NaN (missing sensor data)."""
+    return val is None or (isinstance(val, float) and math.isnan(val))
+
+
+def _setup_dataframe(ctx: ModelContext) -> pd.DataFrame:
+    """Create the common aligned DataFrame with spread and derivative."""
+    df = pd.DataFrame({
+        "spread": ctx.spread,
+        "deriv": ctx.spread_deriv,
+    }).sort_index()
+    df["spread"] = df["spread"].ffill()
+    df["deriv"] = df["deriv"].fillna(0.0)
+    return df
+
+
+def _align_pressure(ctx: ModelContext, df: pd.DataFrame) -> tuple[pd.Series | None, bool]:
+    """Align pressure data to the model DataFrame.
+
+    Returns (aligned_pressure, use_pressure).
+    """
+    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
+    if not use_pressure:
+        return None, False
+    return ctx.pressure.reindex(df.index).ffill(), True
+
+
+# ---------------------------------------------------------------------------
+# Base variant loop — handles ALL shared logic
+# ---------------------------------------------------------------------------
+
+def _pressure_variant_base(
+    ctx: ModelContext,
+    p: ModelParams,
+    prepare_fn,
+    score_fn,
+) -> pd.Series:
+    """Generic hysteresis loop shared by all pressure variant models.
+
+    Parameters
+    ----------
+    ctx : ModelContext
+    p : ModelParams
+    prepare_fn : callable(df, p_aligned, p)
+        Called once to add pressure-derived columns to *df*.
+    score_fn : callable(i, df, use_pressure, p) -> list[tuple[float, float]]
+        Called per timestep. Returns a list of ``(score, weight)`` pairs.
+        The base loop multiplies each pair and adds the result to the blend.
+
+    Returns
+    -------
+    pd.Series  – rounded rain probability 0–100.
+    """
+    df = _setup_dataframe(ctx)
+    p_aligned, use_pressure = _align_pressure(ctx, df)
+
+    if use_pressure:
+        prepare_fn(df, p_aligned, p)
+
+    out = np.full(len(df), np.nan)
+    prev = None
+    spread_v = df["spread"].values
+    deriv_v = df["deriv"].values
+
+    for i in range(len(df)):
+        s = spread_v[i]
+        d = deriv_v[i]
+
+        # ── NaN guard for required inputs ──────────────────────────
+        if _is_invalid(s):
+            out[i] = prev if prev is not None else np.nan
+            continue
+        if _is_invalid(d):
+            d = 0.0
+
+        # ── Shared proximity + trend ───────────────────────────────
+        proximity = max(min(100.0 - (s / p.proximity_divisor * 100.0), 100), 0)
+        trend_score = max(min(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+
+        # ── Variant-specific pressure scores ───────────────────────
+        p_scores = score_fn(i, df, use_pressure, p)
+
+        # ── Weighted blend ─────────────────────────────────────────
+        raw = proximity * p.proximity_weight + trend_score * p.trend_weight
+        for score, weight in p_scores:
+            raw += score * weight
+
+        # ── Dry-spread ceiling ─────────────────────────────────────
+        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
+        raw = max(min(raw, ceiling), 0)
+
+        # ── Hysteresis ─────────────────────────────────────────────
+        if prev is None:
+            total = raw
+        elif raw > prev:
+            total = raw
+        else:
+            total = prev - (prev - raw) * p.hysteresis_decay
+        out[i] = total
+        prev = total
+
+    return pd.Series(out, index=df.index).round(0)
+
+
+# ---------------------------------------------------------------------------
+# Variant A: Absolute pressure
+# ---------------------------------------------------------------------------
 
 def model_pressure_absolute(ctx: ModelContext,
-                           p: ModelParams | None = None) -> pd.Series:
+                            p: ModelParams | None = None) -> pd.Series:
     """Variant A: Pressure trend + absolute pressure level.
-    
+
     Hypothesis: Low absolute pressure (<1000 hPa) is itself a rain indicator,
     even if pressure is currently rising. This catches situations where:
     - We're in a low-pressure system (cyclone)
     - Pressure is recovering but rain continues
-    
-    Implementation:
-    - Use pressure derivative as before (falling = rain likely)
-    - Add bonus when absolute pressure < 1000 hPa
-    - Larger bonus for very low pressure (< 990 hPa)
     """
     if p is None:
         p = ModelParams()
 
-    df = pd.DataFrame({
-        "spread": ctx.spread,
-        "deriv": ctx.spread_deriv,
-    }).sort_index()
-    df["spread"] = df["spread"].ffill()
-    df["deriv"] = df["deriv"].fillna(0.0)
-
-    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
-    if use_pressure:
-        p_aligned = ctx.pressure.reindex(df.index).ffill()
-        df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window)
-        df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
+    def prepare(df, p_aligned, p):
+        df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window).fillna(0.0)
         df["pres_abs"] = p_aligned
 
-    out = np.full(len(df), np.nan)
-    prev = None
-    spread_v = df["spread"].values
-    deriv_v = df["deriv"].values
-    pres_v = df["pres_deriv"].values if use_pressure else np.zeros(len(df))
-    pres_abs_v = df["pres_abs"].values if use_pressure else np.full(len(df), 1013.25)
+    def get_scores(i, df, use_pressure, p):
+        if not use_pressure:
+            return []
+        pd_val = df["pres_deriv"].values[i]
+        p_abs = df["pres_abs"].values[i]
 
-    for i in range(len(df)):
-        s = spread_v[i]
-        d = deriv_v[i]
-        pd_val = pres_v[i]
-        p_abs = pres_abs_v[i]
-
-        if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
-            continue
-        if d is None or (isinstance(d, float) and math.isnan(d)):
-            d = 0.0
-        if pd_val is None or (isinstance(pd_val, float) and math.isnan(pd_val)):
+        if _is_invalid(pd_val):
             pd_val = 0.0
-        if p_abs is None or (isinstance(p_abs, float) and math.isnan(p_abs)):
+        if _is_invalid(p_abs):
             p_abs = 1013.25
 
-        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
-        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
-
-        # Pressure derivative component
+        # Pressure derivative score
         if abs(pd_val) < abs(p.pressure_drop_threshold):
-            pressure_score = 0.0
+            ps = 0.0
         else:
-            pressure_score = min(max(-pd_val * p.pressure_gain,
-                                     p.pressure_floor),
-                                 p.pressure_ceiling)
+            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
 
         # Absolute pressure bonus
-        abs_bonus = 0.0
-        if use_pressure:
-            if p_abs < 990:
-                abs_bonus = 20.0  # Very low pressure
-            elif p_abs < 1000:
-                abs_bonus = 10.0  # Low pressure
-            elif p_abs < 1005:
-                abs_bonus = 5.0   # Slightly low
-
-        if use_pressure:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight +
-                   pressure_score * p.pressure_weight +
-                   abs_bonus * 0.3)  # New term
+        if p_abs < 990:
+            abs_bonus = 20.0
+        elif p_abs < 1000:
+            abs_bonus = 10.0
+        elif p_abs < 1005:
+            abs_bonus = 5.0
         else:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight)
+            abs_bonus = 0.0
 
-        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
-        raw = min(max(raw, 0), ceiling)
+        return [(ps, p.pressure_weight), (abs_bonus, 0.3)]
 
-        if prev is None:
-            total = raw
-        elif raw > prev:
-            total = raw
-        else:
-            total = prev - (prev - raw) * p.hysteresis_decay
-        out[i] = total
-        prev = total
+    return _pressure_variant_base(ctx, p, prepare, get_scores)
 
-    return pd.Series(out, index=df.index).round(0)
 
+# ---------------------------------------------------------------------------
+# Variant B: Long window
+# ---------------------------------------------------------------------------
 
 def model_pressure_long_window(ctx: ModelContext,
                                p: ModelParams | None = None) -> pd.Series:
-    """Variant B: Longer pressure derivative windows (6h, 12h).
-    
+    """Variant B: Longer pressure derivative windows (12h).
+
     Hypothesis: 3h window is too short to catch the slow pressure changes
     that precede weather systems. Use 12h window to see the bigger picture.
-    
-    Implementation:
-    - Use 12h window for pressure derivative instead of 3h
-    - This should filter out short-term fluctuations
-    - Catch the slow approach of a cyclone
     """
     if p is None:
         p = ModelParams()
 
-    df = pd.DataFrame({
-        "spread": ctx.spread,
-        "deriv": ctx.spread_deriv,
-    }).sort_index()
-    df["spread"] = df["spread"].ffill()
-    df["deriv"] = df["deriv"].fillna(0.0)
+    def prepare(df, p_aligned, p):
+        df["pres_deriv"] = derivative(p_aligned, window="12h").fillna(0.0)
 
-    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
-    if use_pressure:
-        p_aligned = ctx.pressure.reindex(df.index).ffill()
-        # Key change: 12h window instead of 3h
-        df["pres_deriv"] = derivative(p_aligned, window="12h")
-        df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
-
-    out = np.full(len(df), np.nan)
-    prev = None
-    spread_v = df["spread"].values
-    deriv_v = df["deriv"].values
-    pres_v = df["pres_deriv"].values if use_pressure else np.zeros(len(df))
-
-    for i in range(len(df)):
-        s = spread_v[i]
-        d = deriv_v[i]
-        pd_val = pres_v[i]
-
-        if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
-            continue
-        if d is None or (isinstance(d, float) and math.isnan(d)):
-            d = 0.0
-        if pd_val is None or (isinstance(pd_val, float) and math.isnan(pd_val)):
+    def get_scores(i, df, use_pressure, p):
+        if not use_pressure:
+            return []
+        pd_val = df["pres_deriv"].values[i]
+        if _is_invalid(pd_val):
             pd_val = 0.0
 
-        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
-        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
-
-        # Pressure with more relaxed threshold for 12h window
-        # (slower changes over longer period)
-        if abs(pd_val) < 0.1:  # More relaxed threshold
-            pressure_score = 0.0
+        # More relaxed threshold for 12h window (slower changes)
+        if abs(pd_val) < 0.1:
+            ps = 0.0
         else:
-            pressure_score = min(max(-pd_val * p.pressure_gain,
-                                     p.pressure_floor),
-                                 p.pressure_ceiling)
+            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
 
-        if use_pressure:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight +
-                   pressure_score * p.pressure_weight)
-        else:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight)
+        return [(ps, p.pressure_weight)]
 
-        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
-        raw = min(max(raw, 0), ceiling)
+    return _pressure_variant_base(ctx, p, prepare, get_scores)
 
-        if prev is None:
-            total = raw
-        elif raw > prev:
-            total = raw
-        else:
-            total = prev - (prev - raw) * p.hysteresis_decay
-        out[i] = total
-        prev = total
 
-    return pd.Series(out, index=df.index).round(0)
-
+# ---------------------------------------------------------------------------
+# Variant C: Lagged pressure
+# ---------------------------------------------------------------------------
 
 def model_pressure_lagged(ctx: ModelContext,
-                         p: ModelParams | None = None) -> pd.Series:
-    """Variant C: Lagged pressure as predictor.
-    
+                          p: ModelParams | None = None) -> pd.Series:
+    """Variant C: Lagged pressure as predictor (6h).
+
     Hypothesis: Pressure changes 6 hours ago predict rain now. This accounts
     for the time it takes for a weather system to arrive after pressure drop.
-    
-    Implementation:
-    - Use pressure from 6h ago
-    - Calculate derivative on that lagged series
-    - If pressure was falling 6h ago, rain is likely now
     """
     if p is None:
         p = ModelParams()
 
-    df = pd.DataFrame({
-        "spread": ctx.spread,
-        "deriv": ctx.spread_deriv,
-    }).sort_index()
-    df["spread"] = df["spread"].ffill()
-    df["deriv"] = df["deriv"].fillna(0.0)
-
-    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
-    if use_pressure:
-        p_aligned = ctx.pressure.reindex(df.index).ffill()
-        # Key change: lag pressure by 6 hours
+    def prepare(df, p_aligned, p):
         p_lagged = p_aligned.shift(freq="6h")
-        df["pres_deriv"] = derivative(p_lagged, window=p.pressure_window)
-        df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
+        df["pres_deriv"] = derivative(p_lagged, window=p.pressure_window).fillna(0.0)
 
-    out = np.full(len(df), np.nan)
-    prev = None
-    spread_v = df["spread"].values
-    deriv_v = df["deriv"].values
-    pres_v = df["pres_deriv"].values if use_pressure else np.zeros(len(df))
-
-    for i in range(len(df)):
-        s = spread_v[i]
-        d = deriv_v[i]
-        pd_val = pres_v[i]
-
-        if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
-            continue
-        if d is None or (isinstance(d, float) and math.isnan(d)):
-            d = 0.0
-        if pd_val is None or (isinstance(pd_val, float) and math.isnan(pd_val)):
+    def get_scores(i, df, use_pressure, p):
+        if not use_pressure:
+            return []
+        pd_val = df["pres_deriv"].values[i]
+        if _is_invalid(pd_val):
             pd_val = 0.0
 
-        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
-        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
-
         if abs(pd_val) < abs(p.pressure_drop_threshold):
-            pressure_score = 0.0
+            ps = 0.0
         else:
-            pressure_score = min(max(-pd_val * p.pressure_gain,
-                                     p.pressure_floor),
-                                 p.pressure_ceiling)
+            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
 
-        if use_pressure:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight +
-                   pressure_score * p.pressure_weight)
-        else:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight)
+        return [(ps, p.pressure_weight)]
 
-        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
-        raw = min(max(raw, 0), ceiling)
+    return _pressure_variant_base(ctx, p, prepare, get_scores)
 
-        if prev is None:
-            total = raw
-        elif raw > prev:
-            total = raw
-        else:
-            total = prev - (prev - raw) * p.hysteresis_decay
-        out[i] = total
-        prev = total
 
-    return pd.Series(out, index=df.index).round(0)
-
+# ---------------------------------------------------------------------------
+# Variant D: Combined
+# ---------------------------------------------------------------------------
 
 def model_pressure_combined(ctx: ModelContext,
-                           p: ModelParams | None = None) -> pd.Series:
+                            p: ModelParams | None = None) -> pd.Series:
     """Variant D: Combined approach using all techniques.
-    
+
     Combines:
     - Long window (12h) for slow trends
     - Absolute pressure bonus for low pressure systems
     - Lagged pressure (3h lag, compromise)
-    
+
     This is the "kitchen sink" approach to see if multiple signals
     together work better than any single one.
     """
     if p is None:
         p = ModelParams()
 
-    df = pd.DataFrame({
-        "spread": ctx.spread,
-        "deriv": ctx.spread_deriv,
-    }).sort_index()
-    df["spread"] = df["spread"].ffill()
-    df["deriv"] = df["deriv"].fillna(0.0)
-
-    use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
-    if use_pressure:
-        p_aligned = ctx.pressure.reindex(df.index).ffill()
-        
-        # Multiple pressure signals
-        # 1. Long-term trend (12h window)
+    def prepare(df, p_aligned, p):
+        # Long-term trend (12h window)
         df["pres_long"] = derivative(p_aligned, window="12h").fillna(0.0)
-        
-        # 2. Short-term trend (3h window, lagged by 3h)
+        # Short-term trend (3h window, lagged by 3h)
         p_lagged = p_aligned.shift(freq="3h")
         df["pres_short"] = derivative(p_lagged, window="3h").fillna(0.0)
-        
-        # 3. Absolute pressure
+        # Absolute pressure
         df["pres_abs"] = p_aligned
 
-    out = np.full(len(df), np.nan)
-    prev = None
-    spread_v = df["spread"].values
-    deriv_v = df["deriv"].values
-    
-    if use_pressure:
-        pres_long_v = df["pres_long"].values
-        pres_short_v = df["pres_short"].values
-        pres_abs_v = df["pres_abs"].values
-    else:
-        pres_long_v = np.zeros(len(df))
-        pres_short_v = np.zeros(len(df))
-        pres_abs_v = np.full(len(df), 1013.25)
+    def get_scores(i, df, use_pressure, p):
+        if not use_pressure:
+            return []
+        p_long = df["pres_long"].values[i]
+        p_short = df["pres_short"].values[i]
+        p_abs = df["pres_abs"].values[i]
 
-    for i in range(len(df)):
-        s = spread_v[i]
-        d = deriv_v[i]
-        p_long = pres_long_v[i]
-        p_short = pres_short_v[i]
-        p_abs = pres_abs_v[i]
-
-        if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
-            continue
-        if d is None or (isinstance(d, float) and math.isnan(d)):
-            d = 0.0
-        if p_long is None or (isinstance(p_long, float) and math.isnan(p_long)):
+        if _is_invalid(p_long):
             p_long = 0.0
-        if p_short is None or (isinstance(p_short, float) and math.isnan(p_short)):
+        if _is_invalid(p_short):
             p_short = 0.0
-        if p_abs is None or (isinstance(p_abs, float) and math.isnan(p_abs)):
+        if _is_invalid(p_abs):
             p_abs = 1013.25
-
-        proximity = min(max(100.0 - (s / p.proximity_divisor * 100.0), 0), 100)
-        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
 
         # Long-term pressure trend
         if abs(p_long) < 0.1:
             long_score = 0.0
         else:
-            long_score = min(max(-p_long * 15.0, -15.0), 25.0)
-        
+            long_score = max(min(-p_long * 15.0, 25.0), -15.0)
+
         # Short-term lagged pressure
         if abs(p_short) < 0.3:
             short_score = 0.0
         else:
-            short_score = min(max(-p_short * 20.0, -10.0), 20.0)
-        
+            short_score = max(min(-p_short * 20.0, 20.0), -10.0)
+
         # Absolute pressure bonus
-        abs_bonus = 0.0
-        if use_pressure:
-            if p_abs < 990:
-                abs_bonus = 15.0
-            elif p_abs < 1000:
-                abs_bonus = 8.0
-            elif p_abs < 1005:
-                abs_bonus = 4.0
-
-        if use_pressure:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight +
-                   long_score * 0.25 +
-                   short_score * 0.20 +
-                   abs_bonus * 0.20)
+        if p_abs < 990:
+            abs_bonus = 15.0
+        elif p_abs < 1000:
+            abs_bonus = 8.0
+        elif p_abs < 1005:
+            abs_bonus = 4.0
         else:
-            raw = (proximity * p.proximity_weight +
-                   trend_score * p.trend_weight)
+            abs_bonus = 0.0
 
-        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
-        raw = min(max(raw, 0), ceiling)
+        return [(long_score, 0.25), (short_score, 0.20), (abs_bonus, 0.20)]
 
-        if prev is None:
-            total = raw
-        elif raw > prev:
-            total = raw
-        else:
-            total = prev - (prev - raw) * p.hysteresis_decay
-        out[i] = total
-        prev = total
-
-    return pd.Series(out, index=df.index).round(0)
+    return _pressure_variant_base(ctx, p, prepare, get_scores)
 
 
-# Export variants for use in analysis scripts
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+
 PRESSURE_VARIANTS = {
     "pressure_absolute": model_pressure_absolute,
     "pressure_long_window": model_pressure_long_window,
