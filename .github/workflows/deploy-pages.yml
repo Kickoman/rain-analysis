@@ -35,6 +35,7 @@ jobs:
         run: |
           git checkout master -- scripts/md_to_html.py
           git checkout master -- scripts/generate_history_index.py
+          git checkout master -- scripts/generate_landing_page.py
 
       - name: Generate HTML from latest reports
         run: |
@@ -64,6 +65,10 @@ jobs:
       - name: Update history index
         run: |
           python3 scripts/generate_history_index.py
+
+      - name: Generate landing page
+        run: |
+          python3 scripts/generate_landing_page.py
 
       - name: Commit and push
         run: |

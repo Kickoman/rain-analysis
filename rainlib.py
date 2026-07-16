@@ -217,13 +217,33 @@ def _clamp(x, lo, hi):
 
 def model_original(ctx: ModelContext,
                    p: ModelParams | None = None) -> pd.Series:
-    """Your ORIGINAL formula (proximity*0.7 + trend*0.7, no hysteresis).
+    """Baseline v0.1 model: proximity + trend weighted blend (no hysteresis).
 
-    Kept for reference / regression comparison against improved versions.
+    When ModelParams is provided, uses the parameter values for divisor, gain,
+    weights, and trend bounds. When None, falls back to the historical v0.1
+    hardcoded defaults for backward compatibility.
+
+    This makes parameter grid tuning meaningful for the 'original' model.
     """
-    proximity = _clamp(100.0 - (ctx.spread / 10.0 * 100.0), 0, 100)
-    trend_score = _clamp(-ctx.spread_deriv * 20.0, -40, 40)
-    total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
+    if p is None:
+        # v0.1 historical defaults — preserved for backward compatibility
+        divisor = 10.0
+        gain = 20.0
+        weight_prox = 0.7
+        weight_trend = 0.7
+        trend_lo = -40.0
+        trend_hi = 40.0
+    else:
+        divisor = p.proximity_divisor
+        gain = p.trend_gain
+        weight_prox = p.proximity_weight
+        weight_trend = p.trend_weight
+        trend_lo = p.trend_floor
+        trend_hi = p.trend_ceiling
+
+    proximity = _clamp(100.0 - (ctx.spread / divisor * 100.0), 0, 100)
+    trend_score = _clamp(-ctx.spread_deriv * gain, trend_lo, trend_hi)
+    total = _clamp(proximity * weight_prox + trend_score * weight_trend, 0, 100)
     return total.round(0)
 
 
