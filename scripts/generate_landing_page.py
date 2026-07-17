@@ -12,14 +12,14 @@ from datetime import datetime
 
 # Single source of truth for model descriptions
 MODEL_DESCRIPTIONS = {
-    "original":           "Baseline dew-point spread model (v0.1)",
-    "tuned":              "Calibrated threshold version with hysteresis",
-    "trend_dominant":     "Humidity trend based predictor",
-    "ha_live":            "Home Assistant live sensor fusion",
-    "pressure_aware":     "Pressure-trend aware model",
+    "original":           "Baseline v0.1 — dew-point spread + trend (F1=0.440)",
+    "tuned":              "Grid-search optimized parameters (F1=0.441)",
+    "trend_dominant":     "❌ Failed experiment — trend-primary (F1=0.115, worst)",
+    "ha_live":            "✅ Production — deployed in Home Assistant (F1=0.484)",
+    "pressure_aware":     "Pressure-corrected baseline",
     "pressure_absolute":  "Absolute pressure + trend",
     "pressure_long_window": "12h pressure window",
-    "pressure_lagged":    "Lagged pressure (6h)",
+    "pressure_lagged":    "Pressure lagged by 6h",
     "pressure_combined":  "Combined pressure signals",
 }
 
