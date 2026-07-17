@@ -6,6 +6,8 @@ on:
       - master
     paths:
       - 'reports/**'
+      - 'scripts/**'
+      - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
 permissions:
@@ -35,13 +37,17 @@ jobs:
         run: |
           git checkout master -- scripts/md_to_html.py
           git checkout master -- scripts/generate_history_index.py
+          git checkout master -- scripts/generate_landing_page.py
 
       - name: Generate HTML from latest reports
         run: |
-          # Get latest 10 reports
-          git checkout master -- reports/*.md
+          # Get daily reports (YYYY-MM-DD.md) — exclude pressure_variants
+          git checkout master -- reports/20*.md
           
-          # Convert to HTML
+          # Also get pressure_variants reports
+          git checkout master -- reports/pressure_variants_*.md || true
+          
+          # Convert all to HTML
           for report in reports/*.md; do
             if [ -f "$report" ]; then
               filename=$(basename "$report" .md)
@@ -49,8 +55,8 @@ jobs:
             fi
           done
           
-          # Latest report to current/
-          latest=$(ls -1 reports/*.md | tail -1)
+          # Latest DAILY report to current/ (exclude pressure_variants)
+          latest=$(ls -1 reports/20*.md | sort | tail -1)
           if [ -f "$latest" ]; then
             python3 scripts/md_to_html.py "$latest" "current/index.html"
           fi
@@ -61,6 +67,10 @@ jobs:
       - name: Update history index
         run: |
           python3 scripts/generate_history_index.py
+
+      - name: Generate landing page
+        run: |
+          python3 scripts/generate_landing_page.py
 
       - name: Commit and push
         run: |

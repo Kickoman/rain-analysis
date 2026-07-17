@@ -31,7 +31,7 @@ This fetches the last 7 days of history for the default sensors:
 
 | Flag | Required | Default | Description |
 |------|----------|---------|-------------|
-| `--config` | | `~/.openclaw/workspace/.ha_config.json` | Path to HA config (url + token) |
+| `--config` | | `~/.homeassistant/ha_config.json` | Path to HA config (url + token) |
 | `--entities` | | See above | Entity IDs to export (space-separated) |
 | `--days` | | `7` | Number of days of history to fetch |
 | `--start` | | — | Start time (ISO 8601, overrides `--days`) |
@@ -82,7 +82,7 @@ The script expects a JSON config file with:
 }
 ```
 
-Default location: `~/.openclaw/workspace/.ha_config.json`
+Default location: `~/.homeassistant/ha_config.json`
 
 To create a long-lived access token:
 1. Go to your HA profile → "Long-Lived Access Tokens"

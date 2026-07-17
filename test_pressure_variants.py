@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
 """
-test_pressure_variants.py — Compare pressure-aware model variants
-===================================================================
+test_pressure_variants.py — Compare pressure-aware models on isolated sources
+==============================================================================
 
-Tests the 4 pressure model variants (A, B, C, D) against the baseline
-pressure_aware model to see which approach works best.
+Tests pressure-aware models separately on each isolated pressure source:
+- Home Assistant sensors only
+- Meteostat only
+- Yandex archive only
+
+This ensures sources are not mixed, as requested in issue #52.
 
 Usage:
   python test_pressure_variants.py --days 30
 
-Output: Markdown report with metrics comparison for each variant.
+Output: Markdown report comparing model performance across isolated sources.
 
-Created for issue #40
+Updated for issue #52
 """
 
 import argparse
@@ -23,9 +27,47 @@ import rainlib
 from pressure_variants import PRESSURE_VARIANTS
 
 
+def run_models_with_pressure_source(grid, ground_truth, pressure_series, source_name):
+    """Test all model variants with a specific pressure source.
+    
+    Returns dict of {model_name: metrics}
+    """
+    if pressure_series is None or pressure_series.dropna().empty:
+        print(f"    WARNING: No {source_name} pressure data available")
+        return {}
+    
+    # Build context with this pressure source
+    ctx = rainlib.ModelContext(
+        spread=grid["spread"],
+        spread_deriv=grid["spread_deriv"],
+        pressure=pressure_series,
+    )
+    
+    results = {}
+    
+    # Baseline: pressure_aware
+    print(f"    - pressure_aware (baseline)")
+    pred = rainlib.model_pressure_aware(ctx)
+    if ground_truth is not None:
+        pred_aligned = pred.reindex(ground_truth.index)
+        metrics = rainlib.confusion_at_threshold(pred_aligned, ground_truth, threshold=50)
+        results["pressure_aware"] = metrics
+    
+    # Variants A, B, C, D
+    for name, model_func in PRESSURE_VARIANTS.items():
+        print(f"    - {name}")
+        pred = model_func(ctx)
+        if ground_truth is not None:
+            pred_aligned = pred.reindex(ground_truth.index)
+            metrics = rainlib.confusion_at_threshold(pred_aligned, ground_truth, threshold=50)
+            results[name] = metrics
+    
+    return results
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Test pressure-aware model variants"
+        description="Test pressure-aware model variants on isolated sources"
     )
     parser.add_argument(
         "--days",
@@ -112,52 +154,46 @@ def main():
         ms_df=ms_data,
     )
 
-
     # Calculate spread and derivative
     grid["spread"] = rainlib.dew_point_spread(grid["temp"], grid["rh"])
     grid["spread_deriv"] = rainlib.derivative(grid["spread"], window="3h")
     
-    # Get pressure series
-    pressure = rainlib.build_pressure_series(
-        grid,
-        ha_pressure_col="pressure",
-        ms_pres_col="ms_pres",
-        yx_pressure_col="yx_pressure_mm",
-    )
+    # Get ISOLATED pressure series for each source
+    print("\nExtracting isolated pressure sources...")
+    pressure_ha = rainlib.build_pressure_series_ha(grid)
+    pressure_ms = rainlib.build_pressure_series_meteostat(grid)
+    pressure_yx = rainlib.build_pressure_series_yandex(grid)
+    
+    if pressure_ha is not None:
+        print(f"  ✓ HA pressure: {pressure_ha.notna().sum()} samples")
+    if pressure_ms is not None:
+        print(f"  ✓ Meteostat pressure: {pressure_ms.notna().sum()} samples")
+    if pressure_yx is not None:
+        print(f"  ✓ Yandex pressure: {pressure_yx.notna().sum()} samples")
 
     # Ground truth
     if "om_precip" in grid.columns:
         ground_truth = (grid["om_precip"] > 0.0).astype(int)
+        print(f"  ✓ Ground truth: {len(ground_truth)} samples")
     else:
         print("WARNING: No ground truth (Open-Meteo) available")
         ground_truth = None
 
-    # Build context
-    ctx = rainlib.ModelContext(
-        spread=grid["spread"],
-        spread_deriv=grid["spread_deriv"],
-        pressure=pressure,
-    )
-
-    # Test all variants
-    print("\nTesting model variants...")
-    results = {}
+    # Test models on each isolated source
+    print("\nTesting models on isolated sources...")
+    all_results = {}
     
-    # Baseline: original pressure_aware
-    print("  - pressure_aware (baseline)")
-    pred = rainlib.model_pressure_aware(ctx)
-    if ground_truth is not None:
-        pred_aligned = pred.reindex(ground_truth.index)
-        metrics = rainlib.confusion_at_threshold(pred_aligned, ground_truth, threshold=50)
-        results["pressure_aware"] = metrics
+    if pressure_ha is not None:
+        print("  [Home Assistant pressure]")
+        all_results["HA"] = run_models_with_pressure_source(grid, ground_truth, pressure_ha, "HA")
     
-    # Variants A, B, C, D
-    for name, model_func in PRESSURE_VARIANTS.items():
-        print(f"  - {name}")
-        pred = model_func(ctx)
-        if ground_truth is not None:
-            metrics = rainlib.confusion_at_threshold(pred.reindex(ground_truth.index), ground_truth, threshold=50)
-            results[name] = metrics
+    if pressure_ms is not None:
+        print("  [Meteostat pressure]")
+        all_results["Meteostat"] = run_models_with_pressure_source(grid, ground_truth, pressure_ms, "Meteostat")
+    
+    if pressure_yx is not None:
+        print("  [Yandex pressure]")
+        all_results["Yandex"] = run_models_with_pressure_source(grid, ground_truth, pressure_yx, "Yandex")
 
     # Generate report
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -170,60 +206,83 @@ def main():
 
     # Write markdown report
     with open(output_path, "w") as f:
-        f.write(f"# Pressure Model Variants Comparison\n\n")
+        f.write(f"# Pressure Model Variants — Isolated Sources Comparison\n\n")
         f.write(f"**Date:** {timestamp}  \n")
         f.write(f"**Analysis period:** {args.days} days  \n")
+        f.write(f"**Issue:** #52 — Test models on isolated pressure sources (no mixing)  \n\n")
         
-        if pressure is not None:
-            pressure_start = pressure.first_valid_index()
-            f.write(f"**Pressure data available from:** {pressure_start}  \n")
+        f.write("## Methodology\n\n")
+        f.write("Models are tested separately on each isolated pressure source:\n\n")
+        f.write("- **HA (Home Assistant):** Production sensor only — no fallbacks\n")
+        f.write("- **Meteostat:** Historical weather station data only\n")
+        f.write("- **Yandex:** Yandex Weather archive only\n\n")
+        f.write("This ensures no mixing of sources, as production will use HA sensors exclusively.\n\n")
         
-        f.write("\n## Variants Tested\n\n")
+        f.write("## Model Variants\n\n")
+        f.write("- **pressure_aware (baseline):** Standard pressure-aware model\n")
         f.write("- **A (absolute):** Pressure trend + absolute pressure bonus\n")
         f.write("- **B (long_window):** 12h window instead of 3h\n")
         f.write("- **C (lagged):** 6h lagged pressure\n")
-        f.write("- **D (combined):** All techniques combined\n")
+        f.write("- **D (combined):** All techniques combined\n\n")
         
-        f.write("\n## Results\n\n")
-        f.write("| Model | F1 | Precision | Recall | TP | FP | FN |\n")
-        f.write("|-------|----|-----------|----|----|----|----|\n")
-        
-        for name, m in results.items():
-            f.write(f"| {name} | {m['f1']:.3f} | {m['precision']:.3f} | {m['recall']:.3f} | ")
-            f.write(f"{m['tp']} | {m['fp']} | {m['fn']} |\n")
-        
-        f.write("\n## Analysis\n\n")
-        
-        # Find best model
-        if results:
+        # Results for each source
+        for source_name, results in all_results.items():
+            f.write(f"## Results: {source_name} Pressure\n\n")
+            
+            if not results:
+                f.write("*No data available for this source*\n\n")
+                continue
+            
+            f.write("| Model | F1 | Precision | Recall | TP | FP | FN |\n")
+            f.write("|-------|----|-----------|----|----|----|----|\n")
+            
+            for model_name, m in results.items():
+                f.write(f"| {model_name} | {m['f1']:.3f} | {m['precision']:.3f} | {m['recall']:.3f} | ")
+                f.write(f"{m['tp']} | {m['fp']} | {m['fn']} |\n")
+            
+            # Find best model for this source
             best_name = max(results.keys(), key=lambda k: results[k]['f1'])
             best_f1 = results[best_name]['f1']
             baseline_f1 = results.get('pressure_aware', {}).get('f1', 0)
             
-            f.write(f"**Best model:** {best_name} (F1={best_f1:.3f})  \n")
-            f.write(f"**Baseline:** pressure_aware (F1={baseline_f1:.3f})  \n")
-            
-            improvement = best_f1 - baseline_f1
-            if improvement > 0.01:
-                f.write(f"**Improvement:** +{improvement:.3f} ({improvement/baseline_f1*100:.1f}%)  \n")
-            elif improvement < -0.01:
-                f.write(f"**Change:** {improvement:.3f} ({improvement/baseline_f1*100:.1f}%)  \n")
-            else:
-                f.write(f"**Change:** Negligible ({improvement:.3f})  \n")
+            f.write(f"\n**Best model for {source_name}:** {best_name} (F1={best_f1:.3f})  \n")
+            if baseline_f1 > 0:
+                improvement = best_f1 - baseline_f1
+                f.write(f"**Baseline:** pressure_aware (F1={baseline_f1:.3f})  \n")
+                if improvement > 0.01:
+                    f.write(f"**Improvement:** +{improvement:.3f} ({improvement/baseline_f1*100:.1f}%)  \n")
+                elif improvement < -0.01:
+                    f.write(f"**Change:** {improvement:.3f} ({improvement/baseline_f1*100:.1f}%)  \n")
+                else:
+                    f.write(f"**Change:** Negligible ({improvement:.3f})  \n")
+            f.write("\n")
         
-        f.write("\n## Observations\n\n")
-        f.write("_Add manual observations here after reviewing the results._\n")
-        f.write("\n---\n")
-        f.write(f"Generated by test_pressure_variants.py for issue #40\n")
+        f.write("## Cross-Source Comparison\n\n")
+        f.write("Comparing baseline model (pressure_aware) across sources:\n\n")
+        f.write("| Source | F1 | Precision | Recall | Sample Count |\n")
+        f.write("|--------|----|-----------|----|-------------|\n")
+        
+        for source_name in ["HA", "Meteostat", "Yandex"]:
+            if source_name in all_results and "pressure_aware" in all_results[source_name]:
+                m = all_results[source_name]["pressure_aware"]
+                samples = m['tp'] + m['fp'] + m['fn'] + m.get('tn', 0)
+                f.write(f"| {source_name} | {m['f1']:.3f} | {m['precision']:.3f} | {m['recall']:.3f} | {samples} |\n")
+        
+        f.write(f"\n---\n")
+        f.write(f"Generated by test_pressure_variants.py for issue #52\n")
 
     print(f"\n✓ Report written to: {output_path}")
     
     # Print summary to console
-    print("\n" + "="*60)
+    print("\n" + "="*70)
     print("RESULTS SUMMARY")
-    print("="*60)
-    for name, m in results.items():
-        print(f"{name:25} F1={m['f1']:.3f}  P={m['precision']:.3f}  R={m['recall']:.3f}")
+    print("="*70)
+    
+    for source_name, results in all_results.items():
+        if results:
+            print(f"\n{source_name} Pressure:")
+            for model_name, m in results.items():
+                print(f"  {model_name:25} F1={m['f1']:.3f}  P={m['precision']:.3f}  R={m['recall']:.3f}")
     
     return 0
 
