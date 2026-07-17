@@ -26,14 +26,14 @@
 
             <h3>Current Models</h3>
             <ul>
-                <li><strong>original</strong> — Baseline dew-point spread model (v0.1)</li>
-                <li><strong>tuned</strong> — Calibrated threshold version with hysteresis</li>
-                <li><strong>trend_dominant</strong> — Humidity trend based predictor</li>
-                <li><strong>ha_live</strong> — Home Assistant live sensor fusion</li>
-                <li><strong>pressure_aware</strong> — Pressure-trend aware model</li>
+                <li><strong>original</strong> — Baseline v0.1 — dew-point spread + trend (F1=0.440)</li>
+                <li><strong>tuned</strong> — Grid-search optimized parameters (F1=0.441)</li>
+                <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary (F1=0.115, worst)</li>
+                <li><strong>ha_live</strong> — ✅ Production — deployed in Home Assistant (F1=0.484)</li>
+                <li><strong>pressure_aware</strong> — Pressure-corrected baseline</li>
                 <li><strong>pressure_absolute</strong> — Absolute pressure + trend</li>
                 <li><strong>pressure_long_window</strong> — 12h pressure window</li>
-                <li><strong>pressure_lagged</strong> — Lagged pressure (6h)</li>
+                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h</li>
                 <li><strong>pressure_combined</strong> — Combined pressure signals</li>
             </ul>
         </section>
