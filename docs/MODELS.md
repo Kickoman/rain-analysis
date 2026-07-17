@@ -11,10 +11,10 @@ Complete documentation of all rain prediction models in this analysis framework.
 | **tuned** | Optimized | 0.441 | 0.448 | 0.433 | 🔧 Experimental |
 | **trend_dominant** | Experimental | 0.115 | 0.696 | 0.063 | ❌ Failed |
 | **pressure_aware** | Experimental | 0.440 | 0.507 | 0.389 | 🔧 Testing |
-| **pressure_absolute** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
-| **pressure_long_window** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
-| **pressure_lagged** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
-| **pressure_combined** | Experimental | *pending* | *pending* | *pending* | 🔧 Testing |
+| **pressure_absolute** | Experimental | 0.190 | 0.165 | 0.226 | 🔧 Testing |
+| **pressure_long_window** | Experimental | 0.198 | 0.176 | 0.226 | 🔧 Testing |
+| **pressure_lagged** | Experimental | 0.196 | 0.173 | 0.226 | 🔧 Testing |
+| **pressure_combined** | Experimental | 0.194 | 0.170 | 0.226 | 🔧 Testing |
 
 *Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
 
