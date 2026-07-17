@@ -632,6 +632,10 @@ def load_open_meteo(obj) -> pd.DataFrame:
     else:
         data = obj
 
+    # Validate JSON structure
+    if "hourly" not in data:
+        raise ValueError("Invalid open-meteo response: missing 'hourly' key")
+    
     hourly = data["hourly"]
     tz_offset = data.get("utc_offset_seconds", 0)
     # open-meteo 'time' is in the requested timezone (local). Convert to UTC.
@@ -712,8 +716,13 @@ def load_meteostat(json_path: str) -> pd.DataFrame:
 
     Returns DataFrame with columns: ms_temp, ms_rhum, ms_precip, ms_pres, ms_dwpt
     """
-    with open(json_path) as f:
-        data = json.load(f)
+    try:
+        with open(json_path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Failed to parse {json_path}: malformed JSON ({e})")
+    except FileNotFoundError:
+        raise ValueError(f"File not found: {json_path}")
 
     records = data.get("data", [])
     if not records:
