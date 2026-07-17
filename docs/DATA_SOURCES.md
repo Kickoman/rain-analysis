@@ -283,7 +283,7 @@ python run_analysis.py \
 ### HA returns 401
 
 - Token expired or invalid
-- Check `~/.openclaw/workspace/.ha_config.json`
+- Check `~/.homeassistant/ha_config.json`
 - Create new long-lived token in HA profile
 
 ### Open-Meteo timeout
