@@ -80,7 +80,7 @@ class AnalysisConfig:
     })
 
     # F-beta recommendations to compute
-    betas: list[float] = field(default_factory=lambda: [0.5, 1.0, 2.0, 3.0])
+    betas: list[float] = field(default_factory=lambda: [0.5, 1.0, 2.0])
 
     output_dir: str = "."
 
@@ -264,7 +264,7 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     # HA live value stats
     ha_col = "ha_rain_prob"
     if ha_col in grid.columns:
-        model_stats["ha_live_actual"] = {
+        model_stats["ha_live"] = {
             "mean": float(grid[ha_col].mean()),
             "std": float(grid[ha_col].std()),
             "min": float(grid[ha_col].min()),
@@ -292,12 +292,7 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         c = rl.confusion_at_threshold(grid[col], grid["rain_truth"], config.decision_threshold)
         lt = rl.lead_time(grid[col], grid["rain_truth"], config.decision_threshold)
 
-        if col == "ha_rain_prob":
-            display_name = "ha_live_actual"
-        elif col == "model_ha_live":
-            display_name = "ha_live_replica"
-        else:
-            display_name = col.replace("model_", "")
+        display_name = col.replace("model_", "").replace("ha_rain_prob", "ha_live")
 
         scores[display_name] = {
             "precision": c["precision"] if not (isinstance(c["precision"], float) and np.isnan(c["precision"])) else None,
@@ -319,7 +314,6 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
                 "precision": float(row["precision"]) if not np.isnan(row["precision"]) else None,
                 "recall": float(row["recall"]) if not np.isnan(row["recall"]) else None,
                 "f1": float(row["f1"]) if not np.isnan(row["f1"]) else None,
-                "f2": float(rl.fbeta_at_threshold(grid[col], grid["rain_truth"], int(idx), beta=2.0)) if not np.isnan(rl.fbeta_at_threshold(grid[col], grid["rain_truth"], int(idx), beta=2.0)) else None,
             }
             for idx, row in sw.iterrows()
         ]
@@ -327,14 +321,11 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         # F-beta recommendations
         recs_for_model = {}
         for beta in config.betas:
-            # Apply min_precision for high beta values to avoid useless always-on thresholds
-            min_prec = 0.6 if beta >= 2.0 else 0.0
-            rec = rl.recommend_threshold(grid[col], grid["rain_truth"], beta=beta, min_precision=min_prec)
+            rec = rl.recommend_threshold(grid[col], grid["rain_truth"], beta=beta)
             recs_for_model[f"beta_{beta}"] = {
                 "best_threshold": rec["best_threshold"],
                 "precision": rec["precision"],
                 "recall": rec["recall"],
-                "f1": rec["f1"],
                 "fbeta": rec["fbeta"],
             }
 
@@ -508,25 +499,17 @@ def generate_summary(report: dict) -> str:
 
     # Model scores
     lines.append("--- MODEL PERFORMANCE (at {}% threshold) ---".format(meta["config"]["decision_threshold"]))
-    header = f"  {'Model':<22} {'Prec':>6} {'Recall':>6} {'F1':>6} {'F2':>6} {'TP':>5} {'FP':>5} {'FN':>5}"
+    header = f"  {'Model':<22} {'Prec':>6} {'Recall':>6} {'F1':>6} {'TP':>5} {'FP':>5} {'FN':>5}"
     lines.append(header)
     lines.append("  " + "-" * len(header) + "--------")
     for name, s in scores.items():
-        # Calculate F2 for comparison table
-        f2_val = None
-        for sweep in report["scoring"]["threshold_sweeps"].get(name, []):
-            if sweep["threshold"] == meta["config"]["decision_threshold"]:
-                f2_val = sweep.get("f2")
-                break
-        
         if s["precision"] is not None:
-            f2_str = f"{f2_val:>6.3f}" if f2_val is not None else "  N/A"
             lines.append(
-                f"  {name:<22} {s['precision']:>6.3f} {s['recall']:>6.3f} {s['f1']:>6.3f} {f2_str} "
+                f"  {name:<22} {s['precision']:>6.3f} {s['recall']:>6.3f} {s['f1']:>6.3f} "
                 f"{s['tp']:>5} {s['fp']:>5} {s['fn']:>5}"
             )
         else:
-            lines.append(f"  {name:<22}   N/A   N/A   N/A   N/A {s['tp']:>5} {s['fp']:>5} {s['fn']:>5}")
+            lines.append(f"  {name:<22}   N/A   N/A   N/A   {s['tp']:>5} {s['fp']:>5} {s['fn']:>5}")
     lines.append("")
 
     # Best overall
