@@ -35,7 +35,7 @@ python run_analysis.py \
     --ha-csv data/ha.csv \
     --om-sources data/openmeteo.json \
     --yandex-dir data/yandex_archive/ \
-    --output report.json \
+    --output-dir reports/ \
     --plots
 ```
 
