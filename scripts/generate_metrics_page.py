@@ -216,15 +216,28 @@ def main():
     prec_traces = _make_line_traces(sorted_models, dates, "precision", "Precision")
     rec_traces = _make_line_traces(sorted_models, dates, "recall", "Recall")
 
-    # Latest day bar chart
+    # Latest day bar chart — only include models with ALL metrics present
     latest_idx = len(dates) - 1
-    bar_x = [name for name, _ in sorted_models]
-    bar_f1 = [ms["f1"][latest_idx] for _, ms in sorted_models if ms["f1"][latest_idx] is not None]
-    bar_prec = [ms["precision"][latest_idx] for _, ms in sorted_models if ms["precision"][latest_idx] is not None]
-    bar_rec = [ms["recall"][latest_idx] for _, ms in sorted_models if ms["recall"][latest_idx] is not None]
-
-    bar_labels = [name for name, ms in sorted_models if ms["f1"][latest_idx] is not None]
-    bar_colors = [_color_for(n, i) for i, (n, _) in enumerate(sorted_models)]
+    
+    bar_data = []
+    for name, ms in sorted_models:
+        f1_val = ms["f1"][latest_idx]
+        prec_val = ms["precision"][latest_idx]
+        rec_val = ms["recall"][latest_idx]
+        # Only include if all three metrics are present
+        if f1_val is not None and prec_val is not None and rec_val is not None:
+            bar_data.append({
+                "name": name,
+                "f1": f1_val,
+                "precision": prec_val,
+                "recall": rec_val,
+            })
+    
+    bar_labels = [d["name"] for d in bar_data]
+    bar_f1 = [d["f1"] for d in bar_data]
+    bar_prec = [d["precision"] for d in bar_data]
+    bar_rec = [d["recall"] for d in bar_data]
+    bar_colors = [_color_for(d["name"], i) for i, d in enumerate(bar_data)]
 
     # Source data for precipitation chart
     source_dates = sorted(source_data.keys())
