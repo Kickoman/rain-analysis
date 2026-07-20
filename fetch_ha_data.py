@@ -72,6 +72,14 @@ def fetch_history(url: str, token: str, entity_id: str,
             error_str = error_str.replace(token, "[REDACTED]")
         print(f"[ERROR] Failed to fetch {entity_id}: {error_str}", file=sys.stderr)
         return []
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as e:
+        # Catch malformed response parsing errors
+        print(f"[ERROR] Malformed response for {entity_id}: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
+    except Exception as e:
+        # Catch-all for unexpected errors
+        print(f"[ERROR] Unexpected error fetching {entity_id}: {type(e).__name__}: {e}", file=sys.stderr)
+        return []
 
 
 def export_to_csv(records: list[dict], output_path: str):
@@ -164,6 +172,9 @@ def main():
 
     # Fetch history for each entity
     all_records = []
+    failed_entities = []
+    successful_entities = []
+    
     for entity_id in args.entities:
         if not args.quiet:
             print(f"  Fetching {entity_id}...", end=" ", flush=True)
@@ -172,15 +183,23 @@ def main():
 
         if records:
             all_records.extend(records)
+            successful_entities.append(entity_id)
             if not args.quiet:
                 print(f"{len(records)} entries")
         else:
+            failed_entities.append(entity_id)
             if not args.quiet:
                 print("no data")
 
+    # Fail only if ALL entities failed
     if not all_records:
-        print("[WARN] No data fetched from any entity", file=sys.stderr)
+        print(f"[ERROR] No data fetched from any entity (all {len(args.entities)} failed)", file=sys.stderr)
         return 1
+
+    # Warn if some entities failed but not all
+    if failed_entities:
+        print(f"[WARN] {len(failed_entities)}/{len(args.entities)} entities returned no data: {', '.join(failed_entities)}", file=sys.stderr)
+        print(f"[INFO] Continuing with data from {len(successful_entities)} successful entities", file=sys.stderr)
 
     # Sort by timestamp (last_changed)
     all_records.sort(key=lambda r: r["last_changed"])
