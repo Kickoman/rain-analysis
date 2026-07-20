@@ -26,6 +26,7 @@ This fetches the last 7 days of history for the default sensors:
 - `sensor.datchik_klimata_temperatura` (outdoor temperature)
 - `sensor.datchik_klimata_vlazhnost` (outdoor humidity)
 - `sensor.rain_probability` (live model output)
+- `sensor.filtered_pressure` (barometric pressure)
 
 ## Arguments
 

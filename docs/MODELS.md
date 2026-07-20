@@ -18,6 +18,8 @@ Complete documentation of all rain prediction models in this analysis framework.
 
 *Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
 
+> ⚠️ **Caveat:** These benchmarks predate the 2026-07-18 precipitation forward-fill bugfix. Pre-fix, rain-hour counts were inflated ~80%. Post-fix numbers may differ. See [CHANGELOG.md](CHANGELOG.md) for details.
+
 ---
 
 ## 1. Original (Baseline v0.1)
