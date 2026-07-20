@@ -133,6 +133,29 @@ def _pressure_variant_base(
     return pd.Series(out, index=df.index).round(0)
 
 
+
+# ---------------------------------------------------------------------------
+# Scoring helpers
+# ---------------------------------------------------------------------------
+
+def _pressure_score(pd_val, threshold, gain, ceiling, floor):
+    """Standard pressure derivative score: zero below threshold, clamped above."""
+    if abs(pd_val) < abs(threshold):
+        return 0.0
+    return max(min(-pd_val * gain, ceiling), floor)
+
+
+def _abs_pressure_bonus(p_abs):
+    """Bonus score for low absolute pressure (cyclone indicator)."""
+    if p_abs < 990:
+        return 20.0
+    elif p_abs < 1000:
+        return 10.0
+    elif p_abs < 1005:
+        return 5.0
+    return 0.0
+
+
 # ---------------------------------------------------------------------------
 # Variant A: Absolute pressure
 # ---------------------------------------------------------------------------
@@ -164,23 +187,10 @@ def model_pressure_absolute(ctx: ModelContext,
         if _is_invalid(p_abs):
             p_abs = 1013.25
 
-        # Pressure derivative score
-        if abs(pd_val) < abs(p.pressure_drop_threshold):
-            ps = 0.0
-        else:
-            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
-
-        # Absolute pressure bonus
-        if p_abs < 990:
-            abs_bonus = 20.0
-        elif p_abs < 1000:
-            abs_bonus = 10.0
-        elif p_abs < 1005:
-            abs_bonus = 5.0
-        else:
-            abs_bonus = 0.0
-
-        return [(ps, p.pressure_weight), (abs_bonus, 0.3)]
+        ps = _pressure_score(pd_val, p.pressure_drop_threshold,
+                            p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
+        bonus = _abs_pressure_bonus(p_abs)
+        return [(ps, p.pressure_weight), (bonus, 0.3)]
 
     return _pressure_variant_base(ctx, p, prepare, get_scores)
 
@@ -210,11 +220,8 @@ def model_pressure_long_window(ctx: ModelContext,
             pd_val = 0.0
 
         # More relaxed threshold for 12h window (slower changes)
-        if abs(pd_val) < 0.1:
-            ps = 0.0
-        else:
-            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
-
+        ps = _pressure_score(pd_val, 0.1,
+                            p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
         return [(ps, p.pressure_weight)]
 
     return _pressure_variant_base(ctx, p, prepare, get_scores)
@@ -245,11 +252,8 @@ def model_pressure_lagged(ctx: ModelContext,
         if _is_invalid(pd_val):
             pd_val = 0.0
 
-        if abs(pd_val) < abs(p.pressure_drop_threshold):
-            ps = 0.0
-        else:
-            ps = max(min(-pd_val * p.pressure_gain, p.pressure_ceiling), p.pressure_floor)
-
+        ps = _pressure_score(pd_val, p.pressure_drop_threshold,
+                            p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
         return [(ps, p.pressure_weight)]
 
     return _pressure_variant_base(ctx, p, prepare, get_scores)
@@ -297,27 +301,12 @@ def model_pressure_combined(ctx: ModelContext,
         if _is_invalid(p_abs):
             p_abs = 1013.25
 
-        # Long-term pressure trend
-        if abs(p_long) < 0.1:
-            long_score = 0.0
-        else:
-            long_score = max(min(-p_long * 15.0, 25.0), -15.0)
-
-        # Short-term lagged pressure
-        if abs(p_short) < 0.3:
-            short_score = 0.0
-        else:
-            short_score = max(min(-p_short * 20.0, 20.0), -10.0)
-
+        # Long-term pressure trend (12h window)
+        long_score = _pressure_score(p_long, 0.1, 15.0, 25.0, -15.0)
+        # Short-term lagged pressure (3h window)
+        short_score = _pressure_score(p_short, 0.3, 20.0, 20.0, -10.0)
         # Absolute pressure bonus
-        if p_abs < 990:
-            abs_bonus = 15.0
-        elif p_abs < 1000:
-            abs_bonus = 8.0
-        elif p_abs < 1005:
-            abs_bonus = 4.0
-        else:
-            abs_bonus = 0.0
+        abs_bonus = _abs_pressure_bonus(p_abs)
 
         return [(long_score, 0.25), (short_score, 0.20), (abs_bonus, 0.20)]
 
