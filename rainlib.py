@@ -625,10 +625,18 @@ def load_open_meteo(obj) -> pd.DataFrame:
     if isinstance(obj, str):
         # path or raw json?
         if obj.strip().startswith("{"):
-            data = json.loads(obj)
+            try:
+                data = json.loads(obj)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Failed to parse JSON string: {e}")
         else:
-            with open(obj) as fh:
-                data = json.load(fh)
+            try:
+                with open(obj) as fh:
+                    data = json.load(fh)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Failed to parse {obj}: malformed JSON - {e}")
+            except FileNotFoundError:
+                raise ValueError(f"File not found: {obj}")
     else:
         data = obj
 
