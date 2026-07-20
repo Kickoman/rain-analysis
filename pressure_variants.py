@@ -106,7 +106,7 @@ def _pressure_variant_base(
 
         # ── Shared proximity + trend ───────────────────────────────
         proximity = max(min(100.0 - (s / p.proximity_divisor * 100.0), 100), 0)
-        trend_score = max(min(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+        trend_score = min(max(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
 
         # ── Variant-specific pressure scores ───────────────────────
         p_scores = score_fn(i, df, use_pressure, p)
