@@ -81,7 +81,8 @@ def humidex(temp_c, dewpoint_c):
 # 2. DERIVATIVE  (mirror of HA "Derivative" helper)
 # ---------------------------------------------------------------------------
 
-def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> pd.Series:
+def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2,
+                max_gap: str | None = None) -> pd.Series:
     """Approximate HA's Derivative helper.
 
     HA's Derivative helper fits a linear regression (least-squares slope)
@@ -89,11 +90,18 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     (here: °C per hour). This reproduces that behaviour on an irregular
     time index.
 
+    Handles irregular timestamps correctly by computing least-squares
+    slope over actual time deltas. If data has gaps, slope is computed
+    over the available samples within the window.
+
     Parameters
     ----------
     series : pd.Series indexed by tz-aware DatetimeIndex
     window : trailing time window, e.g. "1h", "3h"
     min_periods : minimum points required in the window to emit a slope
+    max_gap : if set, reject windows where any gap between consecutive
+              samples exceeds this duration (e.g. "1h"). Useful when
+              sensor downtime creates unreliable slope estimates.
 
     Returns
     -------
@@ -102,6 +110,8 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
     s = series.dropna()
     if s.empty:
         return pd.Series(index=series.index, dtype=float)
+
+    max_gap_sec = pd.Timedelta(max_gap).total_seconds() if max_gap is not None else None
 
     # seconds since first sample, as the regression x-axis
     t0 = s.index[0]
@@ -117,6 +127,11 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2) -> p
             continue
         xs = x_all[mask]
         ys = y_all[mask]
+        # reject windows with large gaps (sensor downtime)
+        if max_gap_sec is not None and len(xs) >= 2:
+            gaps = np.diff(xs)
+            if gaps.max() > max_gap_sec:
+                continue
         # least-squares slope in units of value per SECOND
         xm = xs.mean()
         denom = ((xs - xm) ** 2).sum()
