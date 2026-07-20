@@ -23,7 +23,21 @@
         <section class="report-content">
 <h1>Daily Model Analysis — 2026-07-19</h1>
 
-<strong>Generated:</strong> 2026-07-19T08:00:37.690890+00:00
+<strong>Generated:</strong> 2026-07-20T17:36:31.348425+00:00
+
+<strong>Analysis windows:</strong> 7-day (recent), 14-day (medium-term), 28-day (long-term)
+
+<p>---</p>
+
+<h2>Executive Summary</h2>
+
+<strong>Best overall (F-beta=2):</strong> pressure_lagged @ 7d
+
+<strong>Key findings:</strong>
+- ⚠️ Best model varies by window: 7d=pressure_lagged, 14d=tuned, 28d=tuned
+- ⚠️ Large precipitation source discrepancy (7d): YX=110h vs MS=13h
+
+<p>---</p>
 
 <h2>Model Performance (7-day window)</h2>
 
@@ -36,106 +50,499 @@
 <th>Status</th>
 </tr></thead><tbody>
 <tr>
-<td>original</td>
-<td>0.163</td>
-<td>0.197</td>
-<td>0.140</td>
-<td>📊</td>
-</tr>
-<tr>
-<td>tuned</td>
-<td>0.120</td>
-<td>0.150</td>
-<td>0.100</td>
-<td>📊</td>
-</tr>
-<tr>
-<td>trend_dominant</td>
-<td>0.069</td>
-<td>0.261</td>
-<td>0.040</td>
-<td>📊</td>
-</tr>
-<tr>
 <td>ha_live</td>
-<td>0.203</td>
-<td>0.182</td>
-<td>0.231</td>
-<td>✅</td>
+<td>0.286</td>
+<td>0.308</td>
+<td>0.267</td>
+<td>📊</td>
 </tr>
 <tr>
-<td>pressure_aware</td>
-<td>0.120</td>
-<td>0.150</td>
-<td>0.100</td>
+<td>original</td>
+<td>0.273</td>
+<td>0.500</td>
+<td>0.188</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.219</td>
-<td>0.189</td>
-<td>0.260</td>
+<td>0.370</td>
+<td>0.345</td>
+<td>0.400</td>
 <td>📊</td>
 </tr>
 <tr>
-<td>pressure_long_window</td>
-<td>0.220</td>
-<td>0.202</td>
-<td>0.240</td>
-<td>📊</td>
-</tr>
-<tr>
-<td>pressure_lagged</td>
-<td>0.215</td>
-<td>0.195</td>
-<td>0.240</td>
+<td>pressure_aware</td>
+<td>0.250</td>
+<td>0.571</td>
+<td>0.160</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.227</td>
-<td>0.202</td>
-<td>0.260</td>
+<td>0.392</td>
+<td>0.385</td>
+<td>0.400</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.333</td>
+<td>0.348</td>
+<td>0.320</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.367</td>
+<td>0.375</td>
+<td>0.360</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.071</td>
+<td>0.333</td>
+<td>0.040</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.250</td>
+<td>0.571</td>
+<td>0.160</td>
 <td>📊</td>
 </tr>
 </tbody></table>
 
-<strong>Best overall (F-beta=2):</strong> ha_live @ 5%
+<strong>Best overall (F-beta=2):</strong> pressure_lagged @ 7d
 
-<h2>Precipitation Source Comparison</h2>
+<p>---</p>
 
-<strong>Sources:</strong> 3
+<h2>Multi-Window Comparison</h2>
+
+<p>Performance across different time windows. F-beta=2 emphasizes recall (catching rain events) while maintaining reasonable precision.</p>
+
+<h3>F-beta=2 Scores</h3>
+
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+<th>Trend</th>
+</tr></thead><tbody>
+<tr>
+<td>ha_live</td>
+<td>0.082</td>
+<td>0.040</td>
+<td>0.040</td>
+<td>📉 degrading</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.000</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.000</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.000</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.097</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>📉 degrading</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.000</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>➡️ stable</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.000</td>
+<td>0.043</td>
+<td>0.043</td>
+<td>➡️ stable</td>
+</tr>
+</tbody></table>
+
+<h3>Precision by Window</h3>
+
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+</tr></thead><tbody>
+<tr>
+<td>ha_live</td>
+<td>0.308</td>
+<td>0.200</td>
+<td>0.200</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.500</td>
+<td>0.194</td>
+<td>0.194</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.345</td>
+<td>0.257</td>
+<td>0.257</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.571</td>
+<td>0.209</td>
+<td>0.209</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.385</td>
+<td>0.269</td>
+<td>0.269</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.348</td>
+<td>0.250</td>
+<td>0.250</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.375</td>
+<td>0.262</td>
+<td>0.262</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.333</td>
+<td>0.375</td>
+<td>0.375</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.571</td>
+<td>0.209</td>
+<td>0.209</td>
+</tr>
+</tbody></table>
+
+<h3>Recall by Window</h3>
+
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+</tr></thead><tbody>
+<tr>
+<td>ha_live</td>
+<td>0.267</td>
+<td>0.226</td>
+<td>0.226</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.188</td>
+<td>0.143</td>
+<td>0.143</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.400</td>
+<td>0.316</td>
+<td>0.316</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.160</td>
+<td>0.158</td>
+<td>0.158</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.400</td>
+<td>0.316</td>
+<td>0.316</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.320</td>
+<td>0.281</td>
+<td>0.281</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.360</td>
+<td>0.298</td>
+<td>0.298</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.040</td>
+<td>0.053</td>
+<td>0.053</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.160</td>
+<td>0.158</td>
+<td>0.158</td>
+</tr>
+</tbody></table>
+
+<p>---</p>
+
+<h2>Model Rankings</h2>
+
+<h3>By F-beta=2 (7d, min_precision=0.6)</h3>
+
+<table>
+<thead><tr>
+<th>Rank</th>
+<th>Model</th>
+<th>F-beta=2</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>pressure_lagged</td>
+<td>0.097</td>
+<td>0.667</td>
+<td>0.080</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>2</td>
+<td>ha_live</td>
+<td>0.082</td>
+<td>1.000</td>
+<td>0.067</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>3</td>
+<td>original</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>4</td>
+<td>pressure_absolute</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pressure_aware</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+</tbody></table>
+
+<h3>By F-beta=3 (7d, min_precision=0.6)</h3>
+
+<p>Higher recall emphasis (FN≤5% target).</p>
+
+<table>
+<thead><tr>
+<th>Rank</th>
+<th>Model</th>
+<th>F-beta=3</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>pressure_lagged</td>
+<td>0.088</td>
+<td>0.667</td>
+<td>0.080</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>2</td>
+<td>ha_live</td>
+<td>0.074</td>
+<td>1.000</td>
+<td>0.067</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>3</td>
+<td>original</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>4</td>
+<td>pressure_absolute</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pressure_aware</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+</tbody></table>
+
+<h3>By Precision (7d)</h3>
+
+<p>For use cases where false positives are costly.</p>
+
+<table>
+<thead><tr>
+<th>Rank</th>
+<th>Model</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>F1</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>pressure_aware</td>
+<td>0.571</td>
+<td>0.160</td>
+<td>0.250</td>
+</tr>
+<tr>
+<td>2</td>
+<td>tuned</td>
+<td>0.571</td>
+<td>0.160</td>
+<td>0.250</td>
+</tr>
+<tr>
+<td>3</td>
+<td>original</td>
+<td>0.500</td>
+<td>0.188</td>
+<td>0.273</td>
+</tr>
+<tr>
+<td>4</td>
+<td>pressure_combined</td>
+<td>0.385</td>
+<td>0.400</td>
+<td>0.392</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pressure_long_window</td>
+<td>0.375</td>
+<td>0.360</td>
+<td>0.367</td>
+</tr>
+</tbody></table>
+
+<p>---</p>
+
+<h2>Precipitation Source Reliability</h2>
+
+<p>Comparison of precipitation sources (7d window):</p>
 
 <table>
 <thead><tr>
 <th>Source</th>
 <th>Rain Hours</th>
-<th>Agreement</th>
+<th>Agreement with Others</th>
 </tr></thead><tbody>
 <tr>
-<td>OM</td>
-<td>25</td>
-<td>ms=2, yx=5</td>
+<td>OM (Open-Meteo)</td>
+<td>32</td>
+<td>MS=10h, YX=8h</td>
 </tr>
 <tr>
-<td>MS</td>
-<td>6</td>
-<td>yx=3</td>
+<td>MS (Meteostat)</td>
+<td>13</td>
+<td>OM=10h, YX=6h</td>
 </tr>
 <tr>
-<td>YX</td>
-<td>107</td>
-<td></td>
+<td>YX (Yandex)</td>
+<td>110</td>
+<td>OM=8h, MS=6h</td>
 </tr>
 </tbody></table>
 
-<h2>Observations & Recommendations</h2>
+<strong>Yandex vs Ground Truth (HA):</strong>
+- Yandex rain hours: 10
+- Actual rain hours: 32
+- Agreement: 1h
+- Yandex-only: 9h (false positives)
+- Actual-only: 31h (missed events)
 
-<p>⚠️ <strong>Precision <0.55</strong> — dry-night false positives remain a problem. Pressure-aware model is the priority.</p>
+<p>---</p>
 
-<p>⚠️ <strong>F1 <0.45</strong> — performance degraded. Review recent data quality.</p>
+<h2>Key Observations & Recommendations</h2>
 
-<p>✅ <strong>Next step:</strong> Implement pressure_aware model using ms_pres data.</p>
+<p>⚠️ Best model differs: <strong>pressure_lagged</strong> (7d) vs <strong>tuned</strong> (28d). Short-term volatility or model overfitting to recent events?</p>
+
+<p>⚠️ <strong>Low average recall (0.25)</strong> — models miss many rain events. Consider lower thresholds or better features.</p>
+
+<p>📉 <strong>ha_live degrading</strong> with longer window (7d: 0.082 → 28d: 0.040). May be overfitting to recent patterns.</p>
+
+<p>⚠️ <strong>Yandex over-reports rain</strong> (110h vs 32h actual). Use OM (32h) or MS as ground truth instead.</p>
+
+<p>✅ <strong>Open-Meteo closer to ground truth</strong> than Yandex. Prefer OM for precipitation validation.</p>
+
+<strong>Next steps:</strong> Review pressure_* model variants for improving precision without sacrificing recall. Target: F-beta=2 >0.5, precision >0.6.
+
+<p>---</p>
+
+<p>_Report generated by daily_analysis.py at 2026-07-20T17:36:31.348754+00:00_</p>
         </section>
     </main>
 
