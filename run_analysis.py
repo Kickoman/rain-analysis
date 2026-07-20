@@ -245,6 +245,8 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     ctx = ModelContext(
         spread=grid["spread"],
         spread_deriv=grid["spread_deriv"],
+        abs_humidity=grid.get("abs_humidity"),
+        temp=grid.get("temp"),
         pressure=grid.get("pressure"),
     )
 
