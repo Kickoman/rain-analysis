@@ -66,7 +66,11 @@ def fetch_history(url: str, token: str, entity_id: str,
             return records
         return []
     except requests.RequestException as e:
-        print(f"[ERROR] Failed to fetch {entity_id}: {e}", file=sys.stderr)
+        # Sanitize error message to avoid leaking bearer token from Authorization header
+        error_str = str(e)
+        if token and token in error_str:
+            error_str = error_str.replace(token, "[REDACTED]")
+        print(f"[ERROR] Failed to fetch {entity_id}: {error_str}", file=sys.stderr)
         return []
 
 
