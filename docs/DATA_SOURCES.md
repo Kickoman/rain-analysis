@@ -21,6 +21,7 @@ The analysis pipeline needs four data sources aligned on one time grid:
 sensor.datchik_klimata_temperatura  → outdoor temperature (°C)
 sensor.datchik_klimata_vlazhnost    → outdoor humidity (%)
 sensor.rain_probability             → live model probability (%)
+sensor.filtered_pressure             → barometric pressure (hPa)
 ```
 
 ### Fetch
@@ -302,4 +303,4 @@ python run_analysis.py \
 
 The analysis grid spans the earliest to latest timestamp across all sources.
 If sensors were offline during a period, those columns will be NaN — 
-rainlib handles this gracefully with forward-fill and NaN guards.
+rainlib forward-fills temperature/humidity/pressure columns — precipitation columns are NOT forward-filled (fixed 2026-07-18 to prevent ~80% rain-hour inflation).
