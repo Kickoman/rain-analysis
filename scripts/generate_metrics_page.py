@@ -21,7 +21,9 @@ from datetime import datetime
 
 # ─── Colour palette ───────────────────────────────────────────────────────────
 MODEL_COLORS = {
-    "ha_live":             "#27ae60",  # green — production
+    "ha_live_actual":      "#27ae60",  # green — production (actual)
+    "ha_live_replica":    "#2ecc71",  # lighter green — replica backtest
+    "ha_live":             "#27ae60",  # green — legacy
     "original":            "#3498db",  # blue
     "tuned":               "#e67e22",  # orange
     "trend_dominant":      "#c0392b",  # red — failed
@@ -182,7 +184,8 @@ def main():
         name, ms = item
         vals = [v for v in ms["f1"] if v is not None]
         avg = sum(vals) / len(vals) if vals else 0.0
-        return (0 if name == "ha_live" else 1, -avg, name)
+        is_prod = name == "ha_live_actual" or name == "ha_live"
+        return (0 if is_prod else 1, -avg, name)
 
     sorted_models = sorted(active_models.items(), key=_model_sort_key)
 
@@ -204,9 +207,9 @@ def main():
                 "x": x, "y": y,
                 "type": "scatter", "mode": "lines+markers",
                 "name": name,
-                "line": {"width": 3 if name == "ha_live" else 1.5,
+                "line": {"width": 3 if name == "ha_live_actual" or name == "ha_live" else 1.5,
                          "color": color},
-                "marker": {"size": 6 if name == "ha_live" else 4,
+                "marker": {"size": 6 if name == "ha_live_actual" or name == "ha_live" else 4,
                            "color": color},
                 "hovertemplate": f"{name}<br>{metric_label}: %{{y:.3f}}<br>%{{x}}<extra></extra>",
             })
