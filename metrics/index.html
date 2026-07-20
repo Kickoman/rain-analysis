@@ -137,7 +137,7 @@
                 </tbody>
             </table>
 
-            <p><em>Last updated: 2026-07-20 17:46 UTC</em></p>
+            <p><em>Last updated: 2026-07-20 18:18 UTC</em></p>
         </section>
     </main>
 
@@ -1157,66 +1157,71 @@
             }
         }
 
-        // F1 timeline
-        renderChart("chart-f1", cfg.f1_traces, {
-            yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
-        });
+        // Defer all chart rendering until after CSS layout is computed.
+        // Prevents Plotly responsive mode from getting 0-width containers
+        // inside CSS grid layouts.
+        window.addEventListener('load', function() {
+            // F1 timeline
+            renderChart("chart-f1", cfg.f1_traces, {
+                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+            });
 
-        // Precision timeline
-        renderChart("chart-precision", cfg.prec_traces, {
-            yaxis: { title: "Precision", gridcolor: "#eee", rangemode: "tozero" },
-        });
+            // Precision timeline
+            renderChart("chart-precision", cfg.prec_traces, {
+                yaxis: { title: "Precision", gridcolor: "#eee", rangemode: "tozero" },
+            });
 
-        // Recall timeline
-        renderChart("chart-recall", cfg.rec_traces, {
-            yaxis: { title: "Recall", gridcolor: "#eee", rangemode: "tozero" },
-        });
+            // Recall timeline
+            renderChart("chart-recall", cfg.rec_traces, {
+                yaxis: { title: "Recall", gridcolor: "#eee", rangemode: "tozero" },
+            });
 
-        // Bar: F1 comparison
-        const f1BarTrace = {
-            x: cfg.bar_labels,
-            y: cfg.bar_f1,
-            type: "bar",
-            name: "F1 Score",
-            marker: { color: cfg.bar_colors },
-            hovertemplate: "%{x}<br>F1: %{y:.3f}<extra></extra>",
-        };
-        renderChart("chart-bar-f1", [f1BarTrace], {
-            yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
-        });
+            // Bar: F1 comparison
+            const f1BarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_f1,
+                type: "bar",
+                name: "F1 Score",
+                marker: { color: cfg.bar_colors },
+                hovertemplate: "%{x}<br>F1: %{y:.3f}<extra></extra>",
+            };
+            renderChart("chart-bar-f1", [f1BarTrace], {
+                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+            });
 
-        // Bar: Precision + Recall comparison
-        const precBarTrace = {
-            x: cfg.bar_labels,
-            y: cfg.bar_prec,
-            type: "bar",
-            name: "Precision",
-            marker: { color: "#3498db" },
-            hovertemplate: "%{x}<br>Precision: %{y:.3f}<extra></extra>",
-        };
-        const recBarTrace = {
-            x: cfg.bar_labels,
-            y: cfg.bar_rec,
-            type: "bar",
-            name: "Recall",
-            marker: { color: "#e67e22" },
-            hovertemplate: "%{x}<br>Recall: %{y:.3f}<extra></extra>",
-        };
-        renderChart("chart-bar-prec-rec", [precBarTrace, recBarTrace], {
-            yaxis: { title: "Score", gridcolor: "#eee", rangemode: "tozero" },
-            barmode: "group",
-        });
-
-        // Precipitation sources
-        if (cfg.source_has_data) {
-            renderChart("chart-sources", cfg.source_traces, {
-                yaxis: { title: "Rain Hours", gridcolor: "#eee" },
+            // Bar: Precision + Recall comparison
+            const precBarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_prec,
+                type: "bar",
+                name: "Precision",
+                marker: { color: "#3498db" },
+                hovertemplate: "%{x}<br>Precision: %{y:.3f}<extra></extra>",
+            };
+            const recBarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_rec,
+                type: "bar",
+                name: "Recall",
+                marker: { color: "#e67e22" },
+                hovertemplate: "%{x}<br>Recall: %{y:.3f}<extra></extra>",
+            };
+            renderChart("chart-bar-prec-rec", [precBarTrace, recBarTrace], {
+                yaxis: { title: "Score", gridcolor: "#eee", rangemode: "tozero" },
                 barmode: "group",
             });
-        } else {
-            document.getElementById("chart-sources").innerHTML =
-                '<p style="padding:2em;text-align:center;color:#999">Precipitation source data will appear as more reports accumulate.</p>';
-        }
+
+            // Precipitation sources
+            if (cfg.source_has_data) {
+                renderChart("chart-sources", cfg.source_traces, {
+                    yaxis: { title: "Rain Hours", gridcolor: "#eee" },
+                    barmode: "group",
+                });
+            } else {
+                document.getElementById("chart-sources").innerHTML =
+                    '<p style="padding:2em;text-align:center;color:#999">Precipitation source data will appear as more reports accumulate.</p>';
+            }
+        });
     </script>
 </body>
 </html>
