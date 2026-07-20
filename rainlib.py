@@ -908,7 +908,9 @@ def label_rain(grid: pd.DataFrame,
         result[grid["ms_precip"].isna()] = np.nan
         return result
     if "yx_is_rain" in grid:
-        return grid["yx_is_rain"].astype(float)
+        result = grid["yx_is_rain"].astype(float)
+        result[grid["yx_is_rain"].isna()] = np.nan
+        return result
     raise ValueError("No precipitation or condition column to label from.")
 
 
