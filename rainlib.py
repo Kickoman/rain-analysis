@@ -923,7 +923,7 @@ def label_rain(grid: pd.DataFrame,
         result[grid[precip_col].isna()] = np.nan
         return (result, "open-meteo") if return_source else result
     if "ms_precip" in grid and grid["ms_precip"].notna().any():
-        result = (grid["ms_precip"] > 0).astype(float)
+        result = (grid["ms_precip"] >= threshold_mm).astype(float)
         result[grid["ms_precip"].isna()] = np.nan
         return (result, "meteostat") if return_source else result
     if "yx_is_rain" in grid:
