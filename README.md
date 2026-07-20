@@ -174,16 +174,13 @@ pressure-aware models are available:
 **Required sensor:** `sensor.filtered_pressure` (hPa) — from Home Assistant's
 filter integration smoothing raw pressure readings.
 
-**Pressure data sources** (via `build_pressure_series()`):
+**Pressure source:** Production exclusively uses `sensor.filtered_pressure` from Home Assistant.
+For testing with alternative sources, use:
+- `build_pressure_series_ha()` — HA sensors only (production)
+- `build_pressure_series_meteostat()` — Meteostat only (testing)
+- `build_pressure_series_yandex()` — Yandex only (testing)
 
-| Priority | Source | Column | Unit |
-|----------|--------|--------|------|
-| 1 | HA `filtered_pressure` | `pressure` | hPa |
-| 2 | Meteostat | `ms_pres` | hPa |
-| 3 | Yandex Archive | `yx_pressure_mm` | mm Hg → hPa |
-
-When no pressure data is available, models gracefully fall back to
-spread+trend only (same as `tuned`).
+When HA pressure data is unavailable, pressure-aware models fall back to spread+trend only (same as `tuned`).
 
 For details, see [MODELS.md#pressure-aware-models](docs/MODELS.md) and
 `pressure_variants.py`.
