@@ -60,6 +60,7 @@ rain-analysis/
 │   ├── DATA_SOURCES.md       # Data collection guide
 │   └── HA_DATA_FETCHER.md    # HA fetcher details
 ├── CONTRIBUTING.md           # Development guide
+├── reports/                  # Generated analysis results (intentionally tracked)
 ├── data/                     # Your local data files (gitignored)
 └── requirements.txt
 ```
