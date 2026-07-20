@@ -57,8 +57,9 @@ def extract_archive(archive_path: str, output_dir: str, strip_components: int = 
                     else:
                         continue  # Skip this member
             
-            # Extract
-            tar.extractall(output_dir, members=members)
+            # Extract with security filter (Python 3.12+)
+            # 'data' filter rejects absolute paths, '..' components, symlinks, and device files
+            tar.extractall(output_dir, members=members, filter="data")
         
         print("✓")
         return len(members)
