@@ -898,7 +898,8 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
 
 def label_rain(grid: pd.DataFrame,
                precip_col: str = "om_precip",
-               threshold_mm: float = 0.1) -> pd.Series:
+               threshold_mm: float = 0.1,
+               return_source: bool = False):
     """Rain label (0/1/NaN) from precipitation data.
 
     Returns a float Series with:
@@ -913,19 +914,24 @@ def label_rain(grid: pd.DataFrame,
 
     Falls back to Meteostat, then Yandex condition if the primary
     source is unavailable.
+
+    If return_source=True, returns (labels_series, source_name).
+    Source is one of: "open-meteo", "meteostat", "yandex", "none".
     """
     if precip_col in grid and grid[precip_col].notna().any():
         result = (grid[precip_col] >= threshold_mm).astype(float)
         result[grid[precip_col].isna()] = np.nan
-        return result
+        return (result, "open-meteo") if return_source else result
     if "ms_precip" in grid and grid["ms_precip"].notna().any():
         result = (grid["ms_precip"] > 0).astype(float)
         result[grid["ms_precip"].isna()] = np.nan
-        return result
+        return (result, "meteostat") if return_source else result
     if "yx_is_rain" in grid:
         result = grid["yx_is_rain"].astype(float)
         result[grid["yx_is_rain"].isna()] = np.nan
-        return result
+        return (result, "yandex") if return_source else result
+    if return_source:
+        raise ValueError("No precipitation or condition column to label from.")
     raise ValueError("No precipitation or condition column to label from.")
 
 

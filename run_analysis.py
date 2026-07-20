@@ -206,7 +206,8 @@ def compute_features(grid: pd.DataFrame, config: AnalysisConfig) -> pd.DataFrame
 def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     """§4: Create rain_truth label and return rain-hour summary."""
     grid = grid.copy()
-    grid["rain_truth"] = rl.label_rain(grid, "om_precip", config.rain_threshold_mm)
+    labels, gt_source = rl.label_rain(grid, "om_precip", config.rain_threshold_mm, return_source=True)
+    grid["rain_truth"] = labels
 
     rain_hours = (
         grid[grid["rain_truth"] == 1]
@@ -231,6 +232,7 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
         "total_rain_mm": float(rain_hours.get(om_precip_col, pd.Series(dtype=float)).sum())
         if om_precip_col in rain_hours.columns else None,
         "rain_hours": rain_summary,
+        "ground_truth_source": gt_source,
     }
 
     return grid, stats
@@ -482,6 +484,12 @@ def generate_summary(report: dict) -> str:
     lines.append(f"Data range: {meta['data_stats']['grid_start']} → {meta['data_stats']['grid_end']}")
     lines.append(f"Rain threshold: {meta['config']['rain_threshold_mm']} mm/h")
     lines.append(f"Decision threshold: {meta['config']['decision_threshold']}%")
+
+    gt_source = meta['data_stats'].get('ground_truth', {}).get('ground_truth_source', 'unknown')
+    if gt_source == "yandex":
+        lines.append("Ground truth: Yandex (degraded)")
+    else:
+        lines.append(f"Ground truth source: {gt_source}")
     lines.append("")
 
     # Data coverage
