@@ -30,13 +30,16 @@ Then uncomment the optional data fetching cells to run the fetch scripts directl
 # 1. Fetch Home Assistant sensor history
 python fetch_ha_data.py --days 7 --output data/ha.csv
 
-# 2. Run analysis
+# 2. Run analysis (single report)
 python run_analysis.py \
     --ha-csv data/ha.csv \
     --om-sources data/openmeteo.json \
     --yandex-dir data/yandex_archive/ \
-    --output-dir reports/ \
+    --output reports/analysis_2026-07-20.json \
     --plots
+
+# Or run the full pipeline (fetch + analyze)
+python run_full_analysis.py --days 7 --output-dir reports/
 ```
 
 See [docs/CLI_RUNNER.md](docs/CLI_RUNNER.md) for full CLI documentation.

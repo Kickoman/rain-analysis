@@ -27,13 +27,15 @@ reports/
 Results land here automatically via:
 
 ```bash
-python run_analysis.py --output-dir reports/ --plots
-```
+# Single analysis run (outputs to specified file)
+python run_analysis.py \
+    --ha-csv data/ha.csv \
+    --om-sources data/openmeteo.json \
+    --output reports/analysis_2026-07-20.json \
+    --plots
 
-Or the full pipeline:
-
-```bash
-python run_full_analysis.py --days 7
+# Full pipeline (outputs to directory)
+python run_full_analysis.py --days 7 --output-dir reports/
 ```
 
 ## Keeping It Clean
