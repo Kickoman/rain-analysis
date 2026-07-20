@@ -54,7 +54,7 @@ def _extract_date(text: str) -> str | None:
 
 
 def _extract_model_rows(html_content: str) -> list[dict]:
-    """Parse <tr><td>model</td><td>F1</td><td>Prec</td><td>Recall</td> rows."""
+    """Parse <tr><td>model</td><td>F1</td><td>Prec</td><td>Recall</td> rows from the FIRST matching table only."""
     pat = re.compile(
         r'<tr>\s*<td>([\w_]+)</td>\s*'
         r'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>\s*'
@@ -62,15 +62,21 @@ def _extract_model_rows(html_content: str) -> list[dict]:
         r'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>',
         re.IGNORECASE,
     )
-    rows = []
-    for m in pat.finditer(html_content):
-        rows.append({
-            "model": m.group(1),
-            "f1": float(m.group(2)),
-            "precision": float(m.group(3)),
-            "recall": float(m.group(4)),
-        })
-    return rows
+    # Only use the FIRST table with matching data rows
+    # Split by </table> and take the first segment that has matches
+    tables = html_content.split('</table>')
+    for table_html in tables:
+        rows = []
+        for m in pat.finditer(table_html):
+            rows.append({
+                "model": m.group(1),
+                "f1": float(m.group(2)),
+                "precision": float(m.group(3)),
+                "recall": float(m.group(4)),
+            })
+        if rows:
+            return rows
+    return []
 
 
 def _extract_best_model(text: str) -> str | None:
