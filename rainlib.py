@@ -1079,7 +1079,13 @@ def plot_calibration(pred: pd.Series, truth: pd.Series,
     `betas`, and drops a vertical marker at each beta's recommended threshold.
     Needs matplotlib; pass an existing `ax` to compose into a larger figure.
     """
-    import matplotlib.pyplot as plt
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        raise ImportError(
+            "plot_calibration() requires matplotlib. "
+            "Install it with: pip install matplotlib>=3.7"
+        )
 
     if ax is None:
         _, ax = plt.subplots(figsize=(9, 5))
