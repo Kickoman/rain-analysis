@@ -89,6 +89,49 @@ class AnalysisConfig:
 # Analysis pipeline
 # ---------------------------------------------------------------------------
 
+def validate_time_overlap(ha, om, yx, ms):
+    """Check that loaded data sources have overlapping time ranges.
+
+    If sources cover disjoint time periods, analysis produces empty results
+    with no warning. This function catches that early and gives a clear error.
+    """
+    frames = []
+    if ha is not None and not ha.empty:
+        frames.append((ha, "HA"))
+    if om is not None and not om.empty:
+        frames.append((om, "Open-Meteo"))
+    if yx is not None and not yx.empty:
+        frames.append((yx, "Yandex"))
+    if ms is not None and not ms.empty:
+        frames.append((ms, "Meteostat"))
+
+    if len(frames) < 2:
+        raise ValueError(
+            f"Need at least 2 data sources for analysis, got {len(frames)}. "
+            "Check HA CSV, Open-Meteo sources, and Yandex/Meteostat configs."
+        )
+
+    ranges = [(f.index.min(), f.index.max(), name) for f, name in frames]
+    overlap_start = max(r[0] for r in ranges)
+    overlap_end = min(r[1] for r in ranges)
+
+    if overlap_start >= overlap_end:
+        msg = "No time overlap between data sources:\n"
+        for start, end, name in ranges:
+            msg += f"  {name}: {start} to {end}\n"
+        raise ValueError(msg)
+
+    overlap_hours = (overlap_end - overlap_start).total_seconds() / 3600
+    if overlap_hours < 24:
+        import sys
+        print(
+            f"[WARN] Only {overlap_hours:.1f} hours of data overlap. "
+            "Results may be unreliable.",
+            file=sys.stderr,
+        )
+
+
+
 def load_data(config: AnalysisConfig) -> pd.DataFrame:
     """§1-§2: Load & align everything onto one grid."""
     # Local sensors
@@ -107,6 +150,7 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
     # Meteostat
     ms = rl.load_meteostat(config.meteostat_json) if config.meteostat_json else pd.DataFrame()
 
+    validate_time_overlap(ha, om, yx, ms)
     grid = rl.build_grid(ha, om, yx, ms, freq=config.grid_freq)
 
     stats = {
