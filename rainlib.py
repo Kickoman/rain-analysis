@@ -753,6 +753,22 @@ def load_meteostat(json_path: str) -> pd.DataFrame:
 # 5. UNIFIED TIME GRID
 # ---------------------------------------------------------------------------
 
+# Insert before build_grid function (after line 753)
+
+# Precipitation column names that should NOT be forward-filled
+# (precipitation is a rate, not a state — gaps should remain NaN)
+PRECIP_COLUMNS = {
+    'om_precip',
+    'ms_precip',
+    'om_rain',
+    'om_showers',
+}
+
+# Condition/state columns that CAN be forward-filled
+# (weather conditions persist between observations)
+STATE_COLUMNS_ALLOW_FFILL = {
+    'yx_condition', 'yx_is_rain', 'yx_prec_prob',
+}
 def build_grid(ha_wide_df: pd.DataFrame | None = None,
                om_df: pd.DataFrame | None = None,
                yx_df: pd.DataFrame | None = None,
@@ -761,11 +777,22 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
                ffill_limit_min: int = 90) -> pd.DataFrame:
     """Resample every source onto one regular grid and merge.
 
-    * Local HA sensors are irregular (event-based) -> forward-filled onto the
+    **IMPORTANT FIX (2026-07-18):** Precipitation columns are NO LONGER
+    forward-filled. Precipitation is a rate (mm/h), not a state. If it
+    rained at 01:00, that does NOT mean it rained at 02:00. Previous
+    implementation had a bug that inflated rain hour counts by ~80%.
+
+    New behavior:
+    * Local HA sensors (state variables like temp/humidity/pressure) are
+      irregular (event-based) -> forward-filled onto the
       grid up to `ffill_limit_min` minutes (so a dead sensor doesn't fill
       forever).
-    * open-meteo, Yandex, and Meteostat are hourly -> reindexed onto the grid;
-      precip is forward-filled within the hour, conditions likewise.
+    * open-meteo, Meteostat: hourly data -> reindexed onto the grid
+      - Precipitation columns (om_precip, ms_precip, etc.): NO ffill, gaps=NaN
+      - State variables (temp, humidity, pressure): ffill up to 6 hours
+    * Yandex: hourly snapshots -> reindexed onto grid
+      - Condition/state (yx_condition, yx_is_rain): ffill up to 6 hours
+      - These are observation states, not rates
 
     Returns one tidy DataFrame indexed by the regular UTC grid.
     """
@@ -788,16 +815,50 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
         out = out.join(ha_r)
 
     if om_df is not None and not om_df.empty:
-        om_r = om_df.sort_index().reindex(
-            om_df.index.union(grid)
-        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+        # Separate precipitation (no ffill) from state variables (ffill)
+        om_precip_cols = [c for c in om_df.columns if c in PRECIP_COLUMNS]
+        om_state_cols = [c for c in om_df.columns if c not in PRECIP_COLUMNS]
+        
+        om_r = pd.DataFrame(index=grid)
+        if om_precip_cols:
+            # Precipitation: reindex only, no forward-fill
+            om_precip = om_df[om_precip_cols].sort_index().reindex(grid)
+            om_r = om_r.join(om_precip)
+        if om_state_cols:
+            # State variables: forward-fill up to 6 hours
+            om_state = om_df[om_state_cols].sort_index().reindex(
+                om_df.index.union(grid)
+            ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+            om_r = om_r.join(om_state)
         out = out.join(om_r)
 
     if yx_df is not None and not yx_df.empty:
+        # Yandex: conditions/states can be forward-filled (weather persists between snapshots)
         yx_r = yx_df.sort_index().reindex(
             yx_df.index.union(grid)
         ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
         out = out.join(yx_r)
+
+    if ms_df is not None and not ms_df.empty:
+        # Separate precipitation (no ffill) from state variables (ffill)
+        ms_precip_cols = [c for c in ms_df.columns if c in PRECIP_COLUMNS]
+        ms_state_cols = [c for c in ms_df.columns if c not in PRECIP_COLUMNS]
+        
+        ms_r = pd.DataFrame(index=grid)
+        if ms_precip_cols:
+            # Precipitation: reindex only, no forward-fill
+            ms_precip = ms_df[ms_precip_cols].sort_index().reindex(grid)
+            ms_r = ms_r.join(ms_precip)
+        if ms_state_cols:
+            # State variables: forward-fill up to 6 hours
+            ms_state = ms_df[ms_state_cols].sort_index().reindex(
+                ms_df.index.union(grid)
+            ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
+            ms_r = ms_r.join(ms_state)
+        out = out.join(ms_r)
+
+    return out
+
 
     if ms_df is not None and not ms_df.empty:
         ms_r = ms_df.sort_index().reindex(
