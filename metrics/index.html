@@ -5,6 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metrics Timeline — Rain Analysis</title>
     <link rel="stylesheet" href="../assets/style.css">
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        .chart-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            margin: 1.5em 0;
+            padding: 0.5em;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1em;
+        }
+        @media (max-width: 900px) {
+            .chart-row { grid-template-columns: 1fr; }
+        }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+        table {
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
     <header>
@@ -22,9 +46,27 @@
     <main>
         <section>
             <h2>📈 Performance Metrics Over Time</h2>
-            <p>Track how model performance evolves. Data is extracted from daily reports.</p>
+            <p>Interactive charts tracking model performance evolution. Hover for details, click legend items to toggle, drag to zoom.</p>
 
-            <h3>All Reports (8 days)</h3>
+            <h3>🏆 F1 Score Timeline</h3>
+            <div class="chart-container" id="chart-f1" style="height:450px"></div>
+
+            <h3>🎯 Model Comparison — 2026-07-20</h3>
+            <div class="chart-row">
+                <div class="chart-container" id="chart-bar-f1" style="height:380px"></div>
+                <div class="chart-container" id="chart-bar-prec-rec" style="height:380px"></div>
+            </div>
+
+            <h3>🎯 Precision Timeline</h3>
+            <div class="chart-container" id="chart-precision" style="height:400px"></div>
+
+            <h3>🔄 Recall Timeline</h3>
+            <div class="chart-container" id="chart-recall" style="height:400px"></div>
+
+            <h3>🌧️ Precipitation Sources</h3>
+            <div class="chart-container" id="chart-sources" style="height:350px"></div>
+
+            <h3>📋 Raw Data Table</h3>
             <table>
                 <thead>
                     <tr>
@@ -95,12 +137,1087 @@
                 </tbody>
             </table>
 
-            <p><em>Last updated: 2026-07-20 15:27 UTC. Interactive charts will be added in future updates.</em></p>
+            <p><em>Last updated: 2026-07-20 15:42 UTC</em></p>
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
     </footer>
+
+    <script>
+        const cfg = {
+  "f1_traces": [
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.474,
+        0.44,
+        0.303,
+        0.211,
+        0.169,
+        0.094,
+        0.203,
+        0.258
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.439,
+        0.39,
+        0.262,
+        0.164,
+        0.142,
+        0.0,
+        0.163,
+        0.261
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.404,
+        0.386,
+        0.217,
+        0.159,
+        0.138,
+        0.0,
+        0.12,
+        0.205
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "tuned",
+      "line": {
+        "width": 1.5,
+        "color": "#e67e22"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#e67e22"
+      },
+      "hovertemplate": "tuned<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.159,
+        0.194,
+        0.054,
+        0.227,
+        0.384
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_combined",
+      "line": {
+        "width": 1.5,
+        "color": "#7f8c8d"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#7f8c8d"
+      },
+      "hovertemplate": "pressure_combined<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.161,
+        0.198,
+        0.056,
+        0.22,
+        0.366
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_long_window",
+      "line": {
+        "width": 1.5,
+        "color": "#16a085"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#16a085"
+      },
+      "hovertemplate": "pressure_long_window<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.158,
+        0.19,
+        0.053,
+        0.219,
+        0.368
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_absolute",
+      "line": {
+        "width": 1.5,
+        "color": "#2c3e50"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#2c3e50"
+      },
+      "hovertemplate": "pressure_absolute<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.159,
+        0.196,
+        0.055,
+        0.215,
+        0.343
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_lagged",
+      "line": {
+        "width": 1.5,
+        "color": "#d35400"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#d35400"
+      },
+      "hovertemplate": "pressure_lagged<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.217,
+        0.159,
+        0.138,
+        0.0,
+        0.12,
+        0.205
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_aware",
+      "line": {
+        "width": 1.5,
+        "color": "#8e44ad"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#8e44ad"
+      },
+      "hovertemplate": "pressure_aware<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.116,
+        0.104,
+        0.121,
+        0.096,
+        0.084,
+        0.112,
+        0.069,
+        0.057
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "trend_dominant",
+      "line": {
+        "width": 1.5,
+        "color": "#c0392b"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#c0392b"
+      },
+      "hovertemplate": "trend_dominant<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "prec_traces": [
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.49,
+        0.434,
+        0.29,
+        0.186,
+        0.148,
+        0.08,
+        0.182,
+        0.308
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.481,
+        0.417,
+        0.256,
+        0.154,
+        0.148,
+        0.0,
+        0.197,
+        0.5
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.42,
+        0.386,
+        0.23,
+        0.162,
+        0.142,
+        0.0,
+        0.15,
+        0.571
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "tuned",
+      "line": {
+        "width": 1.5,
+        "color": "#e67e22"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#e67e22"
+      },
+      "hovertemplate": "tuned<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.159,
+        0.17,
+        0.05,
+        0.202,
+        0.341
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_combined",
+      "line": {
+        "width": 1.5,
+        "color": "#7f8c8d"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#7f8c8d"
+      },
+      "hovertemplate": "pressure_combined<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.165,
+        0.176,
+        0.053,
+        0.202,
+        0.333
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_long_window",
+      "line": {
+        "width": 1.5,
+        "color": "#16a085"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#16a085"
+      },
+      "hovertemplate": "pressure_long_window<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.153,
+        0.165,
+        0.048,
+        0.189,
+        0.318
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_absolute",
+      "line": {
+        "width": 1.5,
+        "color": "#2c3e50"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#2c3e50"
+      },
+      "hovertemplate": "pressure_absolute<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.162,
+        0.173,
+        0.051,
+        0.195,
+        0.316
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_lagged",
+      "line": {
+        "width": 1.5,
+        "color": "#d35400"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#d35400"
+      },
+      "hovertemplate": "pressure_lagged<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.23,
+        0.162,
+        0.142,
+        0.0,
+        0.15,
+        0.571
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_aware",
+      "line": {
+        "width": 1.5,
+        "color": "#8e44ad"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#8e44ad"
+      },
+      "hovertemplate": "pressure_aware<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.727,
+        0.692,
+        0.692,
+        0.571,
+        0.478,
+        1.0,
+        0.261,
+        0.333
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "trend_dominant",
+      "line": {
+        "width": 1.5,
+        "color": "#c0392b"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#c0392b"
+      },
+      "hovertemplate": "trend_dominant<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "rec_traces": [
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.458,
+        0.446,
+        0.317,
+        0.242,
+        0.197,
+        0.112,
+        0.231,
+        0.222
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.404,
+        0.366,
+        0.269,
+        0.176,
+        0.136,
+        0.0,
+        0.14,
+        0.176
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.389,
+        0.386,
+        0.206,
+        0.157,
+        0.134,
+        0.0,
+        0.1,
+        0.125
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "tuned",
+      "line": {
+        "width": 1.5,
+        "color": "#e67e22"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#e67e22"
+      },
+      "hovertemplate": "tuned<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.16,
+        0.226,
+        0.059,
+        0.26,
+        0.438
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_combined",
+      "line": {
+        "width": 1.5,
+        "color": "#7f8c8d"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#7f8c8d"
+      },
+      "hovertemplate": "pressure_combined<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.157,
+        0.226,
+        0.059,
+        0.24,
+        0.406
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_long_window",
+      "line": {
+        "width": 1.5,
+        "color": "#16a085"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#16a085"
+      },
+      "hovertemplate": "pressure_long_window<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.163,
+        0.226,
+        0.059,
+        0.26,
+        0.438
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_absolute",
+      "line": {
+        "width": 1.5,
+        "color": "#2c3e50"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#2c3e50"
+      },
+      "hovertemplate": "pressure_absolute<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.157,
+        0.226,
+        0.059,
+        0.24,
+        0.375
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_lagged",
+      "line": {
+        "width": 1.5,
+        "color": "#d35400"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#d35400"
+      },
+      "hovertemplate": "pressure_lagged<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.206,
+        0.157,
+        0.134,
+        0.0,
+        0.1,
+        0.125
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "pressure_aware",
+      "line": {
+        "width": 1.5,
+        "color": "#8e44ad"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#8e44ad"
+      },
+      "hovertemplate": "pressure_aware<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        0.063,
+        0.056,
+        0.066,
+        0.052,
+        0.046,
+        0.059,
+        0.04,
+        0.031
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "trend_dominant",
+      "line": {
+        "width": 1.5,
+        "color": "#c0392b"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#c0392b"
+      },
+      "hovertemplate": "trend_dominant<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "bar_labels": [
+    "ha_live",
+    "original",
+    "tuned",
+    "pressure_combined",
+    "pressure_long_window",
+    "pressure_absolute",
+    "pressure_lagged",
+    "pressure_aware",
+    "trend_dominant"
+  ],
+  "bar_f1": [
+    0.258,
+    0.261,
+    0.205,
+    0.384,
+    0.366,
+    0.368,
+    0.343,
+    0.205,
+    0.057
+  ],
+  "bar_prec": [
+    0.308,
+    0.5,
+    0.571,
+    0.341,
+    0.333,
+    0.318,
+    0.316,
+    0.571,
+    0.333
+  ],
+  "bar_rec": [
+    0.222,
+    0.176,
+    0.125,
+    0.438,
+    0.406,
+    0.438,
+    0.375,
+    0.125,
+    0.031
+  ],
+  "bar_colors": [
+    "#27ae60",
+    "#3498db",
+    "#e67e22",
+    "#7f8c8d",
+    "#16a085",
+    "#2c3e50",
+    "#d35400",
+    "#8e44ad",
+    "#c0392b"
+  ],
+  "source_traces": [
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        90,
+        83,
+        74,
+        55,
+        42,
+        36,
+        25,
+        32
+      ],
+      "type": "bar",
+      "name": "OM",
+      "marker": {
+        "color": "#3498db"
+      },
+      "hovertemplate": "OM<br>Rain hours: %{y}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        80,
+        64,
+        42,
+        25,
+        12,
+        14,
+        6,
+        13
+      ],
+      "type": "bar",
+      "name": "MS",
+      "marker": {
+        "color": "#e67e22"
+      },
+      "hovertemplate": "MS<br>Rain hours: %{y}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-13",
+        "2026-07-14",
+        "2026-07-15",
+        "2026-07-16",
+        "2026-07-17",
+        "2026-07-18",
+        "2026-07-19",
+        "2026-07-20"
+      ],
+      "y": [
+        100,
+        100,
+        100,
+        100,
+        100,
+        100,
+        107,
+        115
+      ],
+      "type": "bar",
+      "name": "YX",
+      "marker": {
+        "color": "#2ecc71"
+      },
+      "hovertemplate": "YX<br>Rain hours: %{y}<br>%{x}<extra></extra>"
+    }
+  ],
+  "source_has_data": true,
+  "last_date": "2026-07-20"
+};
+
+        // Common layout options
+        const layoutBase = {
+            hovermode: "x unified",
+            legend: { orientation: "h", y: -0.3, font: { size: 11 } },
+            margin: { l: 50, r: 20, t: 20, b: 50 },
+            plot_bgcolor: "#fafafa",
+            paper_bgcolor: "#fff",
+            xaxis: { gridcolor: "#eee", tickangle: -30, automargin: true },
+            yaxis: { gridcolor: "#eee", rangemode: "tozero" },
+        };
+
+        function renderChart(id, traces, extraLayout) {
+            const layout = Object.assign({}, layoutBase, extraLayout);
+            if (traces && traces.length > 0) {
+                Plotly.newPlot(id, traces, layout, {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                    displaylogo: false,
+                });
+            } else {
+                document.getElementById(id).innerHTML =
+                    '<p style="padding:2em;text-align:center;color:#999">No data available yet.</p>';
+            }
+        }
+
+        // F1 timeline
+        renderChart("chart-f1", cfg.f1_traces, {
+            yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+        });
+
+        // Precision timeline
+        renderChart("chart-precision", cfg.prec_traces, {
+            yaxis: { title: "Precision", gridcolor: "#eee", rangemode: "tozero" },
+        });
+
+        // Recall timeline
+        renderChart("chart-recall", cfg.rec_traces, {
+            yaxis: { title: "Recall", gridcolor: "#eee", rangemode: "tozero" },
+        });
+
+        // Bar: F1 comparison
+        const f1BarTrace = {
+            x: cfg.bar_labels,
+            y: cfg.bar_f1,
+            type: "bar",
+            name: "F1 Score",
+            marker: { color: cfg.bar_colors },
+            hovertemplate: "%{x}<br>F1: %{y:.3f}<extra></extra>",
+        };
+        renderChart("chart-bar-f1", [f1BarTrace], {
+            yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+        });
+
+        // Bar: Precision + Recall comparison
+        const precBarTrace = {
+            x: cfg.bar_labels,
+            y: cfg.bar_prec,
+            type: "bar",
+            name: "Precision",
+            marker: { color: "#3498db" },
+            hovertemplate: "%{x}<br>Precision: %{y:.3f}<extra></extra>",
+        };
+        const recBarTrace = {
+            x: cfg.bar_labels,
+            y: cfg.bar_rec,
+            type: "bar",
+            name: "Recall",
+            marker: { color: "#e67e22" },
+            hovertemplate: "%{x}<br>Recall: %{y:.3f}<extra></extra>",
+        };
+        renderChart("chart-bar-prec-rec", [precBarTrace, recBarTrace], {
+            yaxis: { title: "Score", gridcolor: "#eee", rangemode: "tozero" },
+            barmode: "group",
+        });
+
+        // Precipitation sources
+        if (cfg.source_has_data) {
+            renderChart("chart-sources", cfg.source_traces, {
+                yaxis: { title: "Rain Hours", gridcolor: "#eee" },
+                barmode: "group",
+            });
+        } else {
+            document.getElementById("chart-sources").innerHTML =
+                '<p style="padding:2em;text-align:center;color:#999">Precipitation source data will appear as more reports accumulate.</p>';
+        }
+    </script>
 </body>
 </html>

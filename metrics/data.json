@@ -1,0 +1,450 @@
+{
+  "dates": [
+    "2026-07-13",
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18",
+    "2026-07-19",
+    "2026-07-20"
+  ],
+  "models": {
+    "original": {
+      "f1": [
+        0.439,
+        0.39,
+        0.262,
+        0.164,
+        0.142,
+        0.0,
+        0.163,
+        0.261
+      ],
+      "precision": [
+        0.481,
+        0.417,
+        0.256,
+        0.154,
+        0.148,
+        0.0,
+        0.197,
+        0.5
+      ],
+      "recall": [
+        0.404,
+        0.366,
+        0.269,
+        0.176,
+        0.136,
+        0.0,
+        0.14,
+        0.176
+      ]
+    },
+    "tuned": {
+      "f1": [
+        0.404,
+        0.386,
+        0.217,
+        0.159,
+        0.138,
+        0.0,
+        0.12,
+        0.205
+      ],
+      "precision": [
+        0.42,
+        0.386,
+        0.23,
+        0.162,
+        0.142,
+        0.0,
+        0.15,
+        0.571
+      ],
+      "recall": [
+        0.389,
+        0.386,
+        0.206,
+        0.157,
+        0.134,
+        0.0,
+        0.1,
+        0.125
+      ]
+    },
+    "trend_dominant": {
+      "f1": [
+        0.116,
+        0.104,
+        0.121,
+        0.096,
+        0.084,
+        0.112,
+        0.069,
+        0.057
+      ],
+      "precision": [
+        0.727,
+        0.692,
+        0.692,
+        0.571,
+        0.478,
+        1.0,
+        0.261,
+        0.333
+      ],
+      "recall": [
+        0.063,
+        0.056,
+        0.066,
+        0.052,
+        0.046,
+        0.059,
+        0.04,
+        0.031
+      ]
+    },
+    "ha_live": {
+      "f1": [
+        0.474,
+        0.44,
+        0.303,
+        0.211,
+        0.169,
+        0.094,
+        0.203,
+        0.258
+      ],
+      "precision": [
+        0.49,
+        0.434,
+        0.29,
+        0.186,
+        0.148,
+        0.08,
+        0.182,
+        0.308
+      ],
+      "recall": [
+        0.458,
+        0.446,
+        0.317,
+        0.242,
+        0.197,
+        0.112,
+        0.231,
+        0.222
+      ]
+    },
+    "pressure_aware": {
+      "f1": [
+        null,
+        null,
+        0.217,
+        0.159,
+        0.138,
+        0.0,
+        0.12,
+        0.205
+      ],
+      "precision": [
+        null,
+        null,
+        0.23,
+        0.162,
+        0.142,
+        0.0,
+        0.15,
+        0.571
+      ],
+      "recall": [
+        null,
+        null,
+        0.206,
+        0.157,
+        0.134,
+        0.0,
+        0.1,
+        0.125
+      ]
+    },
+    "pressure_absolute": {
+      "f1": [
+        null,
+        null,
+        null,
+        0.158,
+        0.19,
+        0.053,
+        0.219,
+        0.368
+      ],
+      "precision": [
+        null,
+        null,
+        null,
+        0.153,
+        0.165,
+        0.048,
+        0.189,
+        0.318
+      ],
+      "recall": [
+        null,
+        null,
+        null,
+        0.163,
+        0.226,
+        0.059,
+        0.26,
+        0.438
+      ]
+    },
+    "pressure_long_window": {
+      "f1": [
+        null,
+        null,
+        null,
+        0.161,
+        0.198,
+        0.056,
+        0.22,
+        0.366
+      ],
+      "precision": [
+        null,
+        null,
+        null,
+        0.165,
+        0.176,
+        0.053,
+        0.202,
+        0.333
+      ],
+      "recall": [
+        null,
+        null,
+        null,
+        0.157,
+        0.226,
+        0.059,
+        0.24,
+        0.406
+      ]
+    },
+    "pressure_lagged": {
+      "f1": [
+        null,
+        null,
+        null,
+        0.159,
+        0.196,
+        0.055,
+        0.215,
+        0.343
+      ],
+      "precision": [
+        null,
+        null,
+        null,
+        0.162,
+        0.173,
+        0.051,
+        0.195,
+        0.316
+      ],
+      "recall": [
+        null,
+        null,
+        null,
+        0.157,
+        0.226,
+        0.059,
+        0.24,
+        0.375
+      ]
+    },
+    "pressure_combined": {
+      "f1": [
+        null,
+        null,
+        null,
+        0.159,
+        0.194,
+        0.054,
+        0.227,
+        0.384
+      ],
+      "precision": [
+        null,
+        null,
+        null,
+        0.159,
+        0.17,
+        0.05,
+        0.202,
+        0.341
+      ],
+      "recall": [
+        null,
+        null,
+        null,
+        0.16,
+        0.226,
+        0.059,
+        0.26,
+        0.438
+      ]
+    }
+  },
+  "best_per_day": [
+    "ha_live",
+    "ha_live",
+    "ha_live",
+    "ha_live",
+    "pressure_absolute",
+    "pressure_absolute",
+    "ha_live",
+    "ha_live"
+  ],
+  "source_data": {
+    "2026-07-13": [
+      {
+        "source": "OM",
+        "rain_hours": 90,
+        "agreement": "ms=60, yx=54"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 80,
+        "agreement": "yx=57"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-14": [
+      {
+        "source": "OM",
+        "rain_hours": 83,
+        "agreement": "ms=47, yx=42"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 64,
+        "agreement": "yx=42"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-15": [
+      {
+        "source": "OM",
+        "rain_hours": 74,
+        "agreement": "ms=32, yx=28"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 42,
+        "agreement": "yx=23"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-16": [
+      {
+        "source": "OM",
+        "rain_hours": 55,
+        "agreement": "ms=18, yx=14"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 25,
+        "agreement": "yx=10"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-17": [
+      {
+        "source": "OM",
+        "rain_hours": 42,
+        "agreement": "ms=8, yx=8"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 12,
+        "agreement": "yx=5"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-18": [
+      {
+        "source": "OM",
+        "rain_hours": 36,
+        "agreement": "ms=8, yx=8"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 14,
+        "agreement": "yx=5"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": ""
+      }
+    ],
+    "2026-07-19": [
+      {
+        "source": "OM",
+        "rain_hours": 25,
+        "agreement": "ms=2, yx=5"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 6,
+        "agreement": "yx=3"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 107,
+        "agreement": ""
+      }
+    ],
+    "2026-07-20": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "ms=10, yx=12"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "yx=9"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 115,
+        "agreement": ""
+      }
+    ]
+  }
+}
