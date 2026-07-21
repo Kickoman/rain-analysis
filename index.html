@@ -29,7 +29,8 @@
                 <li><strong>original</strong> — Baseline v0.1 — dew-point spread + trend (F1=0.440)</li>
                 <li><strong>tuned</strong> — Grid-search optimized parameters (F1=0.441)</li>
                 <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary (F1=0.115, worst)</li>
-                <li><strong>ha_live</strong> — ✅ Production — deployed in Home Assistant (F1=0.484) — legacy</li>
+                <li><strong>ha_live_actual</strong> — ✅ Production — actual HA sensor (F1=0.484)</li>
+                <li><strong>ha_live_replica</strong> — 🔄 Replica backtest of production formula</li>
                 <li><strong>pressure_aware</strong> — Pressure-corrected baseline</li>
                 <li><strong>pressure_absolute</strong> — Absolute pressure + trend</li>
                 <li><strong>pressure_long_window</strong> — 12h pressure window</li>
@@ -41,8 +42,8 @@
         <section class="latest">
             <h2>Latest Results</h2>
             <div class="report-card">
-                <h3>Daily Report — 2026-07-20</h3>
-                <p>Best model: <strong>pressure_long_window (F1: 0.367)</strong></p>
+                <h3>Daily Report — 2026-07-21</h3>
+                <p>Best model: <strong>original (F1: 0.316)</strong></p>
                 <a href="current/index.html" class="btn">View Full Report →</a>
             </div>
         </section>
@@ -71,7 +72,7 @@
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Last updated: <span id="last-update">2026-07-20</span></p>
+        <p>Last updated: <span id="last-update">2026-07-21</span></p>
     </footer>
 </body>
 </html>
