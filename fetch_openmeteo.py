@@ -30,9 +30,22 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
     """Fetch weather data from Open-Meteo API."""
     
     if use_forecast:
-        # Use forecast API with past_days parameter
-        days_back = (datetime.fromisoformat(end_date.replace('Z', '+00:00')) - 
-                     datetime.fromisoformat(start_date.replace('Z', '+00:00'))).days
+        # Forecast API uses past_days relative to TODAY, not end_date
+        today = datetime.now(timezone.utc).date()
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+        
+        # Validate that end_date is today
+        if end_dt != today:
+            print(f"[ERROR] --use-forecast requires --end to be today ({today}), got {end_date}", 
+                  file=sys.stderr)
+            print(f"        Forecast API fetches data relative to wall-clock today, not arbitrary --end dates.",
+                  file=sys.stderr)
+            sys.exit(1)
+        
+        # Calculate past_days from start_date to today
+        days_back = (today - start_dt).days
+        
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
@@ -40,6 +53,9 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
             f"&timezone=UTC"
             f"&past_days={days_back}"
         )
+        
+        print(f"[INFO] Forecast mode: fetching {days_back} days back from today ({today})", 
+              file=sys.stderr)
     else:
         # Use archive API
         url = (
