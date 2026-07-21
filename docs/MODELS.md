@@ -233,38 +233,35 @@ Next step: add pressure awareness (see `pressure_aware` model below).
 
 ### Algorithm
 
-Same structure as `original`, but parameters optimized via grid search over 7-day dataset.
+Same structure as `model_tuned()` in `rainlib.py` — stateful model with hysteresis and dryness ceiling. Uses `ModelParams` defaults.
 
-### Optimized Parameters
+### Actual Parameters (from `ModelParams` defaults)
 
-| Parameter | Original | Tuned | Change |
-|-----------|:--------:|:-----:|--------|
-| `proximity_divisor` | 10 | **8** | Tighter spread threshold |
-| `hysteresis_decay` | 0.3 | **0.2** | Less persistence |
-| `trend_gain` | 20 | **15** | Lower trend weight |
+| Parameter | Value | Purpose |
+|-----------|:------|---------|
+| `proximity_divisor` | 7.0 | Spread that maps to 0% proximity (°C) |
+| `hysteresis_decay` | 0.30 | Decay rate toward new lower value |
+| `trend_gain` | 20.0 | Points per °C/h of spread narrowing |
+| `trend_floor` | -15.0 | Max suppression from widening spread |
+| `trend_ceiling` | 30.0 | Max boost from narrowing spread |
+| `proximity_weight` | 0.8 | Proximity contribution weight |
+| `trend_weight` | 0.5 | Trend contribution weight |
+| `dry_spread_cutoff` | 10.0 | Above this spread, cap output |
+| `dry_ceiling` | 40.0 | Maximum score when spread > cutoff |
 
-### Grid Search Results
+### Implementation Notes
 
-Tested 45 combinations:
-- `proximity_divisor`: [6, 8, 10, 12, 15]
-- `hysteresis_decay`: [0.2, 0.3, 0.5, 0.7, 0.9]
-- `trend_gain`: [10, 15, 20, 25, 30]
+The actual `model_tuned()` function in `rainlib.py` uses `ModelParams()` defaults, **not** grid-search-optimized values. The name "tuned" is historical.
 
-**Best F1=0.486** at `(8, 0.2, 15)` — marginally better than production.
+For details on grid search experiments (which found marginal improvements but were not deployed due to overfitting risk), see analysis notebooks.
 
 ### Why Not Deployed?
 
 - **Overfitting risk** — optimized on same 7-day window used for testing
-- **Marginal gain** — F1 improvement is tiny (0.484 → 0.486)
+- **Marginal gain** — F1 improvement over `ha_live` was tiny
 - **Lower precision** — 0.448 vs 0.519 (more false positives)
 
 Kept as reference for parameter sensitivity analysis.
-
-### Insights
-
-- **Tighter spread threshold (8°C)** catches more rain but also more false positives
-- **Less hysteresis (0.2)** responds faster but noisier
-- **Lower trend weight (15)** reduces overreaction to humidity spikes
 
 ---
 
@@ -275,44 +272,81 @@ Kept as reference for parameter sensitivity analysis.
 
 ### Algorithm
 
-Inverts the weight balance — makes **trend** the primary signal and **proximity** secondary:
+**Trend-only model** gated by dry-spread ceiling, with stateful hysteresis. Does **not** use proximity as a weighted term — only as a gate.
 
 ```python
-proximity = 100 * (1 - spread / proximity_divisor)
-trend = humidity_increase_rate * trend_gain
+# Actual implementation from rainlib.py::model_trend_dominant
+spread = dew_point_spread
+deriv = spread_derivative  # °C/h
 
-# Inverted formula
-rain_probability = trend * 0.7 + proximity * 0.3
+# Trend score (boosted gain: 1.5× normal)
+trend_score = clamp(-deriv * trend_gain * 1.5, -20.0, 100.0)
+
+# Dryness gate: if spread > dry_spread_cutoff, cap output
+if spread < dry_spread_cutoff:
+    ceiling = 100.0  # no limit
+else:
+    ceiling = dry_ceiling  # cap at ~40
+
+# Apply ceiling
+raw_score = min(trend_score, ceiling)
+
+# Hysteresis: score rises instantly, decays slowly
+result = hysteretic_decay(raw_score, previous_score, decay=hysteresis_decay)
 ```
+
+### Key Difference from Documentation
+
+**Old (incorrect) doc claimed:**
+```python
+rain_probability = trend * 0.7 + proximity * 0.3  # ❌ NOT what code does
+```
+
+**Actual logic:**
+- Trend is the **only** signal
+- Proximity acts as a **ceiling gate**, not a weighted term
+- When spread is high (dry), trend score is capped at `dry_ceiling` (~40)
+- When spread is low (humid), trend score can reach 100
+
+### Parameters
+
+| Parameter | Default | Used Value | Purpose |
+|-----------|:-------:|:----------:|---------|
+| `trend_gain` | 20.0 | **30.0** (1.5×) | Amplified trend sensitivity |
+| `trend_bounds` | [-15, 30] | **[-20, 100]** | Wider range for trend-only model |
+| `dry_spread_cutoff` | 10.0 | 10.0 | Spread above which ceiling applies |
+| `dry_ceiling` | 40.0 | 40.0 | Max score when spread > cutoff |
+| `hysteresis_decay` | 0.30 | 0.30 | Decay rate (0 = frozen, 1 = no memory) |
 
 ### Hypothesis (Rejected)
 
-*"Humidity trend is a stronger rain signal than dew-point proximity."*
+*"Humidity trend derivative is a stronger rain signal than absolute proximity."*
 
 ### Results
 
 - **Recall 0.063** — misses 94% of rain events
-- **Precision 0.696** — when it does alert, it's usually right
+- **Precision 0.696** — when it does alert, it's usually right (but rarely alerts)
 - **F1 0.115** — worst of all models
 
 ### Why It Failed
 
-1. **Humidity trend is noisy** — spikes from:
-   - Opening windows
-   - Cooking
+1. **Trend derivative is too noisy** — responds to:
    - Sensor drift
    - Normal diurnal variation
+   - Indoor activity (windows open, cooking)
+   - Short-term weather fluctuations (not just rain)
 
-2. **Trend alone insufficient** — rain needs both:
-   - High absolute humidity (proximity)
-   - Rising trend (system moving in)
+2. **No absolute humidity anchor** — can't distinguish:
+   - Rain approach (high humidity + narrowing spread)
+   - Dry cold front (low humidity + narrowing spread)
 
-3. **Over-conservative** — only alerts when trend is extreme, missing most rain
+3. **Over-conservative gating** — dry ceiling suppresses most alerts
 
 ### Lesson Learned
 
 ✅ **Dew-point proximity is the core signal**  
-✅ **Trend is a useful reinforcement, not a replacement**
+✅ **Trend is a useful reinforcement, not a standalone predictor**  
+❌ **Trend-only models are too noisy and miss most events**
 
 ---
 
@@ -422,7 +456,13 @@ Adds absolute pressure bonus to the pressure derivative signal:
 
 ## Future Models (Planned)
 
-### 6. ensemble_vote (Future)## Performance Benchmarks
+### 6. ensemble_vote (Future)
+
+Majority-vote ensemble of top-3 models. Alerts only when 2+ models agree.
+
+---
+
+## Performance Benchmarks
 
 ### Test Dataset
 
@@ -486,5 +526,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-16  
+**Last Updated:** 2026-07-20  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
