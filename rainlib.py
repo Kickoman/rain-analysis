@@ -556,7 +556,7 @@ def model_pressure_aware(ctx: ModelContext,
 
 # Registry so the notebook can loop over models by name.
 def _get_pressure_variant(name):
-    """Lazy-load pressure variant models to avoid circular imports."""
+    """Lazy-load pressure variant models on demand (optional import)."""
     from pressure_variants import (model_pressure_absolute, model_pressure_long_window,
                                    model_pressure_lagged, model_pressure_combined)
     variants = {
