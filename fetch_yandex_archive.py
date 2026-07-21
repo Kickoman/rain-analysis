@@ -50,12 +50,14 @@ def extract_archive(archive_path: str, output_dir: str, strip_components: int = 
             
             # Strip leading path components if requested
             if strip_components > 0:
+                filtered_members = []
                 for member in members:
                     parts = member.name.split("/")
                     if len(parts) > strip_components:
                         member.name = "/".join(parts[strip_components:])
-                    else:
-                        continue  # Skip this member
+                        filtered_members.append(member)
+                    # Members without enough depth are now excluded from extraction
+                members = filtered_members
             
             # Extract with security filter (Python 3.12+)
             # 'data' filter rejects absolute paths, '..' components, symlinks, and device files
