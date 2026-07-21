@@ -19,6 +19,7 @@ python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
+| `--meteostat` | | `None` | Meteostat JSON file |
     --output analysis_report.json \
     --plots
 ```
@@ -30,6 +31,7 @@ python run_analysis.py \
 | `--ha-csv` | ✓ | — | Path to Home Assistant history CSV export |
 | `--om-sources` | | `[]` | One or more open-meteo JSON files |
 | `--yandex-dir` | | `None` | Directory with Yandex `fact` JSON snapshots |
+| `--meteostat` | | `None` | Meteostat JSON file |
 | `--output`, `-o` | | `analysis_report.json` | Where to write the JSON report |
 | `--plots` | | off | Also generate PNG timeline + calibration plots |
 | `--threshold` | | `50.0` | Probability threshold for rain/no-rain decision |
@@ -137,6 +139,7 @@ Data range: 2026-06-30 21:00 → 2026-07-06 20:10
 | Notebook section | Script |
 |------------------|--------|
 | §1 — Point at data | `--ha-csv`, `--om-sources`, `--yandex-dir` flags |
+| `--meteostat` | | `None` | Meteostat JSON file |
 | §2 — Load & align | `load_data()` → `rl.build_grid()` |
 | §3 — Features | `compute_features()` → same rainlib functions |
 | §4 — Ground truth | `label_ground_truth()` → `rl.label_rain()` |
@@ -199,6 +202,7 @@ python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
+| `--meteostat` | | `None` | Meteostat JSON file |
     --output reports/$(date +%Y-%m-%d).json \
     --quiet
 ```
