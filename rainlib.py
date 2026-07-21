@@ -789,8 +789,17 @@ PRECIP_COLUMNS = {
 
 # Condition/state columns that CAN be forward-filled
 # (weather conditions persist between observations)
-STATE_COLUMNS_ALLOW_FFILL = {
+# Yandex state columns that CAN be forward-filled
+# (weather conditions persist between observations)
+# These are NOT precipitation rates — they are observation states
+YX_STATE_COLUMNS = {
     'yx_condition', 'yx_is_rain', 'yx_prec_prob',
+    'yx_temp', 'yx_humidity', 'yx_feels_like',
+    'yx_prec_strength', 'yx_pressure_mm',
+    'yx_wind_speed', 'yx_wind_dir', 'yx_wind_gust',
+    'yx_pressure_pa', 'yx_daytime', 'yx_polar',
+    'yx_season', 'yx_obs_time', 'yx_uptime',
+    # Note: Not all columns appear in every dataset
 }
 def build_grid(ha_wide_df: pd.DataFrame | None = None,
                om_df: pd.DataFrame | None = None,
@@ -856,7 +865,12 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
         out = out.join(om_r)
 
     if yx_df is not None and not yx_df.empty:
-        # Yandex: conditions/states can be forward-filled (weather persists between snapshots)
+        # Yandex: all columns are state variables (condition, temp, humidity, etc.)
+        # Validate that we only have known state columns (no unexpected precipitation rates)
+        unknown_cols = set(yx_df.columns) - YX_STATE_COLUMNS
+        if unknown_cols:
+            raise ValueError(f"Unexpected Yandex columns (not in YX_STATE_COLUMNS): {unknown_cols}")
+        
         yx_r = yx_df.sort_index().reindex(
             yx_df.index.union(grid)
         ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
