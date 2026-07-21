@@ -23,6 +23,7 @@ from urllib.error import URLError
 # Minsk coordinates
 DEFAULT_LAT = 53.930716
 DEFAULT_LON = 27.596646
+USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
 
 def fetch_data(lat: float, lon: float, start_date: str, end_date: str, 
@@ -71,10 +72,19 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
     
     try:
         req = Request(url)
-        req.add_header('User-Agent', 'rain-analysis/1.0')
+        req.add_header('User-Agent', USER_AGENT)
         
         with urlopen(req, timeout=30) as response:
             data = json.loads(response.read().decode('utf-8'))
+            
+            # Validate response contains data
+            hourly_points = len(data.get('hourly', {}).get('time', []))
+            if hourly_points == 0:
+                print(f"[ERROR] No data returned (empty result). "
+                      f"Possible causes: date range invalid, coordinates out of bounds, or API issue.",
+                      file=sys.stderr)
+                sys.exit(1)
+            
             return data
     except URLError as e:
         print(f"[ERROR] Failed to fetch: {e}", file=sys.stderr)

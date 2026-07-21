@@ -6,6 +6,10 @@ fetch_meteostat.py — Fetch historical weather data from Meteostat API.
 Downloads temperature, humidity, precipitation, and pressure data for Minsk
 from Meteostat's station 26850 and saves in JSON format for analysis.
 
+**Note:** This script uses Meteostat's internal proxy endpoint
+(d.meteostat.net/app/proxy/stations/hourly), which is not part of their
+documented public API. It may change or become unavailable without notice.
+
 Usage:
   python fetch_meteostat.py --days 7 --output data/meteostat.json
 
@@ -21,6 +25,7 @@ import requests
 
 
 DEFAULT_STATION = "26850"  # Minsk
+USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
 
 def fetch_data(station: str, start_date: str, end_date: str) -> dict:
@@ -33,15 +38,27 @@ def fetch_data(station: str, start_date: str, end_date: str) -> dict:
         "start": start_date,
         "end": end_date,
     }
+    headers = {
+        "User-Agent": USER_AGENT,
+    }
     
     print(f"Fetching from Meteostat...", file=sys.stderr)
     print(f"  Station: {station}", file=sys.stderr)
     print(f"  Range: {start_date} to {end_date}", file=sys.stderr)
     
     try:
-        r = requests.get(url, params=params, timeout=30)
+        r = requests.get(url, params=params, headers=headers, timeout=30)
         r.raise_for_status()
         data = r.json()
+        
+        # Validate response contains data
+        records = data.get('data', [])
+        if not records:
+            print(f"[ERROR] No data returned (empty result). "
+                  f"Possible causes: station offline, date range invalid, or blocked.",
+                  file=sys.stderr)
+            sys.exit(1)
+        
         return data
     except requests.RequestException as e:
         print(f"[ERROR] Failed to fetch: {e}", file=sys.stderr)
