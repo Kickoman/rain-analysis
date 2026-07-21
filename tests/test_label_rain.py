@@ -201,3 +201,22 @@ class TestLabelRainIntegration:
         assert result["tp"] == 1  # row 0
         assert result["tn"] == 3  # rows 1, 2, 3 (NaN treated as no-rain!)
         assert result["fp"] == 0
+
+    def test_meteostat_threshold_consistency(self):
+        """Meteostat fallback uses same threshold as Open-Meteo (>= 0.1 mm/h).
+        
+        Regression test for issue #131: previously ms_precip used hardcoded > 0,
+        making 0.05 mm/h count as rain while Open-Meteo would label it no-rain.
+        """
+        grid = pd.DataFrame({
+            "om_precip": [np.nan, np.nan, np.nan],
+            "ms_precip": [0.05, 0.1, 0.15],
+        })
+        result = label_rain(grid, precip_col="nonexistent", threshold_mm=0.1)
+        
+        # 0.05 < 0.1 → no rain
+        # 0.1 >= 0.1 → rain
+        # 0.15 >= 0.1 → rain
+        assert result.iloc[0] == 0.0
+        assert result.iloc[1] == 1.0
+        assert result.iloc[2] == 1.0
