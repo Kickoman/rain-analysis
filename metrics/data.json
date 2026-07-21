@@ -408,5 +408,159 @@
     "pressure_long_window",
     "original"
   ],
-  "source_data": {}
+  "source_data": {
+    "2026-07-13": [
+      {
+        "source": "OM",
+        "rain_hours": 90,
+        "agreement": "MS=60h, YX=54h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 80,
+        "agreement": "OM=60h, YX=57h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": "OM=54h, MS=57h"
+      }
+    ],
+    "2026-07-14": [
+      {
+        "source": "OM",
+        "rain_hours": 83,
+        "agreement": "MS=47h, YX=42h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 64,
+        "agreement": "OM=47h, YX=42h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 100,
+        "agreement": "OM=42h, MS=42h"
+      }
+    ],
+    "2026-07-15": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-16": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-17": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-18": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-19": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-20": [
+      {
+        "source": "OM",
+        "rain_hours": 32,
+        "agreement": "MS=10h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 13,
+        "agreement": "OM=10h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ],
+    "2026-07-21": [
+      {
+        "source": "OM",
+        "rain_hours": 38,
+        "agreement": "MS=23h, YX=8h"
+      },
+      {
+        "source": "MS",
+        "rain_hours": 29,
+        "agreement": "OM=23h, YX=6h"
+      },
+      {
+        "source": "YX",
+        "rain_hours": 110,
+        "agreement": "OM=8h, MS=6h"
+      }
+    ]
+  }
 }
