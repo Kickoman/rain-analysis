@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metrics Timeline — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <style>
+        .chart-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+            margin: 1.5em 0;
+            padding: 0.5em;
+        }
+        .chart-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1em;
+        }
+        @media (max-width: 900px) {
+            .chart-row { grid-template-columns: 1fr; }
+        }
+        .chart-full {
+            grid-column: 1 / -1;
+        }
+        table {
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Automated performance tracking and reports</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html" class="active">Metrics Timeline</a>
+    </nav>
+
+    <main>
+        <section>
+            <h2>📈 Performance Metrics Over Time</h2>
+            <p>Interactive charts tracking model performance evolution. Hover for details, click legend items to toggle, drag to zoom.</p>
+
+            <h3>🏆 F1 Score Timeline</h3>
+            <div class="chart-container" id="chart-f1" style="height:450px"></div>
+
+            <h3>🎯 Model Comparison — 2026-07-01</h3>
+            <div class="chart-row">
+                <div class="chart-container" id="chart-bar-f1" style="height:380px"></div>
+                <div class="chart-container" id="chart-bar-prec-rec" style="height:380px"></div>
+            </div>
+
+            <h3>🎯 Precision Timeline</h3>
+            <div class="chart-container" id="chart-precision" style="height:400px"></div>
+
+            <h3>🔄 Recall Timeline</h3>
+            <div class="chart-container" id="chart-recall" style="height:400px"></div>
+
+            <h3>🌧️ Precipitation Sources</h3>
+            <div class="chart-container" id="chart-sources" style="height:350px"></div>
+
+            <h3>📋 Raw Data Table</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Best Model</th>
+                        <th>F1 Score</th>
+                        <th>Precision</th>
+                        <th>Recall</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>2026-07-01</td>
+                        <td>ha_live</td>
+                        <td class="metric">0.850</td>
+                        <td class="metric">0.900</td>
+                        <td class="metric">0.800</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <p><em>Last updated: 2026-07-21 06:01 UTC</em></p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+    </footer>
+
+    <script>
+        const cfg = {
+  "f1_traces": [
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.85
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.75
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>F1: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "prec_traces": [
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.9
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.8
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "rec_traces": [
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.8
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "ha_live",
+      "line": {
+        "width": 3,
+        "color": "#27ae60"
+      },
+      "marker": {
+        "size": 6,
+        "color": "#27ae60"
+      },
+      "hovertemplate": "ha_live<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    },
+    {
+      "x": [
+        "2026-07-01"
+      ],
+      "y": [
+        0.7
+      ],
+      "type": "scatter",
+      "mode": "lines+markers",
+      "name": "original",
+      "line": {
+        "width": 1.5,
+        "color": "#3498db"
+      },
+      "marker": {
+        "size": 4,
+        "color": "#3498db"
+      },
+      "hovertemplate": "original<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"
+    }
+  ],
+  "bar_labels": [
+    "ha_live",
+    "original"
+  ],
+  "bar_f1": [
+    0.85,
+    0.75
+  ],
+  "bar_prec": [
+    0.9,
+    0.8
+  ],
+  "bar_rec": [
+    0.8,
+    0.7
+  ],
+  "bar_colors": [
+    "#27ae60",
+    "#3498db"
+  ],
+  "source_traces": [],
+  "source_has_data": false,
+  "last_date": "2026-07-01"
+};
+
+        // Common layout options
+        const layoutBase = {
+            hovermode: "x unified",
+            legend: { orientation: "h", y: -0.3, font: { size: 11 } },
+            margin: { l: 50, r: 20, t: 20, b: 50 },
+            plot_bgcolor: "#fafafa",
+            paper_bgcolor: "#fff",
+            xaxis: { gridcolor: "#eee", tickangle: -30, automargin: true },
+            yaxis: { gridcolor: "#eee", rangemode: "tozero" },
+        };
+
+        function renderChart(id, traces, extraLayout) {
+            const layout = Object.assign({}, layoutBase, extraLayout);
+            if (traces && traces.length > 0) {
+                Plotly.newPlot(id, traces, layout, {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
+                    displaylogo: false,
+                });
+            } else {
+                document.getElementById(id).innerHTML =
+                    '<p style="padding:2em;text-align:center;color:#999">No data available yet.</p>';
+            }
+        }
+
+        // Defer all chart rendering until after CSS layout is computed.
+        // Prevents Plotly responsive mode from getting 0-width containers
+        // inside CSS grid layouts.
+        window.addEventListener('load', function() {
+            // F1 timeline
+            renderChart("chart-f1", cfg.f1_traces, {
+                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+            });
+
+            // Precision timeline
+            renderChart("chart-precision", cfg.prec_traces, {
+                yaxis: { title: "Precision", gridcolor: "#eee", rangemode: "tozero" },
+            });
+
+            // Recall timeline
+            renderChart("chart-recall", cfg.rec_traces, {
+                yaxis: { title: "Recall", gridcolor: "#eee", rangemode: "tozero" },
+            });
+
+            // Bar: F1 comparison
+            const f1BarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_f1,
+                type: "bar",
+                name: "F1 Score",
+                marker: { color: cfg.bar_colors },
+                hovertemplate: "%{x}<br>F1: %{y:.3f}<extra></extra>",
+            };
+            renderChart("chart-bar-f1", [f1BarTrace], {
+                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
+            });
+
+            // Bar: Precision + Recall comparison
+            const precBarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_prec,
+                type: "bar",
+                name: "Precision",
+                marker: { color: "#3498db" },
+                hovertemplate: "%{x}<br>Precision: %{y:.3f}<extra></extra>",
+            };
+            const recBarTrace = {
+                x: cfg.bar_labels,
+                y: cfg.bar_rec,
+                type: "bar",
+                name: "Recall",
+                marker: { color: "#e67e22" },
+                hovertemplate: "%{x}<br>Recall: %{y:.3f}<extra></extra>",
+            };
+            renderChart("chart-bar-prec-rec", [precBarTrace, recBarTrace], {
+                yaxis: { title: "Score", gridcolor: "#eee", rangemode: "tozero" },
+                barmode: "group",
+            });
+
+            // Precipitation sources
+            if (cfg.source_has_data) {
+                renderChart("chart-sources", cfg.source_traces, {
+                    yaxis: { title: "Rain Hours", gridcolor: "#eee" },
+                    barmode: "group",
+                });
+            } else {
+                document.getElementById("chart-sources").innerHTML =
+                    '<p style="padding:2em;text-align:center;color:#999">Precipitation source data will appear as more reports accumulate.</p>';
+            }
+        });
+    </script>
+</body>
+</html>

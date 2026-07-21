@@ -1,0 +1,33 @@
+{
+  "dates": [
+    "2026-07-01"
+  ],
+  "models": {
+    "ha_live": {
+      "f1": [
+        0.85
+      ],
+      "precision": [
+        0.9
+      ],
+      "recall": [
+        0.8
+      ]
+    },
+    "original": {
+      "f1": [
+        0.75
+      ],
+      "precision": [
+        0.8
+      ],
+      "recall": [
+        0.7
+      ]
+    }
+  },
+  "best_per_day": [
+    "ha_live"
+  ],
+  "source_data": {}
+}
