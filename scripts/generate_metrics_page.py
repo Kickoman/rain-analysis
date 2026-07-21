@@ -130,17 +130,25 @@ def main():
     best_per_day: list[str] = []
     # date -> list of source rows
     source_data: dict[str, list[dict]] = {}
+    
+    # Track skipped files
+    skipped_files: list[tuple[str, str]] = []
 
     for rf in report_files:
         html = rf.read_text()
         text = _strip_tags(html)
         date = _extract_date(text)
         if not date:
+            skipped_files.append((rf.name, "date extraction failed"))
+            continue
+
+        rows = _extract_model_rows(html)
+        if not rows:
+            skipped_files.append((rf.name, "no valid model rows found"))
             continue
 
         dates.append(date)
 
-        rows = _extract_model_rows(html)
         best = _extract_best_model(text)
         best_per_day.append(best or "")
 
@@ -173,7 +181,17 @@ def main():
 
     if not dates:
         print("❌ No report data — skipping")
+        if skipped_files:
+            print(f"\n⚠️  Skipped {len(skipped_files)} file(s):")
+            for fname, reason in skipped_files:
+                print(f"   • {fname}: {reason}")
         return
+
+    # Print summary of skipped files
+    if skipped_files:
+        print(f"\n⚠️  Parsed {len(dates)}/{len(report_files)} reports; {len(skipped_files)} skipped:")
+        for fname, reason in skipped_files:
+            print(f"   • {fname}: {reason}")
 
     # ── Build chart JSON ──────────────────────────────────────────────────
 
@@ -508,6 +526,9 @@ def main():
     </script>
 </body>
 </html>'''
+
+    # Ensure metrics/ directory exists
+    Path("metrics").mkdir(exist_ok=True)
 
     # Write outputs
     Path("metrics/index.html").write_text(html)
