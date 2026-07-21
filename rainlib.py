@@ -881,19 +881,6 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
         out = out.join(ms_r)
 
     return out
-
-
-    if ms_df is not None and not ms_df.empty:
-        ms_r = ms_df.sort_index().reindex(
-            ms_df.index.union(grid)
-        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
-        out = out.join(ms_r)
-
-    return out
-
-
-# ---------------------------------------------------------------------------
-# 6. GROUND TRUTH LABELS
 # ---------------------------------------------------------------------------
 
 def label_rain(grid: pd.DataFrame,
