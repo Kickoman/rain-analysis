@@ -2,6 +2,7 @@
 """
 Convert Markdown reports to HTML for GitHub Pages
 """
+import html
 import re
 import sys
 from pathlib import Path
@@ -9,24 +10,25 @@ from datetime import datetime
 
 def markdown_to_html(md_content, title="Report"):
     """Convert simple markdown to HTML"""
-    html = md_content
+    # Escape HTML entities in raw content first
+    html_content = html.escape(md_content)
     
     # Headers
-    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html_content = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html_content, flags=re.MULTILINE)
+    html_content = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html_content, flags=re.MULTILINE)
+    html_content = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html_content, flags=re.MULTILINE)
     
     # Bold
-    html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
+    html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
     
     # Code blocks
-    html = re.sub(r'`(.+?)`', r'<code>\1</code>', html)
+    html_content = re.sub(r'`(.+?)`', r'<code>\1</code>', html_content)
     
     # Links
-    html = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', html)
+    html_content = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', html_content)
     
     # Tables - basic conversion
-    lines = html.split('\n')
+    lines = html_content.split('\n')
     new_lines = []
     in_table = False
     
@@ -62,10 +64,10 @@ def markdown_to_html(md_content, title="Report"):
     if in_table:
         new_lines.append('</tbody></table>')
     
-    html = '\n'.join(new_lines)
+    html_content = '\n'.join(new_lines)
     
     # Paragraphs - split by double newlines
-    paragraphs = html.split('\n\n')
+    paragraphs = html_content.split('\n\n')
     processed = []
     for p in paragraphs:
         p = p.strip()
@@ -74,7 +76,7 @@ def markdown_to_html(md_content, title="Report"):
         else:
             processed.append(p)
     
-    html = '\n\n'.join(processed)
+    html_content = '\n\n'.join(processed)
     
     # Build full HTML
     full_html = f"""<!DOCTYPE html>
@@ -82,7 +84,7 @@ def markdown_to_html(md_content, title="Report"):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{title} — Rain Analysis</title>
+    <title>{html.escape(title)} — Rain Analysis</title>
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
@@ -100,7 +102,7 @@ def markdown_to_html(md_content, title="Report"):
 
     <main>
         <section class="report-content">
-{html}
+{html_content}
         </section>
     </main>
 
@@ -129,9 +131,9 @@ if __name__ == '__main__':
     md_content = input_file.read_text()
     title = input_file.stem.replace('-', '/')
     
-    html = markdown_to_html(md_content, title)
+    html_output = markdown_to_html(md_content, title)
     
     output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.write_text(html)
+    output_file.write_text(html_output)
     
     print(f"✅ Generated: {output_file}")
