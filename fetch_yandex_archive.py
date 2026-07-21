@@ -17,22 +17,38 @@ import sys
 import os
 import tarfile
 import shutil
+import tempfile
 from pathlib import Path
-from urllib.request import urlretrieve
 from urllib.error import URLError
+
+try:
+    import requests
+except ImportError:
+    print("[ERROR] requests library not found. Install with: pip install requests", file=sys.stderr)
+    sys.exit(1)
 
 
 DEFAULT_URL = "http://10.8.0.4:7005/weather.tgz"
+DOWNLOAD_TIMEOUT = 30  # seconds
 
 
 def download_archive(url: str, dest: str) -> str:
-    """Download weather archive to a temporary file."""
+    """Download weather archive to a temporary file with timeout."""
     print(f"Downloading {url}...", end=" ", flush=True)
     try:
-        local_file, _ = urlretrieve(url, dest)
+        response = requests.get(url, timeout=DOWNLOAD_TIMEOUT, stream=True)
+        response.raise_for_status()
+        
+        with open(dest, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
         print("✓")
-        return local_file
-    except URLError as e:
+        return dest
+    except requests.exceptions.Timeout:
+        print(f"✗\n[ERROR] Download timed out after {DOWNLOAD_TIMEOUT}s", file=sys.stderr)
+        sys.exit(1)
+    except requests.exceptions.RequestException as e:
         print(f"✗\n[ERROR] Failed to download: {e}", file=sys.stderr)
         sys.exit(1)
 
@@ -40,6 +56,10 @@ def download_archive(url: str, dest: str) -> str:
 def extract_archive(archive_path: str, output_dir: str, strip_components: int = 2):
     """Extract weather archive, optionally stripping leading path components."""
     print(f"Extracting to {output_dir}...", end=" ", flush=True)
+    
+    # Clean output directory before extraction
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir, ignore_errors=True)
     
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     
@@ -100,35 +120,39 @@ def main():
         "--quiet",
         "-q",
         action="store_true",
-        help="Suppress progress messages",
+        help="Suppress progress output (errors still printed)",
     )
 
     args = parser.parse_args()
 
-    # Download
-    temp_archive = "/tmp/yandex_weather.tgz"
-    if not args.quiet:
-        download_archive(args.url, temp_archive)
-    else:
-        try:
-            urlretrieve(args.url, temp_archive)
-        except URLError as e:
-            print(f"[ERROR] Download failed: {e}", file=sys.stderr)
-            return 1
+    # Use secure temp file instead of predictable /tmp/weather.tgz
+    temp_archive = tempfile.NamedTemporaryFile(delete=False, suffix=".tgz")
+    temp_archive_path = temp_archive.name
+    temp_archive.close()
 
-    # Extract
-    if not args.quiet:
-        num_files = extract_archive(temp_archive, args.output, args.strip_components)
-        print(f"\n✓ Extracted {num_files} files to {args.output}")
-    else:
-        extract_archive(temp_archive, args.output, args.strip_components)
-
-    # Cleanup
-    if not args.keep_archive and os.path.exists(temp_archive):
-        os.remove(temp_archive)
-
-    return 0
+    try:
+        # Download
+        download_archive(args.url, temp_archive_path)
+        
+        # Extract
+        extracted_count = extract_archive(
+            temp_archive_path,
+            args.output,
+            strip_components=args.strip_components,
+        )
+        
+        if not args.quiet:
+            print(f"[SUCCESS] Extracted {extracted_count} files to {args.output}")
+        
+        # Clean up archive unless --keep-archive
+        if not args.keep_archive:
+            os.unlink(temp_archive_path)
+    except Exception:
+        # Clean up on error
+        if os.path.exists(temp_archive_path):
+            os.unlink(temp_archive_path)
+        raise
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()
