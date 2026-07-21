@@ -317,6 +317,8 @@ class ModelContext:
     spread: pd.Series
     spread_deriv: pd.Series
     pressure: pd.Series | None = None
+    temp: pd.Series | None = None
+    abs_humidity: pd.Series | None = None
 
 
 def _clamp(x, lo, hi):
@@ -558,12 +560,14 @@ def model_pressure_aware(ctx: ModelContext,
 def _get_pressure_variant(name):
     """Lazy-load pressure variant models to avoid circular imports."""
     from pressure_variants import (model_pressure_absolute, model_pressure_long_window,
-                                   model_pressure_lagged, model_pressure_combined)
+                                   model_pressure_lagged, model_pressure_combined,
+                                   model_combined)
     variants = {
         "pressure_absolute": model_pressure_absolute,
         "pressure_long_window": model_pressure_long_window,
         "pressure_lagged": model_pressure_lagged,
         "pressure_combined": model_pressure_combined,
+        "combined": model_combined,
     }
     return variants[name]
 
@@ -587,6 +591,7 @@ MODELS = {
     "pressure_long_window": _LazyModel("pressure_long_window"),
     "pressure_lagged": _LazyModel("pressure_lagged"),
     "pressure_combined": _LazyModel("pressure_combined"),
+    "combined": _LazyModel("combined"),
 }
 
 

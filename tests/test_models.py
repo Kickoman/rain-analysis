@@ -251,7 +251,7 @@ class TestModelComparison:
         assert "pressure_long_window" in MODELS
         assert "pressure_lagged" in MODELS
         assert "pressure_combined" in MODELS
-        assert len(MODELS) == 9
+        assert len(MODELS) == 10
     
     def test_all_models_callable(self):
         """All registered models can be called."""
