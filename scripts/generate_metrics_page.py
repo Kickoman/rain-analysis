@@ -87,9 +87,13 @@ def _extract_best_model(text: str) -> str | None:
 
 
 def _extract_source_rows(html_content: str) -> list[dict]:
-    """Parse precipitation source table rows."""
+    """Parse precipitation source table rows.
+    
+    Captures source code (e.g., 'OM', 'MS', 'YX') from cells that may contain
+    additional text like 'OM (Open-Meteo)' or 'MS (Meteostat)'.
+    """
     pat = re.compile(
-        r'<tr>\s*<td>(\w+)</td>\s*'
+        r'<tr>\s*<td>(\w+)(?:\s+\([^)]*\))?</td>\s*'
         r'<td>(\d+)</td>\s*'
         r'<td>(.*?)</td>\s*'
         r'</tr>',
