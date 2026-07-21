@@ -30,13 +30,39 @@ def _extract_best_model(html_content: str) -> str:
     m = re.search(r'Best overall[^:]*:\s*([\w_]+)', text)
     if m:
         model = m.group(1)
-        # Try to extract F1 from leaderboard table (match on HTML <td> tags)
-        f1_m = re.search(rf'{model}</td>\s*<td>([0-9.]+)', html_content)
-        if f1_m:
-            return f"{model} (F1: {f1_m.group(1)})"
+        # Extract F1 from the FIRST table with matching structure (leaderboard)
+        # This reuses the same isolation logic as generate_metrics_page.py
+        f1_value = _extract_f1_from_leaderboard(html_content, model)
+        if f1_value is not None:
+            return f"{model} (F1: {f1_value:.3f})"
         return model
 
     return 'N/A'
+
+
+def _extract_f1_from_leaderboard(html_content: str, model_name: str) -> float | None:
+    """Extract F1 score for a specific model from the first matching table.
+    
+    Searches only within the FIRST <table> that contains rows matching the
+    expected structure: <tr><td>model</td><td>F1</td><td>Prec</td><td>Rec</td>
+    
+    This prevents false matches from other tables later in the document.
+    """
+    # Split by </table> and search only the first segment that has valid rows
+    tables = html_content.split('</table>')
+    
+    for table_html in tables:
+        # Pattern matches: <tr><td>model_name</td><td>F1_value</td>...
+        pattern = re.compile(
+            rf'<tr>\s*<td>{re.escape(model_name)}</td>\s*'
+            rf'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>',
+            re.IGNORECASE
+        )
+        match = pattern.search(table_html)
+        if match:
+            return float(match.group(1))
+    
+    return None
 
 
 def _parse_date_from_filename(filename: str) -> tuple:
