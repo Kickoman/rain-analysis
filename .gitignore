@@ -188,3 +188,6 @@ pyrightconfig.json
 
 /data/*
 !/data/.gitkeep
+
+# Python bytecode (explicit)
+*.pyc
