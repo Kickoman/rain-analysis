@@ -167,6 +167,62 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     for finding in findings:
         report += f"- {finding}\n"
     
+
+    # ===== DATA TRANSPARENCY SECTION =====
+    # Added for issue #162: surface ground-truth source and data coverage
+    
+    report += "## Data Context\n\n"
+    
+    # Ground truth source (7d window)
+    meta_7d = results_7d.get('metadata', {})
+    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
+    gt_source = gt_stats.get('ground_truth_source', 'unknown')
+    
+    report += f"**Ground truth source:** {gt_source}\n\n"
+    
+    # Data coverage (7d window)
+    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
+    if coverage:
+        report += "**Data coverage (7-day window):**\n\n"
+        
+        ha_cov = coverage.get('ha_coverage_pct', 0)
+        om_cov = coverage.get('om_coverage_pct', 0)
+        yx_cov = coverage.get('yx_coverage_pct', 0)
+        ms_cov = coverage.get('ms_coverage_pct', 0)
+        
+        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
+        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
+        
+        if yx_cov > 0:
+            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
+        if ms_cov > 0:
+            report += f"- Meteostat: {ms_cov:.1f}%\n"
+        
+        report += "\n"
+    
+    # Ground truth distribution (7d window)
+    distribution = gt_stats.get('distribution', {})
+    if distribution:
+        rain_h = distribution.get('rain_hours', 0)
+        dry_h = distribution.get('dry_hours', 0)
+        unknown_h = distribution.get('unknown_hours', 0)
+        total_h = rain_h + dry_h + unknown_h
+        
+        report += "**Ground truth distribution:**\n\n"
+        
+        if total_h > 0:
+            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
+            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
+        else:
+            report += f"- Rain hours: {rain_h}\n"
+            report += f"- Dry hours: {dry_h}\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h}\n"
+        
+        report += "\n"
+
     report += "\n---\n\n"
     
     # ===== GITHUB PAGES COMPATIBILITY TABLE =====
@@ -246,6 +302,62 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
         
         report += f"| {model:<20} | {rec_vals[0]:.3f} | {rec_vals[1]:.3f} | {rec_vals[2]:.3f} |\n"
     
+
+    # ===== DATA TRANSPARENCY SECTION =====
+    # Added for issue #162: surface ground-truth source and data coverage
+    
+    report += "## Data Context\n\n"
+    
+    # Ground truth source (7d window)
+    meta_7d = results_7d.get('metadata', {})
+    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
+    gt_source = gt_stats.get('ground_truth_source', 'unknown')
+    
+    report += f"**Ground truth source:** {gt_source}\n\n"
+    
+    # Data coverage (7d window)
+    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
+    if coverage:
+        report += "**Data coverage (7-day window):**\n\n"
+        
+        ha_cov = coverage.get('ha_coverage_pct', 0)
+        om_cov = coverage.get('om_coverage_pct', 0)
+        yx_cov = coverage.get('yx_coverage_pct', 0)
+        ms_cov = coverage.get('ms_coverage_pct', 0)
+        
+        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
+        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
+        
+        if yx_cov > 0:
+            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
+        if ms_cov > 0:
+            report += f"- Meteostat: {ms_cov:.1f}%\n"
+        
+        report += "\n"
+    
+    # Ground truth distribution (7d window)
+    distribution = gt_stats.get('distribution', {})
+    if distribution:
+        rain_h = distribution.get('rain_hours', 0)
+        dry_h = distribution.get('dry_hours', 0)
+        unknown_h = distribution.get('unknown_hours', 0)
+        total_h = rain_h + dry_h + unknown_h
+        
+        report += "**Ground truth distribution:**\n\n"
+        
+        if total_h > 0:
+            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
+            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
+        else:
+            report += f"- Rain hours: {rain_h}\n"
+            report += f"- Dry hours: {dry_h}\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h}\n"
+        
+        report += "\n"
+
     report += "\n---\n\n"
     
     # ===== MODEL RANKINGS =====
@@ -320,6 +432,62 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     for i, (model, prec, rec, f1) in enumerate(prec_ranking[:5], 1):
         report += f"| {i} | {model:<20} | {prec:.3f} | {rec:.3f} | {f1:.3f} |\n"
     
+
+    # ===== DATA TRANSPARENCY SECTION =====
+    # Added for issue #162: surface ground-truth source and data coverage
+    
+    report += "## Data Context\n\n"
+    
+    # Ground truth source (7d window)
+    meta_7d = results_7d.get('metadata', {})
+    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
+    gt_source = gt_stats.get('ground_truth_source', 'unknown')
+    
+    report += f"**Ground truth source:** {gt_source}\n\n"
+    
+    # Data coverage (7d window)
+    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
+    if coverage:
+        report += "**Data coverage (7-day window):**\n\n"
+        
+        ha_cov = coverage.get('ha_coverage_pct', 0)
+        om_cov = coverage.get('om_coverage_pct', 0)
+        yx_cov = coverage.get('yx_coverage_pct', 0)
+        ms_cov = coverage.get('ms_coverage_pct', 0)
+        
+        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
+        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
+        
+        if yx_cov > 0:
+            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
+        if ms_cov > 0:
+            report += f"- Meteostat: {ms_cov:.1f}%\n"
+        
+        report += "\n"
+    
+    # Ground truth distribution (7d window)
+    distribution = gt_stats.get('distribution', {})
+    if distribution:
+        rain_h = distribution.get('rain_hours', 0)
+        dry_h = distribution.get('dry_hours', 0)
+        unknown_h = distribution.get('unknown_hours', 0)
+        total_h = rain_h + dry_h + unknown_h
+        
+        report += "**Ground truth distribution:**\n\n"
+        
+        if total_h > 0:
+            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
+            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
+        else:
+            report += f"- Rain hours: {rain_h}\n"
+            report += f"- Dry hours: {dry_h}\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h}\n"
+        
+        report += "\n"
+
     report += "\n---\n\n"
     
     # ===== PRECIPITATION SOURCE RELIABILITY =====
@@ -360,6 +528,62 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
         report += f"- Yandex-only: {yandex_truth.get('yandex_only', 0)}h (false positives)\n"
         report += f"- Actual-only: {yandex_truth.get('actual_only', 0)}h (missed events)\n"
     
+
+    # ===== DATA TRANSPARENCY SECTION =====
+    # Added for issue #162: surface ground-truth source and data coverage
+    
+    report += "## Data Context\n\n"
+    
+    # Ground truth source (7d window)
+    meta_7d = results_7d.get('metadata', {})
+    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
+    gt_source = gt_stats.get('ground_truth_source', 'unknown')
+    
+    report += f"**Ground truth source:** {gt_source}\n\n"
+    
+    # Data coverage (7d window)
+    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
+    if coverage:
+        report += "**Data coverage (7-day window):**\n\n"
+        
+        ha_cov = coverage.get('ha_coverage_pct', 0)
+        om_cov = coverage.get('om_coverage_pct', 0)
+        yx_cov = coverage.get('yx_coverage_pct', 0)
+        ms_cov = coverage.get('ms_coverage_pct', 0)
+        
+        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
+        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
+        
+        if yx_cov > 0:
+            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
+        if ms_cov > 0:
+            report += f"- Meteostat: {ms_cov:.1f}%\n"
+        
+        report += "\n"
+    
+    # Ground truth distribution (7d window)
+    distribution = gt_stats.get('distribution', {})
+    if distribution:
+        rain_h = distribution.get('rain_hours', 0)
+        dry_h = distribution.get('dry_hours', 0)
+        unknown_h = distribution.get('unknown_hours', 0)
+        total_h = rain_h + dry_h + unknown_h
+        
+        report += "**Ground truth distribution:**\n\n"
+        
+        if total_h > 0:
+            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
+            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
+        else:
+            report += f"- Rain hours: {rain_h}\n"
+            report += f"- Dry hours: {dry_h}\n"
+            if unknown_h > 0:
+                report += f"- Unknown: {unknown_h}\n"
+        
+        report += "\n"
+
     report += "\n---\n\n"
     
     # ===== KEY OBSERVATIONS =====

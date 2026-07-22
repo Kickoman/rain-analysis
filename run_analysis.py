@@ -167,6 +167,38 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
         "grid_end": str(grid.index.max()),
     }
 
+    # Coverage statistics for transparency in reports
+    grid_len = len(grid)
+    coverage = {}
+    
+    # HA coverage: any non-NaN value across HA columns
+    ha_cols = [c for c in grid.columns if c in ha.columns]
+    if ha_cols:
+        coverage["ha_coverage_pct"] = float((grid[ha_cols].notna().any(axis=1).sum() / grid_len) * 100)
+    else:
+        coverage["ha_coverage_pct"] = 0.0
+    
+    # Open-Meteo coverage
+    if "om_precip" in grid.columns:
+        coverage["om_coverage_pct"] = float((grid["om_precip"].notna().sum() / grid_len) * 100)
+    else:
+        coverage["om_coverage_pct"] = 0.0
+    
+    # Yandex coverage
+    if "yx_is_rain" in grid.columns:
+        coverage["yx_coverage_pct"] = float((grid["yx_is_rain"].notna().sum() / grid_len) * 100)
+    else:
+        coverage["yx_coverage_pct"] = 0.0
+    
+    # Meteostat coverage
+    if "ms_precip" in grid.columns:
+        coverage["ms_coverage_pct"] = float((grid["ms_precip"].notna().sum() / grid_len) * 100)
+    else:
+        coverage["ms_coverage_pct"] = 0.0
+    
+    stats["coverage"] = coverage
+
+
     return grid, stats
 
 
@@ -233,6 +265,11 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
         if om_precip_col in rain_hours.columns else None,
         "rain_hours": rain_summary,
         "ground_truth_source": gt_source,
+        "distribution": {
+            "rain_hours": int((grid["rain_truth"] == 1).sum()),
+            "dry_hours": int((grid["rain_truth"] == 0).sum()),
+            "unknown_hours": int(grid["rain_truth"].isna().sum()),
+        },
     }
 
     return grid, stats
