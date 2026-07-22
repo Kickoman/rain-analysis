@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLOSSARY — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>GLOSSARY.md — Machine Learning Metrics</h1>
+
+<p>Определения метрик качества моделей машинного обучения, используемых в этом проекте.</p>
+
+<p>---</p>
+
+<h2>Confusion Matrix (Матрица ошибок)</h2>
+
+<p>Таблица, показывающая соотношение правильных и неправильных предсказаний модели по сравнению с реальностью.</p>
+
+<table>
+<tr>
+<td><strong>Actual: Rain</strong></td>
+<td>TP (True Positive)</td>
+<td>FN (False Negative)</td>
+</tr>
+<tr>
+<td><strong>Actual: No Rain</strong></td>
+<td>FP (False Positive)</td>
+<td>TN (True Negative)</td>
+</tr>
+</tbody></table>
+
+<h3>В контексте предсказания дождя:</h3>
+
+<p>- <strong>TP (True Positive)</strong> — модель предсказала дождь, и он действительно пошёл ✅<br>
+- <strong>TN (True Negative)</strong> — модель предсказала отсутствие дождя, и его не было ✅<br>
+- <strong>FP (False Positive)</strong> — модель предсказала дождь, но его не было ❌ (ложная тревога)<br>
+- <strong>FN (False Negative)</strong> — модель не предсказала дождь, но он пошёл ❌ (пропущенный дождь)</p>
+
+<p>---</p>
+
+<h2>Precision (Точность)</h2>
+
+<strong>Формула:</strong> <code>Precision = TP / (TP + FP)</code>
+
+<strong>Значение:</strong> Какая доля предсказаний дождя оказалась правильной.
+
+<strong>Интерпретация:</strong>
+- <strong>Высокая precision (≥0.7)</strong>: модель редко даёт ложные тревоги — когда она говорит &quot;будет дождь&quot;, скорее всего так и будет.
+- <strong>Низкая precision (&lt;0.5)</strong>: много ложных тревог — модель часто предсказывает дождь, когда его нет.
+
+<strong>Пример:</strong>  
+Модель 100 раз предсказала дождь. Из них 70 раз дождь действительно пошёл (TP=70), 30 раз его не было (FP=30).  
+<code>Precision = 70/(70+30) = 0.70</code> (70%)
+
+<p>---</p>
+
+<h2>Recall (Полнота, Sensitivity)</h2>
+
+<strong>Формула:</strong> <code>Recall = TP / (TP + FN)</code>
+
+<strong>Значение:</strong> Какую долю реальных дождей модель смогла предсказать.
+
+<strong>Интерпретация:</strong>
+- <strong>Высокий recall (≥0.7)</strong>: модель находит большинство дождей — редко пропускает реальный дождь.
+- <strong>Низкий recall (&lt;0.5)</strong>: модель пропускает много дождей — часто не предупреждает, когда дождь начинается.
+
+<strong>Пример:</strong>  
+Было 100 реальных дождей. Модель предсказала 60 из них (TP=60), остальные 40 пропустила (FN=40).  
+<code>Recall = 60/(60+40) = 0.60</code> (60%)
+
+<p>---</p>
+
+<h2>F1 Score (F1-мера)</h2>
+
+<strong>Формула:</strong> <code>F1 = 2 × (Precision × Recall) / (Precision + Recall)</code>
+
+<strong>Значение:</strong> Гармоническое среднее между precision и recall. Сбалансированная метрика.
+
+<strong>Интерпретация:</strong>
+- <strong>F1 ≥ 0.7</strong>: отличное качество — модель одновременно точная и полная
+- <strong>F1 = 0.4–0.6</strong>: средняя модель — есть компромисс между ложными тревогами и пропущенными дождями
+- <strong>F1 &lt; 0.4</strong>: слабая модель — либо много ложных тревог, либо много пропусков (или и то, и другое)
+
+<strong>Применение:</strong>  
+Используется, когда precision и recall одинаково важны. Если модель хороша только по одной метрике (например, высокий recall, но низкий precision), F1 будет низким.
+
+<strong>Пример:</strong>  
+Precision = 0.70, Recall = 0.60  
+<code>F1 = 2 × (0.70 × 0.60) / (0.70 + 0.60) = 0.65</code>
+
+<p>---</p>
+
+<h2>F-beta Score (F-β мера)</h2>
+
+<strong>Формула:</strong> <code>F-beta = (1 + β²) × (Precision × Recall) / (β² × Precision + Recall)</code>
+
+<strong>Значение:</strong> Обобщение F1, позволяющее придать больший вес либо precision, либо recall.
+
+<strong>Параметр β:</strong>
+- <strong>β = 1</strong>: равный вес precision и recall → <strong>F1 Score</strong>
+- <strong>β &lt; 1</strong> (например, 0.5): больший вес <strong>precision</strong> — штрафуем ложные тревоги сильнее
+- <strong>β &gt; 1</strong> (например, 2): больший вес <strong>recall</strong> — штрафуем пропущенные дожди сильнее
+
+<h3>F2 Score (F-2 мера)</h3>
+
+<strong>Формула:</strong> <code>F2 = 5 × (Precision × Recall) / (4 × Precision + Recall)</code>
+
+<strong>Особенность:</strong> Придаёт recall <strong>в 4 раза больший вес</strong>, чем precision.
+
+<strong>Применение в нашем проекте:</strong>  
+Для задачи предсказания дождя <strong>пропустить реальный дождь хуже</strong>, чем дать ложную тревогу:
+- Пропущенный дождь (FN) → человек остался без зонта/одежды ❌❌
+- Ложная тревога (FP) → человек взял зонт, но не понадобился ❌
+
+<p>Поэтому <strong>F2 предпочтительнее F1</strong> для оценки моделей предсказания дождя.</p>
+
+<strong>Пример:</strong>  
+Precision = 0.60, Recall = 0.80  
+<code>F2 = 5 × (0.60 × 0.80) / (4 × 0.60 + 0.80) = 0.74</code>
+
+<p>Несмотря на невысокий precision (0.60), F2 остаётся относительно высоким (0.74) благодаря отличному recall (0.80).</p>
+
+<p>---</p>
+
+<h2>Specificity (Специфичность)</h2>
+
+<strong>Формула:</strong> <code>Specificity = TN / (TN + FP)</code>
+
+<strong>Значение:</strong> Какую долю реальных &quot;не-дождей&quot; модель правильно определила.
+
+<strong>Интерпретация:</strong>
+- <strong>Высокая specificity</strong>: модель редко даёт ложные тревоги когда дождя нет.
+- <strong>Низкая specificity</strong>: модель часто кричит &quot;дождь!&quot; без повода.
+
+<strong>Применение:</strong>  
+Менее важна в задаче предсказания дождя по сравнению с recall, но полезна для оценки &quot;спокойствия&quot; модели.
+
+<p>---</p>
+
+<h2>Threshold (Порог срабатывания)</h2>
+
+<strong>Значение:</strong> Минимальное значение выходной вероятности модели, при котором модель считает, что будет дождь.
+
+<strong>Пример:</strong>  
+Модель выдаёт вероятность дождя 0.65 (65%). Если threshold = 0.50, модель предсказывает дождь. Если threshold = 0.70, модель предсказывает отсутствие дождя.
+
+<strong>Компромисс:</strong>
+- <strong>Низкий threshold (0.3–0.4)</strong>: больше TP, но и больше FP → <strong>высокий recall, низкий precision</strong>
+- <strong>Высокий threshold (0.6–0.7)</strong>: меньше FP, но и меньше TP → <strong>высокий precision, низкий recall</strong>
+
+<strong>Применение:</strong>  
+Подбирается так, чтобы максимизировать нужную метрику (F1, F2) на тестовых данных.
+
+<p>---</p>
+
+<h2>Support</h2>
+
+<strong>Значение:</strong> Количество реальных случаев в данных для данного класса.
+
+<strong>Пример:</strong>  
+Support для класса &quot;Rain&quot; = 150 означает, что в тестовых данных было 150 часов с дождём.
+
+<strong>Применение:</strong>  
+Помогает понять, насколько репрезентативны данные. Низкий support (например, 10 дождей) делает метрики менее надёжными.
+
+<p>---</p>
+
+<h2>Примечания</h2>
+
+<h3>Trade-off между Precision и Recall</h3>
+
+<p>Невозможно одновременно максимизировать обе метрики. Увеличение recall обычно снижает precision и наоборот.</p>
+
+<strong>Визуализация:</strong>
+
+<code>`</code>
+High Threshold (0.8):    Precision ↑↑  Recall ↓↓  (мало тревог, но надёжные)
+Optimal Threshold (0.5): Precision ↑   Recall ↑   (баланс)
+Low Threshold (0.2):     Precision ↓↓  Recall ↑↑  (много тревог, много ложных)
+<code>`</code>
+
+<h3>Выбор метрики для оптимизации</h3>
+
+<p>- <strong>Precision важнее</strong>: используй F0.5 или просто отслеживай precision<br>
+- <strong>Recall важнее</strong>: используй <strong>F2</strong> ← <strong>наш случай для дождя</strong><br>
+- <strong>Баланс</strong>: используй F1</p>
+
+<p>---</p>
+
+<h2>См. также</h2>
+
+<p>- <a href="MODELS.md">MODELS.md</a> — документация моделей и их параметры<br>
+- <a href="BASELINE_MODEL.md">BASELINE_MODEL.md</a> — описание baseline-модели для сравнения<br>
+- <a href="daily_analysis_output_format.md">daily_analysis_output_format.md</a> — формат выходных данных с метриками</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-07-22 16:06 UTC</p>
+    </footer>
+</body>
+</html>
