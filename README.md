@@ -72,6 +72,7 @@ rain-analysis/
 │   ├── BASELINE_MODEL.md     # Current model analysis (v0.1)
 │   ├── CLI_RUNNER.md         # Full CLI documentation
 │   ├── DATA_SOURCES.md       # Ground-truth & model comparison
+│   ├── GLOSSARY.md           # ML metrics definitions (Precision, Recall, F1, F2)
 │   ├── MODELS.md             # Model variants & results
 │   ├── THRESHOLD_SWEEP.md    # Threshold optimization guide
 │   └── CONTRIBUTING.md       # Development workflow
@@ -108,6 +109,16 @@ rain-analysis/
 | **Built-in models** | Reference implementations | Experimental |
 
 See [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) for fetcher usage and data quality details.
+
+## Documentation
+
+- **[GLOSSARY.md](docs/GLOSSARY.md)** — Definitions of ML metrics (Precision, Recall, F1, F2, Confusion Matrix)
+- **[MODELS.md](docs/MODELS.md)** — All rain prediction models and their performance
+- **[BASELINE_MODEL.md](docs/BASELINE_MODEL.md)** — Current production model analysis
+- **[CLI_RUNNER.md](docs/CLI_RUNNER.md)** — Complete CLI usage guide
+- **[DATA_SOURCES.md](docs/DATA_SOURCES.md)** — Ground truth data sources and quality
+- **[THRESHOLD_SWEEP.md](docs/THRESHOLD_SWEEP.md)** — Threshold optimization methodology
+- **[CONTRIBUTING.md](docs/CONTRIBUTING.md)** — Development workflow
 
 ## Models
 
