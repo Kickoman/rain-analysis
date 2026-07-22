@@ -169,14 +169,19 @@ An LLM reading the report can:
 
 ## Adding New Models
 
-1. Define the model function in `rainlib.py`:
+1. Define the model function in `rainlib.py` with the `ModelContext` signature:
    ```python
-   def model_my_custom(spread, spread_deriv, p=None):
-       ...
+   def model_my_custom(ctx: ModelContext,
+                       p: ModelParams | None = None) -> pd.Series:
+       """My custom rain prediction model."""
+       # Extract what you need from context
+       spread = ctx.spread
+       spread_deriv = ctx.spread_deriv
+       # ... your logic here ...
        return score_series
    ```
 
-2. Register it in `MODELS`:
+2. Register it in the `MODELS` dictionary:
    ```python
    MODELS = {
        "original": model_original,
