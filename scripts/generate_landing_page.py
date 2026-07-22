@@ -172,6 +172,42 @@ def main():
                 </div>
             </div>
         </section>
+
+        <section class="documentation">
+            <h2>📚 Documentation</h2>
+            <div class="cards">
+                <div class="card">
+                    <h3>📖 GLOSSARY.md</h3>
+                    <p>ML metrics definitions (Precision, Recall, F1, F2, Confusion Matrix)</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/GLOSSARY.md">Read →</a>
+                </div>
+                <div class="card">
+                    <h3>🤖 MODELS.md</h3>
+                    <p>All rain prediction models and their performance</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/MODELS.md">Read →</a>
+                </div>
+                <div class="card">
+                    <h3>📊 BASELINE_MODEL.md</h3>
+                    <p>Current production model analysis</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/BASELINE_MODEL.md">Read →</a>
+                </div>
+                <div class="card">
+                    <h3>⚙️ CLI_RUNNER.md</h3>
+                    <p>Complete CLI usage guide</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/CLI_RUNNER.md">Read →</a>
+                </div>
+                <div class="card">
+                    <h3>💾 DATA_SOURCES.md</h3>
+                    <p>Ground truth data sources and quality</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/DATA_SOURCES.md">Read →</a>
+                </div>
+                <div class="card">
+                    <h3>🔧 CONTRIBUTING.md</h3>
+                    <p>Development workflow</p>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/CONTRIBUTING.md">Read →</a>
+                </div>
+            </div>
+        </section>
     </main>
 
     <footer>
