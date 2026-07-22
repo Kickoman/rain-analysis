@@ -15,6 +15,7 @@ Complete documentation of all rain prediction models in this analysis framework.
 | **pressure_long_window** | Experimental | 0.198 | 0.176 | 0.226 | 🔧 Testing |
 | **pressure_lagged** | Experimental | 0.196 | 0.173 | 0.226 | 🔧 Testing |
 | **pressure_combined** | Experimental | 0.194 | 0.170 | 0.226 | 🔧 Testing |
+| **combined** | Experimental | TBD | TBD | TBD | 🔧 Testing |
 
 *Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
 
@@ -454,9 +455,77 @@ Adds absolute pressure bonus to the pressure derivative signal:
 
 ---
 
+### 6. combined (Variant E)
+
+**Status:** 🔧 Testing  
+**Implementation:** `pressure_variants.py::model_combined`
+
+**Full multi-signal model** using **all available environmental inputs**:
+- Temperature trend (cooling = condensation signal)
+- Absolute humidity trend (rising = more moisture available)
+- All three pressure signals from `pressure_combined` (long window + lagged + absolute bonus)
+- Core dew-point spread proximity and derivative
+
+#### Algorithm
+
+```python
+# Core signals (same as other models)
+proximity = clamp(100 - spread / proximity_divisor * 100, 0, 100)
+trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
+
+# Temperature trend — cooling indicates condensation
+if temp_trend < -0.5:  # significant cooling
+    temp_score = min(-temp_trend * 8.0, 20.0)
+elif temp_trend > 2.0:  # rapid warming (warm front)
+    temp_score = min(temp_trend * 2.5, 8.0)
+
+# Absolute humidity trend — rising humidity = more moisture
+if abs_humidity_trend > 0:
+    ah_score = min(abs_humidity_trend * 60.0, 25.0)
+
+# Pressure signals (same as pressure_combined)
+# - 12h long window for slow trends
+# - 3h lagged short window
+# - Absolute pressure bonus for cyclones
+
+# Weighted blend with hysteresis
+raw = proximity * 0.8 + trend_score * 0.5 + temp_score * 0.15 + ah_score * 0.18 + pressure_scores
+result = hysteretic_decay(raw)
+```
+
+#### Why This Model?
+
+The `combined` model is the **most comprehensive** approach, incorporating:
+
+1. **Surface humidity signals** (spread proximity + derivative) — the baseline predictors
+2. **Temperature dynamics** — distinguishes cooling (condensation) from warming (evaporation)
+3. **Moisture availability** — absolute humidity trend shows water vapor influx
+4. **Atmospheric pressure** — three complementary signals capture weather system approach
+
+#### Graceful Degradation
+
+Falls back when signals are unavailable:
+- No temperature/humidity → behaves like `pressure_combined`
+- No pressure → behaves like humidity-only model with temp/AH enhancement
+- No environmental signals at all → pure spread-based model
+
+#### Weights
+
+| Signal | Weight | Rationale |
+|--------|--------|-----------|
+| Proximity | 0.8 | Core signal — absolute humidity |
+| Spread derivative | 0.5 | Reinforcement — rate of change |
+| Temperature trend | 0.15 | Secondary — condensation indicator |
+| Abs humidity trend | 0.18 | Secondary — moisture availability |
+| Pressure (long) | 0.25 | Tertiary — slow system approach |
+| Pressure (short lagged) | 0.20 | Tertiary — recent drop |
+| Pressure (absolute bonus) | 0.20 | Tertiary — cyclone presence |
+
+---
+
 ## Future Models (Planned)
 
-### 6. ensemble_vote (Future)
+### 7. ensemble_vote (Future)
 
 Majority-vote ensemble of top-3 models. Alerts only when 2+ models agree.
 
@@ -526,5 +595,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-20  
+**Last Updated:** 2026-07-22  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
