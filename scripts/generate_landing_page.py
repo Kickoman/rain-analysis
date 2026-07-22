@@ -58,13 +58,28 @@ def _extract_report_meta(html: str) -> dict[str, str | None]:
 
 
 def _detect_models(html: str) -> list[str]:
-    """Find which models appear in the leaderboard table."""
-    text = _strip_tags(html)
-    models = []
-    for model_id in MODEL_DESCRIPTIONS:
-        if re.search(rf'^{model_id}\s', text, re.MULTILINE):
-            models.append(model_id)
-    return models
+    """Find which models appear in the leaderboard table.
+    
+    Parses the actual table structure to extract model names dynamically,
+    rather than relying on a hardcoded list.
+    """
+    # Look for table rows with model names
+    # Pattern: <tr><td>model_name</td><td>score</td>...
+    model_pattern = r'<tr>\s*<td[^>]*>([a-z_]+)</td>\s*<td[^>]*>([0-9.]+)</td>'
+    matches = re.findall(model_pattern, html, re.IGNORECASE)
+    
+    if matches:
+        # Return unique model names in order of appearance
+        models = []
+        seen = set()
+        for model_name, _ in matches:
+            if model_name not in seen:
+                models.append(model_name)
+                seen.add(model_name)
+        return models
+    
+    # Fallback: no models found in table
+    return []
 
 
 def main():
@@ -83,10 +98,14 @@ def main():
     # Model list (only models that exist in the report)
     models_in_report = _detect_models(html_content)
     if not models_in_report:
+        # Fallback: use known models but mark as stale
         models_in_report = list(MODEL_DESCRIPTIONS.keys())
+        fallback_note = ' <em>(using fallback model list — table parsing failed)</em>'
+    else:
+        fallback_note = ''
 
     model_items = "\n".join(
-        f'                <li><strong>{m}</strong> — {MODEL_DESCRIPTIONS.get(m, "")}</li>'
+        f'                <li><strong>{m}</strong> — {MODEL_DESCRIPTIONS.get(m, "New model — no description yet")}</li>'
         for m in models_in_report
     )
 
@@ -118,7 +137,7 @@ def main():
             <h2>About This Project</h2>
             <p>This site tracks the performance of multiple rain prediction models, comparing their accuracy against real precipitation data from multiple sources.</p>
 
-            <h3>Current Models</h3>
+            <h3>Current Models{fallback_note}</h3>
             <ul>
 {model_items}
             </ul>
