@@ -109,13 +109,13 @@ def main():
         args.python, "fetch_ha_data.py",
         "--days", str(args.days),
         "--output", str(ha_csv),
-    ], "1/3: Fetching Home Assistant data")
+    ], "1/4: Fetching Home Assistant data")
 
     # Step 2: Yandex Weather
     run_command([
         args.python, "fetch_yandex_archive.py",
         "--output", str(yandex_dir),
-    ], "2/3: Downloading Yandex Weather archive")
+    ], "2/4: Downloading Yandex Weather archive")
 
     # Step 3: Open-Meteo
     om_success = run_command([
