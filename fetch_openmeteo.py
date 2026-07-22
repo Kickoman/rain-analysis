@@ -163,12 +163,17 @@ def main():
     # Fetch data
     data = fetch_data(args.lat, args.lon, start_date, end_date, args.use_forecast)
 
+    # Validate that we got data
+    hourly_points = len(data.get('hourly', {}).get('time', []))
+    if hourly_points == 0:
+        print(f"[ERROR] No hourly data points returned from Open-Meteo", file=sys.stderr)
+        return 1
+
     # Save
     with open(args.output, 'w') as f:
         json.dump(data, f, indent=2)
 
     if not args.quiet:
-        hourly_points = len(data.get('hourly', {}).get('time', []))
         print(f"\n✓ Saved {hourly_points} hourly data points to {args.output}", 
               file=sys.stderr)
 

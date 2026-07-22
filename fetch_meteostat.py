@@ -125,12 +125,17 @@ def main():
     # Fetch data
     data = fetch_data(args.station, start_date, end_date)
 
+    # Validate that we got data
+    records = data.get('data', [])
+    if not records:
+        print(f"[ERROR] No hourly records returned from Meteostat", file=sys.stderr)
+        return 1
+
     # Save
     with open(args.output, 'w') as f:
         json.dump(data, f, indent=2)
 
     if not args.quiet:
-        records = data.get('data', [])
         print(f"\n✓ Saved {len(records)} hourly records to {args.output}", 
               file=sys.stderr)
         
