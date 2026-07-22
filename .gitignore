@@ -191,6 +191,3 @@ pyrightconfig.json
 
 # Python bytecode (explicit)
 *.pyc
-
-# Daily reports directory
-reports/daily/
