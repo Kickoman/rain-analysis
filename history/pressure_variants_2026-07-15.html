@@ -101,7 +101,7 @@
 
 <h3>Key findings:</h3>
 
-<p>1. <strong>Absolute pressure (Variant A)</strong> gives the best F1 (0.235) — a tiny +2.1% over baseline. The logic: even when pressure is rising short-term, staying in a low-pressure zone (<1000 hPa) indicates persistent stormy weather.</p>
+<p>1. <strong>Absolute pressure (Variant A)</strong> gives the best F1 (0.235) — a tiny +2.1% over baseline. The logic: even when pressure is rising short-term, staying in a low-pressure zone (&lt;1000 hPa) indicates persistent stormy weather.</p>
 
 <p>2. <strong>Combined approach (Variant D)</strong> is close second (F1=0.234) with better precision (0.241). It trades recall for fewer false positives.</p>
 
@@ -113,7 +113,7 @@
 
 <h3>Recommendation:</h3>
 
-<strong>Merge pressure_absolute</strong> as the primary pressure model variant (replacing pressure_aware). It's strictly better (same code, plus the absolute pressure bonus), never regresses, and will become more useful as we accumulate more pressure data.
+<strong>Merge pressure_absolute</strong> as the primary pressure model variant (replacing pressure_aware). It&#x27;s strictly better (same code, plus the absolute pressure bonus), never regresses, and will become more useful as we accumulate more pressure data.
 
 <p>Also keep pressure_combined as secondary variant — its higher precision may be useful for alert-threshold tuning.</p>
 
@@ -121,8 +121,8 @@
 
 <p>- Pressure data only available since July 12 (Meteostat fills earlier gaps). Only 3 days with pressure ≠ NaN. This is too short for meaningful statistical separation.
 - All 5 models have essentially identical performance because <strong>spread + derivative are the dominant signals</strong> (not pressure).
-- Low absolute pressure (<1000 hPa) in July 12-15 data correlates with rainy periods — the absolute bonus slightly edges out other variants.
-- Need >>30 days of pressure data to see which variant truly works best.
+- Low absolute pressure (&lt;1000 hPa) in July 12-15 data correlates with rainy periods — the absolute bonus slightly edges out other variants.
+- Need &gt;&gt;30 days of pressure data to see which variant truly works best.
 - The original issue (pressure_aware == tuned metrics) is caused by pressure signal being too weak, not by code bugs.</p>
 
 <h2>Observations</h2>
