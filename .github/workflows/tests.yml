@@ -30,4 +30,4 @@ jobs:
     - name: Test coverage
       run: |
         pip install pytest-cov
-        python -m pytest tests/ --cov=rainlib --cov=rainlib_temporal --cov-report=term-missing
+        python -m pytest tests/ --cov=analysis --cov=scripts_utils --cov-report=term-missing
