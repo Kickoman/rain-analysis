@@ -23,8 +23,16 @@ def markdown_to_html(md_content: str) -> str:
     # Code inline
     html = re.sub(r'`([^`]+)`', r'<code>\1</code>', html)
     
-    # Links [text](url)
-    html = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'<a href="\2">\1</a>', html)
+    # Links [text](url) - convert .md to .html for local links
+    def convert_link(match):
+        text = match.group(1)
+        url = match.group(2)
+        # If it's a local .md file, convert to .html
+        if url.endswith('.md') and not url.startswith('http'):
+            url = url[:-3] + '.html'
+        return f'<a href="{url}">{text}</a>'
+    
+    html = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', convert_link, html)
     
     # Horizontal rules
     html = re.sub(r'^---+$', r'<hr>', html, flags=re.MULTILINE)
