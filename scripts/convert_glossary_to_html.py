@@ -102,7 +102,8 @@ def markdown_to_html(md_content: str) -> str:
         
         if is_tag or stripped == '':
             if in_paragraph and paragraph_lines:
-                result.append('<p>' + ' '.join(paragraph_lines) + '</p>')
+                # Join lines with <br> instead of space to preserve line breaks
+                result.append('<p>' + '<br>\n'.join(paragraph_lines) + '</p>')
                 paragraph_lines = []
                 in_paragraph = False
             if stripped:
@@ -114,7 +115,7 @@ def markdown_to_html(md_content: str) -> str:
     
     # Close any remaining paragraph
     if in_paragraph and paragraph_lines:
-        result.append('<p>' + ' '.join(paragraph_lines) + '</p>')
+        result.append('<p>' + '<br>\n'.join(paragraph_lines) + '</p>')
     
     return '\n'.join(result)
 

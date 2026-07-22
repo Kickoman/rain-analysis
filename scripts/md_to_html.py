@@ -66,13 +66,15 @@ def markdown_to_html(md_content, title="Report"):
     
     html_content = '\n'.join(new_lines)
     
-    # Paragraphs - split by double newlines
+    # Paragraphs - split by double newlines, but preserve single newlines as <br>
     paragraphs = html_content.split('\n\n')
     processed = []
     for p in paragraphs:
         p = p.strip()
         if p and not p.startswith('<'):
-            processed.append(f'<p>{p}</p>')
+            # Replace single newlines with <br> within paragraphs
+            p_with_br = p.replace('\n', '<br>\n')
+            processed.append(f'<p>{p_with_br}</p>')
         else:
             processed.append(p)
     
