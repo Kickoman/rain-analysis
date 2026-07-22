@@ -302,9 +302,12 @@ def model_pressure_combined(ctx: ModelContext,
             p_abs = 1013.25
 
         # Long-term pressure trend (12h window)
-        long_score = _pressure_score(p_long, 0.1, 15.0, 25.0, -15.0)
+        # Use relaxed threshold for slower changes
+        long_score = _pressure_score(p_long, 0.1,
+                                    p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
         # Short-term lagged pressure (3h window)
-        short_score = _pressure_score(p_short, 0.3, 20.0, 20.0, -10.0)
+        short_score = _pressure_score(p_short, 0.3,
+                                     p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
         # Absolute pressure bonus
         abs_bonus = _abs_pressure_bonus(p_abs)
 
@@ -403,10 +406,12 @@ def model_combined(ctx,
             p_abs = df['pres_abs'].values[i]
 
             if not _is_invalid(p_long):
-                long_score = _pressure_score(p_long, 0.1, 15.0, 25.0, -15.0)
+                long_score = _pressure_score(p_long, 0.1,
+                                            p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
                 p_scores.append((long_score, 0.25))
             if not _is_invalid(p_short):
-                short_score = _pressure_score(p_short, 0.3, 20.0, 20.0, -10.0)
+                short_score = _pressure_score(p_short, 0.3,
+                                             p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
                 p_scores.append((short_score, 0.20))
             if not _is_invalid(p_abs):
                 abs_bonus = _abs_pressure_bonus(p_abs)
