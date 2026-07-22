@@ -27,8 +27,7 @@ jobs:
       run: |
         python -m pytest tests/ -v --tb=short
     
-    - name: Test coverage (optional)
-      continue-on-error: true
+    - name: Test coverage
       run: |
         pip install pytest-cov
         python -m pytest tests/ --cov=rainlib --cov-report=term-missing
