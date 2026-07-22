@@ -7,6 +7,12 @@ import sys
 import subprocess
 import pytest
 from datetime import datetime, timezone
+from pathlib import Path
+
+
+# Resolve path to fetch_openmeteo.py in scripts_utils/
+_project_root = Path(__file__).resolve().parent.parent
+_fetch_openmeteo = str(_project_root / "scripts_utils" / "fetch_openmeteo.py")
 
 
 def test_forecast_mode_rejects_past_end_date():
@@ -15,7 +21,7 @@ def test_forecast_mode_rejects_past_end_date():
     result = subprocess.run(
         [
             sys.executable,
-            "fetch_openmeteo.py",
+            _fetch_openmeteo,
             "--use-forecast",
             "--start", "2026-01-01",
             "--end", "2026-01-10",
@@ -40,7 +46,7 @@ def test_forecast_mode_accepts_today_end_date():
     result = subprocess.run(
         [
             sys.executable,
-            "fetch_openmeteo.py",
+            _fetch_openmeteo,
             "--use-forecast",
             "--start", today,
             "--end", today,
@@ -66,7 +72,7 @@ def test_forecast_mode_default_end_is_today():
     result = subprocess.run(
         [
             sys.executable,
-            "fetch_openmeteo.py",
+            _fetch_openmeteo,
             "--use-forecast",
             "--days", "3",
             "--output", "/tmp/test_openmeteo.json",
