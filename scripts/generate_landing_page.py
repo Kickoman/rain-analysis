@@ -179,7 +179,7 @@ def main():
                 <div class="card">
                     <h3>📖 GLOSSARY.md</h3>
                     <p>ML metrics definitions (Precision, Recall, F1, F2, Confusion Matrix)</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/GLOSSARY.md">Read →</a>
+                    <a href="docs/GLOSSARY.html">Read →</a>
                 </div>
                 <div class="card">
                     <h3>🤖 MODELS.md</h3>
