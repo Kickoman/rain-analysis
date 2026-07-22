@@ -380,6 +380,7 @@ def main():
         <a href="../current/index.html">Latest Report</a>
         <a href="../history/index.html">History</a>
         <a href="../metrics/index.html" class="active">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html">Glossary</a>
     </nav>
 
     <main>
