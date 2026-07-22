@@ -9,6 +9,9 @@ def markdown_to_html(md_content: str) -> str:
     """Simple markdown to HTML converter for GLOSSARY.md."""
     html = md_content
     
+    # Convert markdown line breaks (two spaces at end of line) to <br>
+    html = re.sub(r'  \n', r'<br>\n', html)
+    
     # Headers
     html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
     html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
@@ -102,8 +105,9 @@ def markdown_to_html(md_content: str) -> str:
         
         if is_tag or stripped == '':
             if in_paragraph and paragraph_lines:
-                # Join lines with <br> instead of space to preserve line breaks
-                result.append('<p>' + '<br>\n'.join(paragraph_lines) + '</p>')
+                # Join paragraph lines, preserving <br> tags that are already there
+                para_content = '\n'.join(paragraph_lines)
+                result.append('<p>' + para_content + '</p>')
                 paragraph_lines = []
                 in_paragraph = False
             if stripped:
@@ -115,7 +119,8 @@ def markdown_to_html(md_content: str) -> str:
     
     # Close any remaining paragraph
     if in_paragraph and paragraph_lines:
-        result.append('<p>' + '<br>\n'.join(paragraph_lines) + '</p>')
+        para_content = '\n'.join(paragraph_lines)
+        result.append('<p>' + para_content + '</p>')
     
     return '\n'.join(result)
 
