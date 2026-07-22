@@ -332,7 +332,6 @@ def model_combined(ctx,
 
     Falls back gracefully when temp/abs_humidity or pressure are unavailable.
     """
-    from rainlib import ModelParams, derivative, _clamp
 
     if p is None:
         p = ModelParams()
