@@ -85,5 +85,5 @@ jobs:
           # Don't commit helper scripts to gh-pages
           rm -rf scripts/
           git add .
-          git commit -m "Update GitHub Pages: $(date -u '+%Y-%m-%d %H:%M UTC')" || echo "No changes to commit"
+          git diff --cached --quiet || git commit -m "Update GitHub Pages: $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push origin gh-pages
