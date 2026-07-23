@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 import numpy as np
 import pandas as pd
-from rainlib import ModelContext, ModelParams, derivative, _clamp
+from analysis.rainlib import ModelContext, ModelParams, derivative, _clamp
 
 
 # ---------------------------------------------------------------------------
