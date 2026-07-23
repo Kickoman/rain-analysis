@@ -85,8 +85,8 @@ def _pressure_variant_base(
     df = _setup_dataframe(ctx)
     p_aligned, use_pressure = _align_pressure(ctx, df)
 
-    if use_pressure:
-        prepare_fn(df, p_aligned, p)
+    # Always call prepare_fn (model_combined needs it for temp/humidity even without pressure)
+    prepare_fn(df, p_aligned, p)
 
     out = np.full(len(df), np.nan)
     prev = None
@@ -173,6 +173,8 @@ def model_pressure_absolute(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window).fillna(0.0)
         df["pres_abs"] = p_aligned
 
@@ -210,6 +212,8 @@ def model_pressure_long_window(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         df["pres_deriv"] = derivative(p_aligned, window="12h").fillna(0.0)
 
     def get_scores(i, df, use_pressure, p):
@@ -242,6 +246,8 @@ def model_pressure_lagged(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         p_lagged = p_aligned.shift(freq="6h")
         df["pres_deriv"] = derivative(p_lagged, window=p.pressure_window).fillna(0.0)
 
@@ -279,6 +285,8 @@ def model_pressure_combined(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         # Long-term trend (12h window)
         df["pres_long"] = derivative(p_aligned, window="12h").fillna(0.0)
         # Short-term trend (3h window, lagged by 3h)

@@ -131,9 +131,9 @@ class TestWorkflowYAML:
         content = path.read_text()
 
         required_scripts = [
-            'scripts/md_to_html.py',
-            'scripts/generate_history_index.py',
-            'scripts/generate_landing_page.py',
+            'scripts_utils/md_to_html.py',
+            'scripts_utils/generate_history_index.py',
+            'scripts_utils/generate_landing_page.py',
         ]
 
         for script in required_scripts:
