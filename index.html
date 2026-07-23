@@ -26,17 +26,17 @@
 
             <h3>Current Models</h3>
             <ul>
-                <li><strong>combined</strong> — ✅ Fully combined — temp + humidity + pressure signals</li>
                 <li><strong>ha_live_actual</strong> — ✅ Production — actual HA sensor (F1=0.484)</li>
                 <li><strong>ha_live_replica</strong> — 🔄 Replica backtest of production formula</li>
                 <li><strong>original</strong> — Baseline v0.1 — dew-point spread + trend (F1=0.440)</li>
-                <li><strong>pressure_absolute</strong> — Absolute pressure + trend</li>
-                <li><strong>pressure_aware</strong> — Pressure-corrected baseline</li>
-                <li><strong>pressure_combined</strong> — Combined pressure signals</li>
-                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h</li>
-                <li><strong>pressure_long_window</strong> — 12h pressure window</li>
-                <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary (F1=0.115, worst)</li>
                 <li><strong>tuned</strong> — Grid-search optimized parameters (F1=0.441)</li>
+                <li><strong>pressure_aware</strong> — Pressure-corrected baseline (F1=0.440)</li>
+                <li><strong>pressure_absolute</strong> — Absolute pressure + trend (F1=0.190)</li>
+                <li><strong>pressure_combined</strong> — Combined pressure signals (F1=0.194)</li>
+                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h (F1=0.196)</li>
+                <li><strong>pressure_long_window</strong> — 12h pressure window (F1=0.198)</li>
+                <li><strong>combined</strong> — 🔧 Testing — temp + humidity + pressure signals (F1=TBD)</li>
+                <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary (F1=0.115, worst)</li>
             </ul>
         </section>
 
