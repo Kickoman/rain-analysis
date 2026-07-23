@@ -22,7 +22,7 @@ from __future__ import annotations
 import math
 import numpy as np
 import pandas as pd
-from rainlib import ModelContext, ModelParams, derivative, _clamp
+from analysis.rainlib import ModelContext, ModelParams, derivative, _clamp
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +85,8 @@ def _pressure_variant_base(
     df = _setup_dataframe(ctx)
     p_aligned, use_pressure = _align_pressure(ctx, df)
 
-    if use_pressure:
-        prepare_fn(df, p_aligned, p)
+    # Always call prepare_fn (model_combined needs it for temp/humidity even without pressure)
+    prepare_fn(df, p_aligned, p)
 
     out = np.full(len(df), np.nan)
     prev = None
@@ -173,6 +173,8 @@ def model_pressure_absolute(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window).fillna(0.0)
         df["pres_abs"] = p_aligned
 
@@ -210,6 +212,8 @@ def model_pressure_long_window(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         df["pres_deriv"] = derivative(p_aligned, window="12h").fillna(0.0)
 
     def get_scores(i, df, use_pressure, p):
@@ -242,6 +246,8 @@ def model_pressure_lagged(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         p_lagged = p_aligned.shift(freq="6h")
         df["pres_deriv"] = derivative(p_lagged, window=p.pressure_window).fillna(0.0)
 
@@ -279,6 +285,8 @@ def model_pressure_combined(ctx: ModelContext,
         p = ModelParams()
 
     def prepare(df, p_aligned, p):
+        if p_aligned is None:
+            return
         # Long-term trend (12h window)
         df["pres_long"] = derivative(p_aligned, window="12h").fillna(0.0)
         # Short-term trend (3h window, lagged by 3h)
@@ -321,8 +329,8 @@ def model_pressure_combined(ctx: ModelContext,
 # Variant E: True Combined (temperature + humidity + pressure)
 # ---------------------------------------------------------------------------
 
-def model_combined(ctx,
-                   p = None):
+def model_combined(ctx: ModelContext,
+                   p: ModelParams | None = None) -> pd.Series:
     """Fully combined model using ALL available signals.
 
     Incorporates temperature trend, absolute humidity trend, and all three
@@ -334,72 +342,56 @@ def model_combined(ctx,
     Pressure: long window + lagged + absolute bonus (same as pressure_combined).
 
     Falls back gracefully when temp/abs_humidity or pressure are unavailable.
-    """
 
+    Refactored in issue #262 to use _pressure_variant_base() instead of
+    duplicating the hysteresis loop.
+    """
     if p is None:
         p = ModelParams()
 
-    # Shared setup
-    df = _setup_dataframe(ctx)
-    p_aligned, use_pressure = _align_pressure(ctx, df)
+    def prepare(df, p_aligned, p):
+        # Temperature and absolute humidity
+        use_env = (ctx.temp is not None and not ctx.temp.dropna().empty and
+                   ctx.abs_humidity is not None and not ctx.abs_humidity.dropna().empty)
+        if use_env:
+            temp_aligned = ctx.temp.reindex(df.index).ffill()
+            ah_aligned = ctx.abs_humidity.reindex(df.index).ffill()
+            df['temp_trend'] = derivative(temp_aligned, window='3h').fillna(0.0)
+            df['abs_hum_trend'] = derivative(ah_aligned, window='3h').fillna(0.0)
+        else:
+            df['temp_trend'] = 0.0
+            df['abs_hum_trend'] = 0.0
 
-    # Temperature and absolute humidity
-    use_env = (ctx.temp is not None and not ctx.temp.dropna().empty and
-               ctx.abs_humidity is not None and not ctx.abs_humidity.dropna().empty)
-    if use_env:
-        temp_aligned = ctx.temp.reindex(df.index).ffill()
-        ah_aligned = ctx.abs_humidity.reindex(df.index).ffill()
-        df['temp_trend'] = derivative(temp_aligned, window='3h').fillna(0.0)
-        df['abs_hum_trend'] = derivative(ah_aligned, window='3h').fillna(0.0)
+        # Pressure signals (if available, already handled by base)
+        if p_aligned is not None:
+            df['pres_long'] = derivative(p_aligned, window='12h').fillna(0.0)
+            p_lagged = p_aligned.shift(freq='3h')
+            df['pres_short'] = derivative(p_lagged, window='3h').fillna(0.0)
+            df['pres_abs'] = p_aligned
 
-    # Pressure signals
-    if use_pressure:
-        df['pres_long'] = derivative(p_aligned, window='12h').fillna(0.0)
-        p_lagged = p_aligned.shift(freq='3h')
-        df['pres_short'] = derivative(p_lagged, window='3h').fillna(0.0)
-        df['pres_abs'] = p_aligned
-
-    out = np.full(len(df), np.nan)
-    prev = None
-    spread_v = df['spread'].values
-    deriv_v = df['deriv'].values
-
-    for i in range(len(df)):
-        s = spread_v[i]
-        d = deriv_v[i]
-
-        if _is_invalid(s):
-            out[i] = prev if prev is not None else np.nan
-            continue
-        if _is_invalid(d):
-            d = 0.0
-
-        # ── Core proximity + trend ──────────────────────────────────
-        proximity = max(min(100.0 - (s / p.proximity_divisor * 100.0), 100), 0)
-        trend_score = max(min(-d * p.trend_gain, p.trend_floor), p.trend_ceiling)
+    def get_scores(i, df, use_pressure, p):
+        scores = []
 
         # ── Temperature trend ────────────────────────────────────────
         # Cooling = condensation → rain signal
         # Rapid warming (warm front) = mild precursor
-        temp_score = 0.0
-        if use_env:
-            tt = df['temp_trend'].values[i]
-            if not _is_invalid(tt):
-                if tt < -0.5:   # significant cooling
-                    temp_score = min(-tt * 8.0, 20.0)
-                elif tt > 2.0:  # rapid warming
-                    temp_score = min(tt * 2.5, 8.0)
+        tt = df['temp_trend'].values[i]
+        if not _is_invalid(tt):
+            if tt < -0.5:   # significant cooling
+                temp_score = min(-tt * 8.0, 20.0)
+                scores.append((temp_score, 0.15))
+            elif tt > 2.0:  # rapid warming
+                temp_score = min(tt * 2.5, 8.0)
+                scores.append((temp_score, 0.15))
 
         # ── Absolute humidity trend ──────────────────────────────────
         # Rising abs humidity = more available moisture
-        ah_score = 0.0
-        if use_env:
-            ah = df['abs_hum_trend'].values[i]
-            if not _is_invalid(ah) and ah > 0:
-                ah_score = min(ah * 60.0, 25.0)
+        ah = df['abs_hum_trend'].values[i]
+        if not _is_invalid(ah) and ah > 0:
+            ah_score = min(ah * 60.0, 25.0)
+            scores.append((ah_score, 0.18))
 
         # ── Pressure scores (same as pressure_combined) ──────────────
-        p_scores = []
         if use_pressure:
             p_long = df['pres_long'].values[i]
             p_short = df['pres_short'].values[i]
@@ -408,40 +400,18 @@ def model_combined(ctx,
             if not _is_invalid(p_long):
                 long_score = _pressure_score(p_long, 0.1,
                                             p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
-                p_scores.append((long_score, 0.25))
+                scores.append((long_score, 0.25))
             if not _is_invalid(p_short):
                 short_score = _pressure_score(p_short, 0.3,
                                              p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
-                p_scores.append((short_score, 0.20))
+                scores.append((short_score, 0.20))
             if not _is_invalid(p_abs):
                 abs_bonus = _abs_pressure_bonus(p_abs)
-                p_scores.append((abs_bonus, 0.20))
+                scores.append((abs_bonus, 0.20))
 
-        # ── Weighted blend ───────────────────────────────────────────
-        raw = proximity * p.proximity_weight + trend_score * p.trend_weight
+        return scores
 
-        if use_env:
-            raw += temp_score * 0.15
-            raw += ah_score * 0.18
-
-        for score, weight in p_scores:
-            raw += score * weight
-
-        # ── Dry-spread ceiling ───────────────────────────────────────
-        ceiling = 100.0 if s < p.dry_spread_cutoff else p.dry_ceiling
-        raw = max(min(raw, ceiling), 0)
-
-        # ── Hysteresis ───────────────────────────────────────────────
-        if prev is None:
-            total = raw
-        elif raw > prev:
-            total = raw
-        else:
-            total = prev - (prev - raw) * p.hysteresis_decay
-        out[i] = total
-        prev = total
-
-    return pd.Series(out, index=df.index).round(0)
+    return _pressure_variant_base(ctx, p, prepare, get_scores)
 
 
 
