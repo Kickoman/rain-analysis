@@ -6,8 +6,8 @@ on:
       - master
     paths:
       - 'reports/**'
-      - 'scripts/**'
-      - 'docs/**'
+      - 'scripts_utils/**'
+      - 'docs_site/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -36,11 +36,11 @@ jobs:
 
       - name: Copy conversion scripts
         run: |
-          git checkout master -- scripts/md_to_html.py
-          git checkout master -- scripts/generate_history_index.py
-          git checkout master -- scripts/generate_landing_page.py
-          git checkout master -- scripts/generate_metrics_page.py
-          git checkout master -- scripts/convert_docs_to_html.py
+          git checkout master -- scripts_utils/md_to_html.py
+          git checkout master -- scripts_utils/generate_history_index.py
+          git checkout master -- scripts_utils/generate_landing_page.py
+          git checkout master -- scripts_utils/generate_metrics_page.py
+          git checkout master -- scripts_utils/convert_docs_to_html.py
 
       - name: Generate HTML from latest reports
         run: |
@@ -54,14 +54,14 @@ jobs:
           for report in reports/*.md; do
             if [ -f "$report" ]; then
               filename=$(basename "$report" .md)
-              python3 scripts/md_to_html.py "$report" "history/${filename}.html"
+              python3 scripts_utils/md_to_html.py "$report" "history/${filename}.html"
             fi
           done
           
           # Latest DAILY report to current/ (exclude pressure_variants)
           latest=$(ls -1 reports/20*.md | sort | tail -1)
           if [ -f "$latest" ]; then
-            python3 scripts/md_to_html.py "$latest" "current/index.html"
+            python3 scripts_utils/md_to_html.py "$latest" "current/index.html"
           fi
           
           # Clean up temporary files
@@ -69,34 +69,34 @@ jobs:
 
       - name: Convert documentation to HTML
         run: |
-          # Get GLOSSARY.md from docs/
-          git checkout master -- docs/GLOSSARY.md
+          # Get GLOSSARY.md from docs_site/
+          git checkout master -- docs_site/GLOSSARY.md
           
           # Convert to HTML
-          python3 scripts/convert_docs_to_html.py docs/GLOSSARY.md docs/GLOSSARY.html
+          python3 scripts_utils/convert_docs_to_html.py docs_site/GLOSSARY.md docs/GLOSSARY.html
           
           # Clean up temporary markdown
-          rm -rf docs/*.md
+          rm -rf docs_site/*.md
 
       - name: Update history index
         run: |
-          python3 scripts/generate_history_index.py
+          python3 scripts_utils/generate_history_index.py
 
       - name: Generate landing page
         run: |
-          python3 scripts/generate_landing_page.py
+          python3 scripts_utils/generate_landing_page.py
 
       - name: Generate metrics timeline
         run: |
           mkdir -p metrics
-          python3 scripts/generate_metrics_page.py
+          python3 scripts_utils/generate_metrics_page.py
 
       - name: Commit and push
         run: |
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           # Don't commit helper scripts to gh-pages
-          rm -rf scripts/
+          rm -rf scripts_utils/
           git add .
           git diff --cached --quiet || git commit -m "Update GitHub Pages: $(date -u '+%Y-%m-%d %H:%M UTC')"
           git push origin gh-pages
