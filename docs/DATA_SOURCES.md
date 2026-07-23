@@ -139,7 +139,7 @@ Station 26850 — Minsk
 python fetch_meteostat.py --days 7 --output data/meteostat.json
 ```
 
-Uses [Meteostat API](https://dev.meteostat.net/api/) hourly station data.
+Uses [Meteostat API](http://web.archive.org/web/20260625093953/https://dev.meteostat.net/api) hourly station data.
 
 ### Output Format
 
