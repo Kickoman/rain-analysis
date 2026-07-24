@@ -26,8 +26,62 @@ DEFAULT_LON = 27.596646
 USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
 
+def generate_mock_data(start_date: str, end_date: str) -> dict:
+    """Generate mock Open-Meteo API response for testing."""
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    # Generate hourly timestamps
+    times = []
+    temps = []
+    humidities = []
+    precips = []
+    rains = []
+    showers = []
+    
+    current = start_dt
+    while current <= end_dt:
+        for hour in range(24):
+            timestamp = current.replace(hour=hour, minute=0, second=0)
+            if timestamp > end_dt.replace(hour=23, minute=59):
+                break
+            times.append(timestamp.strftime("%Y-%m-%dT%H:%M"))
+            temps.append(15.0 + (hour / 24.0) * 5.0)  # Mock temperature variation
+            humidities.append(70 + (hour % 12))  # Mock humidity
+            precips.append(0.1 if hour % 6 == 0 else 0.0)  # Mock precipitation
+            rains.append(0.1 if hour % 6 == 0 else 0.0)
+            showers.append(0.0)
+        current += timedelta(days=1)
+    
+    return {
+        "latitude": DEFAULT_LAT,
+        "longitude": DEFAULT_LON,
+        "generationtime_ms": 0.123,
+        "utc_offset_seconds": 0,
+        "timezone": "UTC",
+        "timezone_abbreviation": "UTC",
+        "elevation": 234.0,
+        "hourly_units": {
+            "time": "iso8601",
+            "temperature_2m": "°C",
+            "relative_humidity_2m": "%",
+            "precipitation": "mm",
+            "rain": "mm",
+            "showers": "mm"
+        },
+        "hourly": {
+            "time": times,
+            "temperature_2m": temps,
+            "relative_humidity_2m": humidities,
+            "precipitation": precips,
+            "rain": rains,
+            "showers": showers
+        }
+    }
+
+
 def fetch_data(lat: float, lon: float, start_date: str, end_date: str, 
-               use_forecast: bool = False) -> dict:
+               use_forecast: bool = False, dry_run: bool = False) -> dict:
     """Fetch weather data from Open-Meteo API."""
     
     if use_forecast:
@@ -36,7 +90,7 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
         start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
         end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
         
-        # Validate that end_date is today
+        # Validate that end_date is today (even in dry-run mode)
         if end_dt != today:
             print(f"[ERROR] --use-forecast requires --end to be today ({today}), got {end_date}", 
                   file=sys.stderr)
@@ -46,6 +100,10 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
         
         # Calculate past_days from start_date to today
         days_back = (today - start_dt).days
+        
+        if dry_run:
+            print(f"[DRY-RUN] Returning mock data instead of making HTTP request", file=sys.stderr)
+            return generate_mock_data(start_date, end_date)
         
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
@@ -58,6 +116,10 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
         print(f"[INFO] Forecast mode: fetching {days_back} days back from today ({today})", 
               file=sys.stderr)
     else:
+        if dry_run:
+            print(f"[DRY-RUN] Returning mock data instead of making HTTP request", file=sys.stderr)
+            return generate_mock_data(start_date, end_date)
+        
         # Use archive API
         url = (
             f"https://archive-api.open-meteo.com/v1/archive?"
@@ -141,6 +203,11 @@ def main():
         action="store_true",
         help="Suppress progress messages",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip HTTP request and return mock data for testing",
+    )
 
     args = parser.parse_args()
 
@@ -161,7 +228,7 @@ def main():
         print(f"Date range: {start_date} to {end_date}", file=sys.stderr)
 
     # Fetch data
-    data = fetch_data(args.lat, args.lon, start_date, end_date, args.use_forecast)
+    data = fetch_data(args.lat, args.lon, start_date, end_date, args.use_forecast, args.dry_run)
 
     # Validate that we got data
     hourly_points = len(data.get('hourly', {}).get('time', []))
