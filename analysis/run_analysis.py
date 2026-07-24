@@ -395,23 +395,20 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         fbeta_recs[display_name] = recs_for_model
 
         # Temporal scoring: lead=3h, lag=1h, F-beta=2
-        try:
-            t_rec = _recommend_temporal(
-                grid[col], grid["rain_truth"],
-                beta=2.0, lead_hours=3, lag_hours=1, min_precision=0.5,
-            )
-            temporal_scores[display_name] = {
-                "lead_hours": 3,
-                "lag_hours": 1,
-                "best_threshold": t_rec["best_threshold"] if not (isinstance(t_rec["best_threshold"], float) and np.isnan(t_rec["best_threshold"])) else None,
-                "precision": t_rec["precision"] if not (isinstance(t_rec["precision"], float) and np.isnan(t_rec["precision"])) else None,
-                "recall": t_rec["recall"] if not (isinstance(t_rec["recall"], float) and np.isnan(t_rec["recall"])) else None,
-                "f1": t_rec["f1"] if not (isinstance(t_rec["f1"], float) and np.isnan(t_rec["f1"])) else None,
-                "f2": t_rec["f2"] if not (isinstance(t_rec["f2"], float) and np.isnan(t_rec["f2"])) else None,
-                "f_beta2": t_rec["f_beta"] if not (isinstance(t_rec["f_beta"], float) and np.isnan(t_rec["f_beta"])) else None,
-            }
-        except Exception as e:
-            temporal_scores[display_name] = {"error": str(e)}
+        t_rec = _recommend_temporal(
+            grid[col], grid["rain_truth"],
+            beta=2.0, lead_hours=3, lag_hours=1, min_precision=0.5,
+        )
+        temporal_scores[display_name] = {
+            "lead_hours": 3,
+            "lag_hours": 1,
+            "best_threshold": t_rec["best_threshold"] if not (isinstance(t_rec["best_threshold"], float) and np.isnan(t_rec["best_threshold"])) else None,
+            "precision": t_rec["precision"] if not (isinstance(t_rec["precision"], float) and np.isnan(t_rec["precision"])) else None,
+            "recall": t_rec["recall"] if not (isinstance(t_rec["recall"], float) and np.isnan(t_rec["recall"])) else None,
+            "f1": t_rec["f1"] if not (isinstance(t_rec["f1"], float) and np.isnan(t_rec["f1"])) else None,
+            "f2": t_rec["f2"] if not (isinstance(t_rec["f2"], float) and np.isnan(t_rec["f2"])) else None,
+            "f_beta2": t_rec["f_beta"] if not (isinstance(t_rec["f_beta"], float) and np.isnan(t_rec["f_beta"])) else None,
+        }
 
     return {
         "scores": scores,
