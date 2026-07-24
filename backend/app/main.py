@@ -1,15 +1,28 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 from .config import settings
+from .database import init_db, close_db
 import logging
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Starting up...")
+    await init_db()
+    yield
+    # Shutdown
+    logger.info("Shutting down...")
+    await close_db()
+
 app = FastAPI(
     title=settings.app_title,
     version=settings.app_version,
-    description="Rain analysis and prediction API"
+    description="Rain analysis and prediction API",
+    lifespan=lifespan
 )
 
 # CORS middleware
