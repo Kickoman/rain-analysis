@@ -44,6 +44,13 @@ import numpy as np
 import rainlib as rl
 from rainlib import ModelParams, ModelContext, MODELS
 
+# Temporal metrics — optional, gracefully degraded if unavailable
+try:
+    from rainlib_temporal import sweep_threshold_temporal, recommend_threshold_temporal as _recommend_temporal
+    _TEMPORAL_AVAILABLE = True
+except ImportError:
+    _TEMPORAL_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -326,6 +333,7 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     scores = {}
     threshold_sweeps = {}
     fbeta_recs = {}
+    temporal_scores = {}
     best_overall = None
 
     for col in model_cols:
@@ -390,11 +398,32 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
 
         fbeta_recs[display_name] = recs_for_model
 
+        # Temporal scoring: lead=3h, lag=1h, F-beta=2
+        if _TEMPORAL_AVAILABLE:
+            try:
+                t_rec = _recommend_temporal(
+                    grid[col], grid["rain_truth"],
+                    beta=2.0, lead_hours=3, lag_hours=1, min_precision=0.5,
+                )
+                temporal_scores[display_name] = {
+                    "lead_hours": 3,
+                    "lag_hours": 1,
+                    "best_threshold": t_rec["best_threshold"] if not (isinstance(t_rec["best_threshold"], float) and np.isnan(t_rec["best_threshold"])) else None,
+                    "precision": t_rec["precision"] if not (isinstance(t_rec["precision"], float) and np.isnan(t_rec["precision"])) else None,
+                    "recall": t_rec["recall"] if not (isinstance(t_rec["recall"], float) and np.isnan(t_rec["recall"])) else None,
+                    "f1": t_rec["f1"] if not (isinstance(t_rec["f1"], float) and np.isnan(t_rec["f1"])) else None,
+                    "f2": t_rec["f2"] if not (isinstance(t_rec["f2"], float) and np.isnan(t_rec["f2"])) else None,
+                    "f_beta2": t_rec["f_beta"] if not (isinstance(t_rec["f_beta"], float) and np.isnan(t_rec["f_beta"])) else None,
+                }
+            except Exception as e:
+                temporal_scores[display_name] = {"error": str(e)}
+
     return {
         "scores": scores,
         "threshold_sweeps": threshold_sweeps,
         "fbeta_recommendations": fbeta_recs,
         "best_overall": best_overall,
+        "temporal_scoring": temporal_scores,
     }
 
 

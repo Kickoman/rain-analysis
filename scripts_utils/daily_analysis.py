@@ -68,6 +68,40 @@ def safe_get(d, key, default=0):
     v = d.get(key)
     return default if v is None else v
 
+def generate_temporal_section(results_7d, results_14d, results_28d, all_models):
+    """Generate markdown section for temporal metrics (lead=3h, lag=1h)."""
+    section = "## Temporal Metrics (lead=3h, lag=1h)\n\n"
+    section += (
+        "Scores with prediction-window tolerance: a model predicting rain up to **3 hours early** "
+        "or **1 hour late** is still counted as correct. "
+        "Best threshold selected by F-beta=2 with min_precision=0.5.\n\n"
+    )
+
+    # Table header
+    section += "| Model | F1 | Precision | Recall | Best threshold | Window |\n"
+    section += "|-------|:---:|:---------:|:------:|:--------------:|--------|\n"
+
+    windows = [("7d", results_7d), ("14d", results_14d), ("28d", results_28d)]
+
+    for model in all_models:
+        for window_name, res in windows:
+            t = res.get("scoring", {}).get("temporal_scoring", {}).get(model, {})
+            if not t or "error" in t:
+                section += f"| {model:<20} | N/A | N/A | N/A | N/A | {window_name} |\n"
+                continue
+            f1 = t.get("f1")
+            prec = t.get("precision")
+            rec = t.get("recall")
+            thr = t.get("best_threshold")
+            f1_str = f"{f1:.3f}" if f1 is not None else "N/A"
+            prec_str = f"{prec:.3f}" if prec is not None else "N/A"
+            rec_str = f"{rec:.3f}" if rec is not None else "N/A"
+            thr_str = f"{thr}%" if thr is not None else "N/A"
+            section += f"| {model:<20} | {f1_str} | {prec_str} | {rec_str} | {thr_str} | {window_name} |\n"
+
+    section += "\n"
+    return section
+
 def extract_best_model_fbeta2(results, min_precision=0.6):
     """Extract best model by F-beta=2 with min_precision constraint."""
     scores = results.get('scoring', {}).get('scores', {})
@@ -245,6 +279,10 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     report += f"\n**Best overall (F-beta=2):** {best_overall_model} @ 7d\n\n"
     report += "---\n\n"
     
+    # Temporal metrics section
+    report += generate_temporal_section(results_7d, results_14d, results_28d, all_models)
+    report += "---\n\n"
+
     # ===== MULTI-WINDOW COMPARISON =====
     
     report += "## Multi-Window Comparison\n\n"
