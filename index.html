@@ -26,25 +26,25 @@
 
             <h3>Current Models</h3>
             <ul>
+                <li><strong>combined</strong> — ✅ Fully combined — temp + humidity + pressure signals</li>
                 <li><strong>ha_live_actual</strong> — ✅ Production — actual HA sensor (F1=0.484)</li>
                 <li><strong>ha_live_replica</strong> — 🔄 Replica backtest of production formula</li>
                 <li><strong>original</strong> — Baseline v0.1 — dew-point spread + trend (F1=0.440)</li>
-                <li><strong>tuned</strong> — Grid-search optimized parameters (F1=0.441)</li>
-                <li><strong>pressure_aware</strong> — Pressure-corrected baseline (F1=0.440)</li>
-                <li><strong>pressure_absolute</strong> — Absolute pressure + trend (F1=0.190)</li>
-                <li><strong>pressure_combined</strong> — Combined pressure signals (F1=0.194)</li>
-                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h (F1=0.196)</li>
-                <li><strong>pressure_long_window</strong> — 12h pressure window (F1=0.198)</li>
-                <li><strong>combined</strong> — 🔧 Testing — temp + humidity + pressure signals (F1=TBD)</li>
+                <li><strong>pressure_absolute</strong> — Absolute pressure + trend</li>
+                <li><strong>pressure_aware</strong> — Pressure-corrected baseline</li>
+                <li><strong>pressure_combined</strong> — Combined pressure signals</li>
+                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h</li>
+                <li><strong>pressure_long_window</strong> — 12h pressure window</li>
                 <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary (F1=0.115, worst)</li>
+                <li><strong>tuned</strong> — Grid-search optimized parameters (F1=0.441)</li>
             </ul>
         </section>
 
         <section class="latest">
             <h2>Latest Results</h2>
             <div class="report-card">
-                <h3>Daily Report — 2026-07-23</h3>
-                <p>Best model: <strong>ha_live_replica (F1: 0.467)</strong></p>
+                <h3>Daily Report — 2026-07-24</h3>
+                <p>Best model: <strong>ha_live_replica (F1: 0.452)</strong></p>
                 <a href="current/index.html" class="btn">View Full Report →</a>
             </div>
         </section>
@@ -81,22 +81,22 @@
                 <div class="card">
                     <h3>🤖 MODELS.md</h3>
                     <p>All rain prediction models and their performance</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs_site/MODELS.md">Read →</a>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/MODELS.md">Read →</a>
                 </div>
                 <div class="card">
                     <h3>📊 BASELINE_MODEL.md</h3>
                     <p>Current production model analysis</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs_site/BASELINE_MODEL.md">Read →</a>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/BASELINE_MODEL.md">Read →</a>
                 </div>
                 <div class="card">
                     <h3>⚙️ CLI_RUNNER.md</h3>
                     <p>Complete CLI usage guide</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs_site/CLI_RUNNER.md">Read →</a>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/CLI_RUNNER.md">Read →</a>
                 </div>
                 <div class="card">
                     <h3>💾 DATA_SOURCES.md</h3>
                     <p>Ground truth data sources and quality</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs_site/DATA_SOURCES.md">Read →</a>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/DATA_SOURCES.md">Read →</a>
                 </div>
                 <div class="card">
                     <h3>🔧 CONTRIBUTING.md</h3>
@@ -109,7 +109,7 @@
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Last updated: <span id="last-update">2026-07-23</span></p>
+        <p>Last updated: <span id="last-update">2026-07-24</span></p>
     </footer>
 </body>
 </html>
