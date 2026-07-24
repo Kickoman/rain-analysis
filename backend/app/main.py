@@ -33,7 +33,6 @@ app.add_middleware(
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {
         "status": "healthy",
         "version": settings.app_version
@@ -41,7 +40,6 @@ async def health_check():
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
     return {
         "message": "Rain Analysis API",
         "docs": "/docs",
