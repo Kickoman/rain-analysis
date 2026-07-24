@@ -25,7 +25,8 @@ def test_forecast_mode_rejects_past_end_date():
             "--use-forecast",
             "--start", "2026-01-01",
             "--end", "2026-01-10",
-            "--output", "/tmp/test_openmeteo.json"
+            "--output", "/tmp/test_openmeteo.json",
+            "--dry-run"
         ],
         capture_output=True,
         text=True
@@ -41,8 +42,6 @@ def test_forecast_mode_accepts_today_end_date():
     
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
-    # We can't actually fetch data in tests, but we can verify the validation passes
-    # This test would need mocking to fully validate, but checking error handling is enough
     result = subprocess.run(
         [
             sys.executable,
@@ -51,6 +50,7 @@ def test_forecast_mode_accepts_today_end_date():
             "--start", today,
             "--end", today,
             "--output", "/tmp/test_openmeteo.json",
+            "--dry-run",
             "--quiet"
         ],
         capture_output=True,
@@ -61,13 +61,14 @@ def test_forecast_mode_accepts_today_end_date():
     # Should not fail with "requires --end to be today" error
     assert "requires --end to be today" not in result.stderr, \
         f"Should not reject --end=today, got: {result.stderr}"
+    
+    # Should succeed with dry-run
+    assert result.returncode == 0, \
+        f"Expected success with --dry-run, got code {result.returncode}: {result.stderr}"
 
 
-@pytest.mark.skip(reason="Makes real HTTP requests to Open-Meteo API, causing timeout in CI")
 def test_forecast_mode_default_end_is_today():
     """Test that --use-forecast without --end defaults to today (no validation error)."""
-    
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     
     result = subprocess.run(
         [
@@ -76,6 +77,7 @@ def test_forecast_mode_default_end_is_today():
             "--use-forecast",
             "--days", "3",
             "--output", "/tmp/test_openmeteo.json",
+            "--dry-run",
             "--quiet"
         ],
         capture_output=True,
@@ -86,6 +88,10 @@ def test_forecast_mode_default_end_is_today():
     # Should not fail with date validation error
     assert "requires --end to be today" not in result.stderr, \
         f"Default --end should be today, got: {result.stderr}"
+    
+    # Should succeed with dry-run
+    assert result.returncode == 0, \
+        f"Expected success with --dry-run, got code {result.returncode}: {result.stderr}"
 
 
 if __name__ == "__main__":

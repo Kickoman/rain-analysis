@@ -27,8 +27,20 @@ USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
 
 def fetch_data(lat: float, lon: float, start_date: str, end_date: str, 
-               use_forecast: bool = False) -> dict:
-    """Fetch weather data from Open-Meteo API."""
+               use_forecast: bool = False, dry_run: bool = False) -> dict:
+    """Fetch weather data from Open-Meteo API.
+    
+    Args:
+        lat: Latitude coordinate
+        lon: Longitude coordinate
+        start_date: Start date in YYYY-MM-DD format
+        end_date: End date in YYYY-MM-DD format
+        use_forecast: Whether to use forecast API instead of archive API
+        dry_run: If True, skip HTTP request and return mock data
+    
+    Returns:
+        Dictionary with weather data in Open-Meteo format
+    """
     
     if use_forecast:
         # Forecast API uses past_days relative to TODAY, not end_date
@@ -66,6 +78,35 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
             f"&hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers"
             f"&timezone=UTC"
         )
+    
+    # Dry run mode: return mock data without making HTTP request
+    if dry_run:
+        print(f"[DRY RUN] Would fetch from: {url}", file=sys.stderr)
+        
+        # Generate mock hourly data for the date range
+        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        hours = int((end_dt - start_dt).total_seconds() / 3600) + 24  # Include end day
+        
+        mock_data = {
+            "latitude": lat,
+            "longitude": lon,
+            "timezone": "UTC",
+            "hourly": {
+                "time": [
+                    (start_dt + timedelta(hours=h)).strftime("%Y-%m-%dT%H:%M")
+                    for h in range(hours)
+                ],
+                "temperature_2m": [20.0] * hours,
+                "relative_humidity_2m": [70] * hours,
+                "precipitation": [0.0] * hours,
+                "rain": [0.0] * hours,
+                "showers": [0.0] * hours,
+            }
+        }
+        
+        print(f"[DRY RUN] Returning mock data with {hours} hourly points", file=sys.stderr)
+        return mock_data
     
     print(f"Fetching from Open-Meteo...", file=sys.stderr)
     print(f"  URL: {url}", file=sys.stderr)
@@ -130,6 +171,11 @@ def main():
         help="Use forecast API instead of archive API (for recent data)",
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip HTTP request and return mock data (for testing)",
+    )
+    parser.add_argument(
         "--output",
         "-o",
         required=True,
@@ -161,7 +207,8 @@ def main():
         print(f"Date range: {start_date} to {end_date}", file=sys.stderr)
 
     # Fetch data
-    data = fetch_data(args.lat, args.lon, start_date, end_date, args.use_forecast)
+    data = fetch_data(args.lat, args.lon, start_date, end_date, 
+                     args.use_forecast, args.dry_run)
 
     # Validate that we got data
     hourly_points = len(data.get('hourly', {}).get('time', []))
