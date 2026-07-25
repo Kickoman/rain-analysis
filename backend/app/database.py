@@ -33,9 +33,11 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 async def init_db():
+    """Check database connection"""
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    logger.info("Database initialized")
+        # Проверяем подключение
+        pass
+    logger.info("Database connection established")
 
 async def close_db():
     await engine.dispose()
