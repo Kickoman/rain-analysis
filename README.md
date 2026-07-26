@@ -1,6 +1,6 @@
 # Rain Analysis
 
-Прогнозирование дождя на основе данных с датчиков.
+Rain forecasting based on sensor data.
 
 ## Project Structure
 
