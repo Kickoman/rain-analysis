@@ -1,4 +1,5 @@
-"""API routers."""
-from . import admin
+"""API routers package."""
 
-__all__ = ["admin"]
+from . import admin, auth
+
+__all__ = ["admin", "auth"]
