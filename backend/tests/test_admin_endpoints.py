@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timedelta
 
-from backend.app.models import APIKey, AdminAuditLog
-from backend.app.auth.crypto import generate_api_key
+from app.models import APIKey, AdminAuditLog
+from app.auth.crypto import generate_api_key
 
 
 @pytest.fixture

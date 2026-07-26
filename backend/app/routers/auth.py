@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from backend.app.database import get_db
-from backend.app.models import APIKey
-from backend.app.auth.middleware import rate_limiter
+from app.database import get_db
+from app.models import APIKey
+from app.auth.middleware import rate_limiter
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional

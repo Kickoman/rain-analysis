@@ -8,7 +8,9 @@ Rain forecasting based on sensor data.
 rain-analysis/
 ├── backend/        # FastAPI web application
 │   ├── app/        # Application code
+│   │   ├── auth/        # Authentication system
 │   │   ├── models/      # SQLAlchemy ORM models
+│   │   ├── routers/     # API endpoints
 │   │   ├── schemas/     # Pydantic validation schemas
 │   │   ├── database.py  # Database setup
 │   │   ├── config.py    # Configuration
@@ -38,10 +40,15 @@ pip install -r requirements.txt
 
 # Configure environment
 cp .env.example .env
-# Edit .env and set API_KEYS_SALT
+# Edit .env and set:
+#   - API_KEYS_SALT (required for authentication)
+#   - DATABASE_URL (optional, defaults to SQLite)
 
 # Run database migrations
 alembic upgrade head
+
+# Create an admin API key
+python scripts/create_admin_key.py
 
 # Start development server
 python run.py
@@ -62,6 +69,56 @@ python training/train.py
 
 See legacy [README](docs/legacy/README.md) for historical documentation.
 
+## Authentication
+
+The API uses API keys for authentication. Include your key in the `X-API-Key` header:
+
+```bash
+curl -H "X-API-Key: ra_live_..." https://api.example.com/health
+```
+
+### Getting Started with Authentication
+
+1. **Create Admin Key**: Use `backend/scripts/create_admin_key.py` to generate your first admin key
+2. **Create Additional Keys**: Use admin endpoints to create keys with different scopes and rate limits
+3. **Use Your Key**: Include it in the `X-API-Key` header for all API requests
+
+### API Key Scopes
+
+- `read`: Read-only access to data endpoints
+- `write`: Data ingestion and modification endpoints
+- `admin`: Full access including key management
+
+### Rate Limits
+
+Rate limits are per-key and configurable by admins:
+
+- **RPM**: Requests per minute
+- **RPH**: Requests per hour  
+- **RPD**: Requests per day
+
+Check your current usage and remaining quota:
+
+```bash
+curl -H "X-API-Key: your_key" https://api.example.com/auth/check
+```
+
+**Response:**
+```json
+{
+  "valid": true,
+  "key_name": "my-app-key",
+  "scopes": ["read"],
+  "rate_limits": {
+    "rpm": {"limit": 60, "remaining": 58, "reset_at": "2026-07-26T18:31:00Z"},
+    "rph": {"limit": 1000, "remaining": 995, "reset_at": "2026-07-26T19:00:00Z"},
+    "rpd": {"limit": 10000, "remaining": 9987, "reset_at": "2026-07-27T00:00:00Z"}
+  }
+}
+```
+
+For detailed authentication documentation, see [docs/AUTHENTICATION.md](docs/AUTHENTICATION.md).
+
 ## Development
 
 ### Running Tests
@@ -70,6 +127,9 @@ See legacy [README](docs/legacy/README.md) for historical documentation.
 # Backend tests
 cd backend
 pytest -v
+
+# With coverage report
+pytest -v --cov=app --cov-report=term-missing
 
 # Legacy ML tests
 pytest tests/ -v
@@ -98,15 +158,29 @@ alembic downgrade -1
 - `GET /` - API information
 - `GET /docs` - Interactive API documentation
 
+### Authentication Endpoints
+
+- `GET /auth/check` - Check API key validity and rate limits
+- `POST /admin/keys` - Create new API key (admin only)
+- `GET /admin/keys` - List API keys (admin only)
+- `PATCH /admin/keys/{key_id}` - Update API key (admin only)
+- `DELETE /admin/keys/{key_id}` - Revoke API key (admin only)
+
 ### Database Schema
 
 The backend uses a flexible schema designed for multiple sensors and ML models:
 
+**Core Data:**
 - **sensors** - Sensor definitions (name, type, unit)
 - **measurements** - Time-series sensor data
 - **models** - ML model metadata
 - **predictions** - Model predictions over time
 - **model_metrics** - Model performance metrics
+
+**Authentication:**
+- **api_keys** - API key definitions with scopes and rate limits
+- **api_request_logs** - Request tracking for rate limiting
+- **admin_audit_logs** - Audit log for administrative actions
 
 See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
 
@@ -118,20 +192,26 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - **Alembic** - Database migrations
 - **Pydantic** - Data validation
 - **SQLite/aiosqlite** - Database (development)
+- **Passlib** - Cryptographic utilities for API key hashing
 
 ### Testing
 - **pytest** - Test framework
 - **pytest-asyncio** - Async test support
+- **pytest-cov** - Coverage reporting
 - **httpx** - HTTP client for testing
 
 ## Documentation
 
 - [Architecture](docs/architecture.md) - System architecture overview
+- [Authentication](docs/AUTHENTICATION.md) - API authentication guide
+- [Development](docs/DEVELOPMENT.md) - Development guidelines
 - [API Documentation](http://localhost:8000/docs) - Interactive API docs (when running)
-- [Contributing](docs/CONTRIBUTING.md) - Development guidelines
+- [Contributing](docs/CONTRIBUTING.md) - Contribution guidelines
 - [Legacy Documentation](docs/legacy/) - Historical ML/analysis docs
 
-## Phase 1: Backend Foundation (Completed)
+## Roadmap
+
+### Phase 1: Backend Foundation ✅ (Completed)
 
 Phase 1 focused on establishing the backend infrastructure:
 
@@ -144,6 +224,24 @@ Phase 1 focused on establishing the backend infrastructure:
 7. ✅ Testing and documentation
 
 See [Phase 1 tracking issue](https://github.com/Kickoman/rain-analysis/issues/223) for details.
+
+### Phase 2: Authentication & API Key Management ✅ (Completed)
+
+Phase 2 implemented secure API access:
+
+1. ✅ API key database models
+2. ✅ Authentication tables migration
+3. ✅ API key generation and validation utilities
+4. ✅ Rate limiting middleware
+5. ✅ Admin endpoints for key management
+6. ✅ Public authentication endpoints
+7. ✅ Documentation and comprehensive testing
+
+See [Phase 2 tracking issue](https://github.com/Kickoman/rain-analysis/issues/225) for details.
+
+### Phase 3: Data Ingestion (Planned)
+
+Next phase will focus on data endpoints and ingestion.
 
 ## Requirements
 

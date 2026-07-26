@@ -1,4 +1,10 @@
 import os
+import sys
+from pathlib import Path
+
+# Add backend directory to path for imports
+backend_dir = Path(__file__).parent.parent
+sys.path.insert(0, str(backend_dir))
 
 # Set test environment variables before any imports
 os.environ["API_KEYS_SALT"] = "test-salt-for-testing"
@@ -9,8 +15,8 @@ import asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from backend.app.database import Base, get_db
-from backend.app.main import app
+from app.database import Base, get_db
+from app.main import app
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -60,7 +66,7 @@ async def client(db_session: AsyncSession, monkeypatch):
     mock_context_manager.__aexit__.return_value = None
     mock_session_maker.return_value = mock_context_manager
     
-    monkeypatch.setattr('backend.app.auth.middleware.AsyncSessionLocal', mock_session_maker)
+    monkeypatch.setattr('app.auth.middleware.AsyncSessionLocal', mock_session_maker)
     
     async with AsyncClient(app=app, base_url="http://test") as ac:
         yield ac

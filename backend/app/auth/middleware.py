@@ -3,11 +3,11 @@
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from backend.app.models.api_key import APIKey
-from backend.app.models.api_request_log import APIRequestLog
-from backend.app.auth.crypto import verify_api_key
-from backend.app.auth.rate_limiter import InMemoryRateLimiter
-from backend.app.database import AsyncSessionLocal
+from app.models.api_key import APIKey
+from app.models.api_request_log import APIRequestLog
+from app.auth.crypto import verify_api_key
+from app.auth.rate_limiter import InMemoryRateLimiter
+from app.database import AsyncSessionLocal
 import logging
 
 logger = logging.getLogger(__name__)
