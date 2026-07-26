@@ -3,7 +3,7 @@
 import pytest
 import asyncio
 from datetime import datetime, timedelta
-from app.auth.rate_limiter import InMemoryRateLimiter
+from backend.app.auth.rate_limiter import InMemoryRateLimiter
 
 
 @pytest.fixture

@@ -7,7 +7,7 @@ from backend.app.models.api_key import APIKey
 from backend.app.models.api_request_log import APIRequestLog
 from backend.app.auth.crypto import verify_api_key
 from backend.app.auth.rate_limiter import InMemoryRateLimiter
-from backend.app.database import async_session_maker
+from backend.app.database import AsyncSessionLocal
 import logging
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,7 @@ async def auth_middleware(request: Request, call_next):
         )
 
     # Verify API key
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         try:
             result = await db.execute(select(APIKey).where(APIKey.is_active == True))
             keys = result.scalars().all()

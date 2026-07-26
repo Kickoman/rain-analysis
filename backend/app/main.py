@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from .config import settings
 from .database import init_db, close_db
 from . import schemas
+from .routers import admin
+from .auth.middleware import auth_middleware
 from datetime import datetime
 import logging
 
@@ -32,6 +34,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register authentication middleware
+app.middleware("http")(auth_middleware)
+
+# Register routers
+app.include_router(admin.router)
 
 @app.get("/health")
 async def health_check():
