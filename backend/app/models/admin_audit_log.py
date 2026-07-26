@@ -1,7 +1,7 @@
 """Admin Audit Log model for tracking administrative actions."""
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, JSON, func
 from sqlalchemy.orm import relationship
-from backend.app.models.base import Base
+from ..database import Base
 
 
 class AdminAuditLog(Base):

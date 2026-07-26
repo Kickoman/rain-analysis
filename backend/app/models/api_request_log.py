@@ -1,7 +1,7 @@
 """API Request Log model for tracking API usage."""
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
-from backend.app.models.base import Base
+from ..database import Base
 
 
 class APIRequestLog(Base):
