@@ -4,11 +4,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
-from backend.app.auth.middleware import auth_middleware, rate_limiter
-from backend.app.auth.crypto import hash_api_key
-from backend.app.models.api_key import APIKey
-from backend.app.models.api_request_log import APIRequestLog
-from backend.app.database import AsyncSessionLocal, Base, engine
+from app.auth.middleware import auth_middleware, rate_limiter
+from app.auth.crypto import hash_api_key
+from app.models.api_key import APIKey
+from app.models.api_request_log import APIRequestLog
+from app.database import AsyncSessionLocal, Base, engine
 import secrets
 
 

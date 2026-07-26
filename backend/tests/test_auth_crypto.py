@@ -1,7 +1,7 @@
 """Unit tests for authentication crypto utilities."""
 
 import pytest
-from backend.app.auth.crypto import generate_api_key, hash_api_key, verify_api_key
+from app.auth.crypto import generate_api_key, hash_api_key, verify_api_key
 
 
 class TestGenerateAPIKey:

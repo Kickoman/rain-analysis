@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from contextlib import asynccontextmanager
 from .config import settings
 from .database import init_db, close_db
@@ -23,9 +24,43 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.app_title,
     version=settings.app_version,
-    description="Rain analysis and prediction API",
+    description="Rain analysis and prediction API with API key authentication",
     lifespan=lifespan
 )
+
+# Custom OpenAPI schema with security definitions
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_schema = get_openapi(
+        title=app.title,
+        version=app.version,
+        description=app.description,
+        routes=app.routes,
+    )
+    
+    # Add security scheme
+    openapi_schema["components"]["securitySchemes"] = {
+        "APIKeyHeader": {
+            "type": "apiKey",
+            "in": "header",
+            "name": "X-API-Key",
+            "description": "API key for authentication. Format: ra_live_..."
+        }
+    }
+    
+    # Apply security to all endpoints except /docs, /openapi.json, /redoc
+    for path, path_item in openapi_schema["paths"].items():
+        if path not in ["/docs", "/openapi.json", "/redoc"]:
+            for operation in path_item.values():
+                if isinstance(operation, dict) and "operationId" in operation:
+                    operation["security"] = [{"APIKeyHeader": []}]
+    
+    app.openapi_schema = openapi_schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
 
 app.add_middleware(
     CORSMiddleware,
@@ -44,6 +79,12 @@ app.include_router(auth.router)
 
 @app.get("/health")
 async def health_check():
+    """
+    Health check endpoint.
+    
+    Returns the API status and version. This endpoint can be used for monitoring
+    and uptime checks.
+    """
     return {
         "status": "healthy",
         "version": settings.app_version
@@ -51,10 +92,17 @@ async def health_check():
 
 @app.get("/")
 async def root():
+    """
+    API root endpoint.
+    
+    Returns basic information about the API including links to documentation.
+    """
     return {
         "message": "Rain Analysis API",
+        "version": settings.app_version,
         "docs": "/docs",
-        "health": "/health"
+        "health": "/health",
+        "authentication": "Include X-API-Key header with your API key"
     }
 
 
