@@ -13,6 +13,12 @@ from .measurement import (
 from .ml_model import MLModelBase, MLModelCreate, MLModelUpdate, MLModelResponse
 from .prediction import PredictionBase, PredictionCreate, PredictionResponse
 from .model_metric import ModelMetricBase, ModelMetricCreate, ModelMetricResponse
+from .api_key import (
+    APIKeyCreate,
+    APIKeyResponse,
+    APIKeyCreateResponse,
+    APIKeyUpdate,
+)
 from .common import PaginatedResponse, ErrorResponse
 
 __all__ = [
@@ -42,6 +48,11 @@ __all__ = [
     "ModelMetricBase",
     "ModelMetricCreate",
     "ModelMetricResponse",
+    # API Key schemas
+    "APIKeyCreate",
+    "APIKeyResponse",
+    "APIKeyCreateResponse",
+    "APIKeyUpdate",
     # Common schemas
     "PaginatedResponse",
     "ErrorResponse",

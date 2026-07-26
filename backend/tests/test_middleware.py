@@ -4,11 +4,11 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
-from app.auth.middleware import auth_middleware, rate_limiter
-from app.auth.crypto import hash_api_key
-from app.models.api_key import APIKey
-from app.models.api_request_log import APIRequestLog
-from app.database import async_session_maker, Base, engine
+from backend.app.auth.middleware import auth_middleware, rate_limiter
+from backend.app.auth.crypto import hash_api_key
+from backend.app.models.api_key import APIKey
+from backend.app.models.api_request_log import APIRequestLog
+from backend.app.database import AsyncSessionLocal, Base, engine
 import secrets
 
 
@@ -47,7 +47,7 @@ async def test_api_key(setup_database):
     raw_key = secrets.token_urlsafe(32)
     key_hash = hash_api_key(raw_key)
     
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         api_key = APIKey(
             name="Test Key",
             key_hash=key_hash,
@@ -123,7 +123,7 @@ async def test_middleware_logs_requests(test_api_key):
         )
     
     # Check that request was logged
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(APIRequestLog).where(APIRequestLog.api_key_id == key_id)
         )
@@ -179,7 +179,7 @@ async def test_middleware_logs_rate_limited_requests(test_api_key):
         await client.get("/test", headers={"X-API-Key": raw_key})
     
     # Check that rate-limited request was logged
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(APIRequestLog)
             .where(APIRequestLog.api_key_id == key_id)
@@ -198,7 +198,7 @@ async def test_middleware_handles_inactive_key(setup_database):
     raw_key = secrets.token_urlsafe(32)
     key_hash = hash_api_key(raw_key)
     
-    async with async_session_maker() as db:
+    async with AsyncSessionLocal() as db:
         api_key = APIKey(
             name="Inactive Key",
             key_hash=key_hash,
