@@ -1,7 +1,7 @@
 """API Key model for authentication and authorization."""
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
 from sqlalchemy.orm import relationship
-from backend.app.models.base import Base
+from ..database import Base
 
 
 class APIKey(Base):
