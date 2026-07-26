@@ -5,6 +5,7 @@ Parses actual model performance (best model name + F1 score) from each
 report to populate the history cards.
 """
 
+import sys
 from pathlib import Path
 import re
 from datetime import datetime
@@ -78,8 +79,9 @@ def _parse_date_from_filename(filename: str) -> tuple:
         try:
             date = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3))).date()
             return (date, True, filename)
-        except ValueError:
-            pass
+        except ValueError as e:
+            print(f"[WARN] Invalid date in filename {filename}: {e}", file=sys.stderr)
+            # Continue processing as non-dated file
     
     return (None, False, filename)
 
