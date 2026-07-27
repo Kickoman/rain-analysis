@@ -20,6 +20,18 @@ from .api_key import (
     APIKeyUpdate,
 )
 from .common import PaginatedResponse, ErrorResponse
+from .ml import (
+    MLModelResponse as MLModelResponseV2,
+    MLModelListResponse,
+    MLModelCreate as MLModelCreateV2,
+    MLModelUpdate as MLModelUpdateV2,
+    CurrentPredictionsResponse,
+    PredictionHistoryResponse,
+    EvaluationRequest,
+    EvaluationResponse,
+    LatestMetricsResponse,
+    MetricsHistoryResponse,
+)
 
 __all__ = [
     # Base mixins
@@ -35,16 +47,16 @@ __all__ = [
     "MeasurementCreate",
     "MeasurementResponse",
     "MeasurementBulkCreate",
-    # ML Model schemas
+    # ML Model schemas (legacy)
     "MLModelBase",
     "MLModelCreate",
     "MLModelUpdate",
     "MLModelResponse",
-    # Prediction schemas
+    # Prediction schemas (legacy)
     "PredictionBase",
     "PredictionCreate",
     "PredictionResponse",
-    # Model Metric schemas
+    # Model Metric schemas (legacy)
     "ModelMetricBase",
     "ModelMetricCreate",
     "ModelMetricResponse",
@@ -56,4 +68,15 @@ __all__ = [
     # Common schemas
     "PaginatedResponse",
     "ErrorResponse",
+    # ML endpoint schemas (new)
+    "MLModelResponseV2",
+    "MLModelListResponse",
+    "MLModelCreateV2",
+    "MLModelUpdateV2",
+    "CurrentPredictionsResponse",
+    "PredictionHistoryResponse",
+    "EvaluationRequest",
+    "EvaluationResponse",
+    "LatestMetricsResponse",
+    "MetricsHistoryResponse",
 ]
