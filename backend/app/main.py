@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from .config import settings
 from .database import init_db, close_db
 from . import schemas
-from .routers import admin, auth
+from .routers import admin, auth, predictions
 from .auth.middleware import auth_middleware
 from datetime import datetime
 import logging
@@ -76,6 +76,7 @@ app.middleware("http")(auth_middleware)
 # Register routers
 app.include_router(admin.router)
 app.include_router(auth.router)
+app.include_router(predictions.router)
 
 @app.get("/health")
 async def health_check():
