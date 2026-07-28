@@ -13,7 +13,7 @@ def test_api_keys_salt_rejects_default_value(monkeypatch):
         del sys.modules['app.config']
     
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-    monkeypatch.setenv("API_KEYS_SALT", "change-me-in-production-use-secrets-token-hex")
+    monkeypatch.setenv("API_KEYS_SALT", "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE")
     
     with pytest.raises(ValidationError) as exc_info:
         from app.config import Settings
@@ -72,5 +72,5 @@ def test_env_example_does_not_contain_insecure_default():
     with open(env_example_path) as f:
         content = f.read()
     
-    assert "change-me-in-production-use-secrets-token-hex" not in content
-    assert "CHANGE_ME" in content or "Generate" in content
+    assert "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE" in content
+    assert "Generate" in content
