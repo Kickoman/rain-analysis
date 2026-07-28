@@ -146,9 +146,9 @@ grid['new'] = different_logic_here()  # ← divergence!
 
 ### When to Update Docs
 
-- New script → new `docs/SCRIPT_NAME.md`
-- New model → update `docs/BASELINE_MODEL.md` or create versioned doc
-- CLI changes → update `docs/CLI_RUNNER.md`
+- New backend/API script → `docs/SCRIPT_NAME.md`, analysis script → `docs_site/SCRIPT_NAME.md`
+- New model → update `docs_site/BASELINE_MODEL.md` or create versioned doc
+- CLI changes → update `docs_site/CLI_RUNNER.md`
 - Data format changes → update relevant fetcher docs
 
 ### Doc Structure
@@ -195,8 +195,8 @@ Common issues and solutions.
 ### Model Versions
 
 When the model changes significantly:
-1. Document the old version: `docs/MODEL_v0.1.md`
-2. Update baseline: `docs/BASELINE_MODEL.md` → current version
+1. Document the old version: `docs_site/MODEL_v0.1.md`
+2. Update baseline: `docs_site/BASELINE_MODEL.md` → current version
 3. Tag in git: `git tag model-v0.2`
 
 ### Breaking Changes

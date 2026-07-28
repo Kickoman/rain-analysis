@@ -180,6 +180,6 @@ Low Threshold (0.2):     Precision ↓↓  Recall ↑↑  (много трево
 
 ## См. также
 
-- [MODELS.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/MODELS.md) — документация моделей и их параметры
+- [MODELS.md](https://github.com/Kickoman/rain-analysis/blob/master/docs_site/MODELS.md) — документация моделей и их параметры
 - [BASELINE_MODEL.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/BASELINE_MODEL.md) — описание baseline-модели для сравнения
 - [daily_analysis_output_format.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/daily_analysis_output_format.md) — формат выходных данных с метриками
