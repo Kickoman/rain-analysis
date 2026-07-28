@@ -16,7 +16,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.database import Base, get_db
-from app.main import app
+from app.main import app as _app
 from unittest.mock import AsyncMock, MagicMock
 
 
@@ -26,6 +26,12 @@ def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
+
+
+@pytest.fixture
+def app():
+    """Provide the FastAPI app instance."""
+    return _app
 
 
 @pytest.fixture
@@ -50,7 +56,7 @@ async def db_session():
 
 
 @pytest.fixture
-async def client(db_session: AsyncSession, monkeypatch):
+async def client(app, db_session: AsyncSession, monkeypatch):
     """Create test client with database override."""
     
     async def override_get_db():

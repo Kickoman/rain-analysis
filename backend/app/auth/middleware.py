@@ -24,8 +24,8 @@ async def auth_middleware(request: Request, call_next):
 
     Checks API key validity, applies rate limits, and logs requests.
     """
-    # Skip auth for health check and docs
-    if request.url.path in ["/health", "/docs", "/openapi.json", "/redoc"]:
+    # Skip auth for health check, liveness/readiness probes, and docs
+    if request.url.path in ["/health", "/health/live", "/health/ready", "/docs", "/openapi.json", "/redoc"]:
         return await call_next(request)
 
     # Extract API key from header
