@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_salt(cls, v: str) -> str:
         """Validate that API_KEYS_SALT is secure and not using default value."""
-        if v == "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE":
+        if v == "change-me-in-production-use-secrets-token-hex":
             raise ValueError(
                 "API_KEYS_SALT must be changed from default value. "
                 "Generate a secure salt with: python -c \"import secrets; print(secrets.token_hex(32))\""
