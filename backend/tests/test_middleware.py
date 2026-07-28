@@ -4,6 +4,8 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
+from unittest.mock import AsyncMock, patch, MagicMock
 from app.auth.middleware import auth_middleware, rate_limiter
 from app.auth.crypto import hash_api_key
 from app.models.api_key import APIKey
@@ -46,11 +48,15 @@ async def test_api_key(setup_database):
     """Create a test API key."""
     raw_key = secrets.token_urlsafe(32)
     key_hash = hash_api_key(raw_key)
+    key_prefix = raw_key[:16]
     
     async with AsyncSessionLocal() as db:
         api_key = APIKey(
-            name="Test Key",
             key_hash=key_hash,
+            key_prefix=key_prefix,
+            owner="test_owner",
+            description="Test API key",
+            scope="read",
             rate_limit_rpm=10,
             rate_limit_rph=100,
             rate_limit_rpd=1000,
@@ -197,11 +203,15 @@ async def test_middleware_handles_inactive_key(setup_database):
     """Test that inactive API keys are rejected."""
     raw_key = secrets.token_urlsafe(32)
     key_hash = hash_api_key(raw_key)
+    key_prefix = raw_key[:16]
     
     async with AsyncSessionLocal() as db:
         api_key = APIKey(
-            name="Inactive Key",
             key_hash=key_hash,
+            key_prefix=key_prefix,
+            owner="test_owner",
+            description="Inactive API key",
+            scope="read",
             is_active=False,  # Inactive
         )
         db.add(api_key)
@@ -214,3 +224,100 @@ async def test_middleware_handles_inactive_key(setup_database):
         )
         assert response.status_code == 401
         assert response.json() == {"detail": "Invalid API key"}
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_operational_error(test_api_key):
+    """Test that OperationalError returns 503 Service Unavailable."""
+    raw_key, key_id = test_api_key
+    
+    # Mock database execute to raise OperationalError
+    with patch('app.auth.middleware.AsyncSessionLocal') as mock_session:
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(side_effect=OperationalError("Connection failed", None, None))
+        mock_session.return_value.__aenter__.return_value = mock_db
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.get(
+                "/test",
+                headers={"X-API-Key": raw_key}
+            )
+            assert response.status_code == 503
+            assert response.json() == {"detail": "Database service unavailable"}
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_sqlalchemy_error(test_api_key):
+    """Test that SQLAlchemyError returns 500 with error type."""
+    raw_key, key_id = test_api_key
+    
+    # Mock database execute to raise generic SQLAlchemyError
+    with patch('app.auth.middleware.AsyncSessionLocal') as mock_session:
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(side_effect=SQLAlchemyError("Database error"))
+        mock_session.return_value.__aenter__.return_value = mock_db
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.get(
+                "/test",
+                headers={"X-API-Key": raw_key}
+            )
+            assert response.status_code == 500
+            assert "Database error" in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_middleware_handles_unexpected_exception(test_api_key):
+    """Test that unexpected exceptions are logged with full traceback."""
+    raw_key, key_id = test_api_key
+    
+    # Mock database execute to raise unexpected exception
+    with patch('app.auth.middleware.AsyncSessionLocal') as mock_session:
+        mock_db = AsyncMock()
+        mock_db.execute = AsyncMock(side_effect=RuntimeError("Unexpected error"))
+        mock_session.return_value.__aenter__.return_value = mock_db
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.get(
+                "/test",
+                headers={"X-API-Key": raw_key}
+            )
+            assert response.status_code == 500
+            assert response.json() == {"detail": "Internal server error"}
+
+
+@pytest.mark.asyncio
+async def test_middleware_continues_on_logging_failure(test_api_key):
+    """Test that request succeeds even if logging fails."""
+    raw_key, key_id = test_api_key
+    
+    # Mock commit to fail (simulating logging failure)
+    with patch('app.auth.middleware.AsyncSessionLocal') as mock_session:
+        mock_db = AsyncMock()
+        
+        # First execute succeeds (for auth check)
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.all.return_value = []
+        
+        # Setup real API key for auth
+        async with AsyncSessionLocal() as real_db:
+            result = await real_db.execute(select(APIKey).where(APIKey.id == key_id))
+            real_key = result.scalars().first()
+            mock_result.scalars.return_value.all.return_value = [real_key]
+        
+        mock_db.execute = AsyncMock(return_value=mock_result)
+        
+        # Commit fails (logging failure)
+        mock_db.commit = AsyncMock(side_effect=OperationalError("Log commit failed", None, None))
+        mock_db.add = MagicMock()
+        
+        mock_session.return_value.__aenter__.return_value = mock_db
+        
+        async with AsyncClient(app=app, base_url="http://test") as client:
+            response = await client.get(
+                "/test",
+                headers={"X-API-Key": raw_key}
+            )
+            # Request should still succeed despite logging failure
+            assert response.status_code == 200
+            assert response.json() == {"message": "success"}
