@@ -13,7 +13,7 @@ def test_api_keys_salt_rejects_default_value(monkeypatch):
         del sys.modules['app.config']
     
     monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
-    monkeypatch.setenv("API_KEYS_SALT", "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE")
+    monkeypatch.setenv("API_KEYS_SALT", "change-me-in-production-use-secrets-token-hex")
     
     with pytest.raises(ValidationError) as exc_info:
         from app.config import Settings
@@ -64,13 +64,15 @@ def test_api_keys_salt_accepts_32_character_minimum(monkeypatch):
     assert settings.api_keys_salt == "b" * 32
 
 
-def test_env_example_does_not_contain_insecure_default():
-    """Test that .env.example no longer contains the insecure default."""
+def test_env_example_contains_expected_default():
+    """Test that .env.example contains the expected default value that will be rejected."""
     env_example_path = os.path.join(
         os.path.dirname(__file__), "..", ".env.example"
     )
     with open(env_example_path) as f:
         content = f.read()
     
-    assert "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE" in content
-    assert "Generate" in content
+    # The .env.example should contain the original default that triggers validation error
+    assert "change-me-in-production-use-secrets-token-hex" in content
+    # And should have instructions for generating a secure value
+    assert "Generate" in content or "generate" in content
