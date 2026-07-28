@@ -1,17 +1,24 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import text
 from .config import settings
-from .database import init_db, close_db
+from .database import init_db, close_db, get_db
 from . import schemas
 from .routers import admin, auth, predictions, models
 from .auth.middleware import auth_middleware
 from datetime import datetime
 import logging
+import time
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
+
+# Track application start time for uptime calculation
+app_start_time = time.time()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,17 +87,81 @@ app.include_router(auth.router)
 app.include_router(predictions.router)
 
 @app.get("/health")
-async def health_check():
+async def health_check(db: AsyncSession = Depends(get_db)):
     """
-    Health check endpoint.
+    Health check endpoint with database connectivity test.
     
-    Returns the API status and version. This endpoint can be used for monitoring
-    and uptime checks.
+    Returns the API status, version, and results of health checks including
+    database connectivity. This endpoint can be used for monitoring, uptime checks,
+    and load balancer health probes.
+    
+    Returns:
+        200 OK if all checks pass
+        503 Service Unavailable if any check fails
     """
+    checks = {
+        "api": "ok",
+        "database": "unknown",
+        "version": settings.app_version,
+        "uptime_seconds": int(time.time() - app_start_time)
+    }
+    
+    # Test database connectivity
+    try:
+        start_time = time.time()
+        await db.execute(text("SELECT 1"))
+        latency_ms = int((time.time() - start_time) * 1000)
+        checks["database"] = "ok"
+        checks["database_latency_ms"] = latency_ms
+    except Exception as e:
+        logger.error(f"Health check database error: {e}")
+        checks["database"] = "error"
+        checks["database_error"] = str(e)
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unhealthy",
+                "checks": checks
+            }
+        )
+    
     return {
         "status": "healthy",
-        "version": settings.app_version
+        "checks": checks
     }
+
+@app.get("/health/live")
+async def liveness_check():
+    """
+    Liveness probe endpoint.
+    
+    Simple check that returns 200 if the process is running.
+    Use this for Kubernetes liveness probes or similar.
+    """
+    return {"status": "alive"}
+
+@app.get("/health/ready")
+async def readiness_check(db: AsyncSession = Depends(get_db)):
+    """
+    Readiness probe endpoint.
+    
+    Comprehensive check that verifies the service can handle traffic.
+    Checks database connectivity and returns 503 if not ready.
+    Use this for Kubernetes readiness probes or load balancer health checks.
+    """
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Readiness check failed: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "not_ready",
+                "reason": "database_unavailable"
+            }
+        )
+    
+    return {"status": "ready"}
 
 @app.get("/")
 async def root():
