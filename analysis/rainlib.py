@@ -21,6 +21,7 @@ Author: built for your HA weather-station project.
 from __future__ import annotations
 
 import json
+import warnings
 import glob
 import math
 from dataclasses import dataclass, field
@@ -797,6 +798,8 @@ PRECIP_COLUMNS = {
 # Yandex state columns that CAN be forward-filled
 # (weather conditions persist between observations)
 # These are NOT precipitation rates — they are observation states
+# This list is not exhaustive — new Yandex API fields are allowed
+# as long as they are not precipitation rates.
 YX_STATE_COLUMNS = {
     'yx_condition', 'yx_is_rain', 'yx_prec_prob',
     'yx_temp', 'yx_humidity', 'yx_feels_like',
@@ -804,7 +807,6 @@ YX_STATE_COLUMNS = {
     'yx_wind_speed', 'yx_wind_dir', 'yx_wind_gust',
     'yx_pressure_pa', 'yx_daytime', 'yx_polar',
     'yx_season', 'yx_obs_time', 'yx_uptime',
-    # Note: Not all columns appear in every dataset
 }
 def build_grid(ha_wide_df: pd.DataFrame | None = None,
                om_df: pd.DataFrame | None = None,
@@ -871,10 +873,18 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
 
     if yx_df is not None and not yx_df.empty:
         # Yandex: all columns are state variables (condition, temp, humidity, etc.)
-        # Validate that we only have known state columns (no unexpected precipitation rates)
+        # Check for precipitation columns (would break ffill logic)
+        yx_precip_cols = [c for c in yx_df.columns if c in PRECIP_COLUMNS]
+        if yx_precip_cols:
+            raise ValueError(
+                f"Yandex data contains precipitation rate columns {yx_precip_cols} "
+                "which cannot be forward-filled. This is likely a data pipeline bug."
+            )
+        
+        # Warn about unknown columns but allow them (future API additions)
         unknown_cols = set(yx_df.columns) - YX_STATE_COLUMNS
         if unknown_cols:
-            raise ValueError(f"Unexpected Yandex columns (not in YX_STATE_COLUMNS): {unknown_cols}")
+            warnings.warn(f"Unknown Yandex columns will be treated as state variables: {unknown_cols}")
         
         yx_r = yx_df.sort_index().reindex(
             yx_df.index.union(grid)
