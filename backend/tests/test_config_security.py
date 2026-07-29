@@ -64,15 +64,17 @@ def test_api_keys_salt_accepts_32_character_minimum(monkeypatch):
     assert settings.api_keys_salt == "b" * 32
 
 
-def test_env_example_contains_expected_default():
-    """Test that .env.example contains the expected default value that will be rejected."""
+def test_env_example_does_not_contain_insecure_default():
+    """Test that .env.example does not contain the insecure default value."""
     env_example_path = os.path.join(
         os.path.dirname(__file__), "..", ".env.example"
     )
     with open(env_example_path) as f:
         content = f.read()
     
-    # The .env.example should contain the original placeholder that triggers validation error
-    assert "change-me-in-production-use-secrets-token-hex" in content
+    # The .env.example should NOT contain the old insecure default
+    assert "change-me-in-production-use-secrets-token-hex" not in content
+    # It should contain a different placeholder that also fails validation
+    assert "CHANGE_ME" in content or "change_me" in content.lower()
     # And should have instructions for generating a secure value
     assert "Generate" in content or "generate" in content
