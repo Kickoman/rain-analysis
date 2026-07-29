@@ -40,12 +40,22 @@ from typing import Optional
 import pandas as pd
 import numpy as np
 
-# Use rainlib — no reinvention
-import rainlib as rl
-from rainlib import ModelParams, ModelContext, MODELS
-
-# Temporal metrics — core functionality
-from rainlib_temporal import sweep_threshold_temporal, recommend_threshold_temporal as _recommend_temporal
+# ---------------------------------------------------------------------------
+# Import rainlib — support both:
+#   python analysis/run_analysis.py        (run from project root)
+#   python run_analysis.py                 (run from analysis/ directory)
+# ---------------------------------------------------------------------------
+try:
+    from analysis import rainlib as rl
+    from analysis.rainlib import ModelParams, ModelContext, MODELS
+    from analysis.rainlib_temporal import sweep_threshold_temporal, recommend_threshold_temporal as _recommend_temporal
+except ImportError:
+    # Fallback: running directly from within the analysis/ directory,
+    # or project root not in sys.path. Add the parent dir and retry.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from analysis import rainlib as rl
+    from analysis.rainlib import ModelParams, ModelContext, MODELS
+    from analysis.rainlib_temporal import sweep_threshold_temporal, recommend_threshold_temporal as _recommend_temporal
 
 
 # ---------------------------------------------------------------------------
