@@ -16,8 +16,8 @@ class Settings(BaseSettings):
     def validate_salt(cls, v: str) -> str:
         """Validate that API_KEYS_SALT is secure and not using default value."""
         insecure_defaults = {
-            "change-me-in-production-use-secrets-token-hex",
-            "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE"
+            "change-me-in-production-use-secrets-token-hex",  # Old default from master
+            "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE"  # New obvious placeholder
         }
         if v in insecure_defaults:
             raise ValueError(
