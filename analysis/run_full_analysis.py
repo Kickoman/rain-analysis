@@ -7,8 +7,9 @@ Collects all data sources and runs analysis in one go:
 1. Fetch Home Assistant sensor history
 2. Download Yandex Weather archive
 3. Fetch Open-Meteo precipitation data
-4. Run analysis with all sources
-5. Display results summary
+4. Fetch Meteostat data
+5. Run analysis with all sources
+6. Display results summary
 
 Usage:
   python run_full_analysis.py --days 7 --output-dir reports/
@@ -109,20 +110,20 @@ def main():
         args.python, "fetch_ha_data.py",
         "--days", str(args.days),
         "--output", str(ha_csv),
-    ], "1/4: Fetching Home Assistant data")
+    ], "1/5: Fetching Home Assistant data")
 
     # Step 2: Yandex Weather
     run_command([
         args.python, "fetch_yandex_archive.py",
         "--output", str(yandex_dir),
-    ], "2/4: Downloading Yandex Weather archive")
+    ], "2/5: Downloading Yandex Weather archive")
 
     # Step 3: Open-Meteo
     om_success = run_command([
         args.python, "fetch_openmeteo.py",
         "--days", str(args.days),
         "--output", str(om_json),
-    ], "3/4: Fetching Open-Meteo data", allow_fail=True)
+    ], "3/5: Fetching Open-Meteo data", allow_fail=True)
 
     # Step 4: Meteostat
     ms_json = data_dir / f"meteostat_{timestamp}.json"
@@ -130,7 +131,7 @@ def main():
         args.python, "fetch_meteostat.py",
         "--days", str(args.days),
         "--output", str(ms_json),
-    ], "4/4: Fetching Meteostat data", allow_fail=True)
+    ], "4/5: Fetching Meteostat data", allow_fail=True)
 
     if not om_success:
         print("\n⚠️  Open-Meteo fetch failed (network timeout?)")
@@ -140,7 +141,7 @@ def main():
         print("\n⚠️  Meteostat fetch failed")
         print("    Analysis will continue without pressure/precip data from Meteostat")
 
-    # Step 4: Run analysis
+    # Step 5: Run analysis
     analysis_cmd = [
         args.python, "run_analysis.py",
         "--ha-csv", str(ha_csv),
@@ -157,9 +158,9 @@ def main():
     if not args.skip_plots:
         analysis_cmd.append("--plots")
 
-    run_command(analysis_cmd, "Running analysis")
+    run_command(analysis_cmd, "5/5: Running analysis")
 
-    # Step 5: Display summary
+    # Step 6: Display summary
     print("\n" + "=" * 70)
     print("ANALYSIS COMPLETE")
     print("=" * 70)
