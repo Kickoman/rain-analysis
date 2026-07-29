@@ -26,6 +26,9 @@ MODEL_DESCRIPTIONS = {
     "combined":           "✅ Fully combined — temp + humidity + pressure signals",
 }
 
+# Models that should not be declared "best" (failed experiments)
+FAILED_MODELS = {"trend_dominant"}
+
 
 def _strip_tags(html: str) -> str:
     """Remove HTML tags for plain-text regex matching."""
@@ -33,11 +36,19 @@ def _strip_tags(html: str) -> str:
 
 
 def _extract_report_meta(html: str) -> dict[str, str | None]:
-    """Parse current/index.html for date and best model info."""
+    """Parse current/index.html for date, best model info, and coverage."""
     text = _strip_tags(html)
 
     # Title: "Daily Model Analysis — YYYY-MM-DD" or "<h1>…"
-    meta: dict[str, str | None] = {"date": None, "best_model": None, "best_f1": None}
+    meta: dict[str, str | None] = {
+        "date": None,
+        "best_model": None,
+        "best_f1": None,
+        "coverage_pct": None,
+        "rain_hours": None,
+        "dry_hours": None,
+        "unknown_hours": None,
+    }
 
     m = re.search(r'Daily Model Analysis[^—]*[—–-]\s*(\d{4}-\d{2}-\d{2})', text)
     if m:
@@ -53,6 +64,22 @@ def _extract_report_meta(html: str) -> dict[str, str | None]:
         )
         if f1_m:
             meta["best_f1"] = f1_m.group(1)
+
+    # Extract ground truth coverage
+    # Pattern: "Ground truth distribution:\n- Rain hours: N (X.X%)\n- Dry hours: M (Y.Y%)\n- Unknown: K (Z.Z%)"
+    rain_m = re.search(r'Rain hours:\s*(\d+)\s*\(([0-9.]+)%\)', text)
+    dry_m = re.search(r'Dry hours:\s*(\d+)\s*\(([0-9.]+)%\)', text)
+    unknown_m = re.search(r'Unknown:\s*(\d+)\s*\(([0-9.]+)%\)', text)
+    
+    if rain_m and dry_m:
+        meta["rain_hours"] = int(rain_m.group(1))
+        meta["dry_hours"] = int(dry_m.group(1))
+        rain_pct = float(rain_m.group(2))
+        dry_pct = float(dry_m.group(2))
+        meta["coverage_pct"] = rain_pct + dry_pct
+    
+    if unknown_m:
+        meta["unknown_hours"] = int(unknown_m.group(1))
 
     return meta
 
@@ -82,6 +109,33 @@ def _detect_models(html: str) -> list[str]:
     return []
 
 
+def _format_best_model_string(meta: dict[str, str | None]) -> str:
+    """Format the 'best model' string with appropriate warnings."""
+    best_model = meta["best_model"] or "N/A"
+    best_f1 = meta["best_f1"]
+    coverage = meta.get("coverage_pct")
+    
+    # Base string
+    if best_f1:
+        result = f"{best_model} (F1: {best_f1})"
+    else:
+        result = best_model
+    
+    # Add warnings
+    warnings = []
+    
+    if best_model in FAILED_MODELS:
+        warnings.append("⚠️ This is a known failed experiment")
+    
+    if coverage is not None and coverage < 10.0:
+        warnings.append(f"⚠️ Low coverage ({coverage:.1f}%) — results may be unreliable")
+    
+    if warnings:
+        result += "<br><small style='color: #ff9800;'>" + " • ".join(warnings) + "</small>"
+    
+    return result
+
+
 def main():
     current_html = Path("current/index.html")
     if not current_html.exists():
@@ -93,7 +147,9 @@ def main():
 
     date = meta["date"] or datetime.utcnow().strftime("%Y-%m-%d")
     best_model = meta["best_model"] or "N/A"
-    best_f1 = meta["best_f1"]
+    
+    # Format best model with warnings
+    best_str = _format_best_model_string(meta)
 
     # Model list (only models that exist in the report)
     models_in_report = _detect_models(html_content)
@@ -108,8 +164,6 @@ def main():
         f'                <li><strong>{m}</strong> — {MODEL_DESCRIPTIONS.get(m, "New model — no description yet")}</li>'
         for m in models_in_report
     )
-
-    best_str = f"{best_model} (F1: {best_f1})" if best_f1 else best_model
 
     landing = f'''<!DOCTYPE html>
 <html lang="en">
@@ -204,7 +258,7 @@ def main():
                 <div class="card">
                     <h3>🔧 CONTRIBUTING.md</h3>
                     <p>Development workflow</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/CONTRIBUTING.md">Read →</a>
+                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/docs/CONTRIBUTING.md">Read →</a>
                 </div>
             </div>
         </section>
@@ -218,7 +272,16 @@ def main():
 </html>'''
 
     Path("index.html").write_text(landing)
-    print(f"✅ Generated landing page — {date}, best: {best_str}")
+    
+    # Log the result with any warnings
+    coverage_str = f"{meta.get('coverage_pct', 0):.1f}%" if meta.get('coverage_pct') is not None else "unknown"
+    print(f"✅ Generated landing page — {date}, best: {meta['best_model']} (coverage: {coverage_str})")
+    
+    if meta.get("best_model") in FAILED_MODELS:
+        print(f"⚠️  WARNING: Best model '{meta['best_model']}' is a known failed experiment")
+    
+    if meta.get("coverage_pct") is not None and meta["coverage_pct"] < 10.0:
+        print(f"⚠️  WARNING: Low coverage ({meta['coverage_pct']:.1f}%) — results may be unreliable")
 
 
 if __name__ == '__main__':
