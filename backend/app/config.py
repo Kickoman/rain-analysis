@@ -3,9 +3,9 @@ from pydantic import field_validator
 from typing import List
 
 class Settings(BaseSettings):
-    database_url: str = "sqlite+aiosqlite:///./rain_analysis.db"
+    database_url: str
     api_keys_salt: str
-    cors_origins: List[str] = ["http://localhost:3000"]
+    cors_origins: List[str] = []
     log_level: str = "INFO"
     app_title: str = "Rain Analysis API"
     app_version: str = "0.1.0"
@@ -15,11 +15,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_salt(cls, v: str) -> str:
         """Validate that API_KEYS_SALT is secure and not using default value."""
-        insecure_defaults = [
-            "change-me-in-production-use-secrets-token-hex",
-            "CHANGE_ME_GENERATE_SECURE_RANDOM_VALUE"
-        ]
-        if v in insecure_defaults:
+        if v == "change-me-in-production-use-secrets-token-hex":
             raise ValueError(
                 "API_KEYS_SALT must be changed from default value. "
                 "Generate a secure salt with: python -c \"import secrets; print(secrets.token_hex(32))\""
