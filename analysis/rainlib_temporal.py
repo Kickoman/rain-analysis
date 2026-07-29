@@ -93,14 +93,19 @@ def confusion_with_windows(
     # Calculate confusion matrix components
     tp = len(matched_truth)  # Rain events we successfully predicted
     fn = len(rain_indices) - tp  # Rain events we missed
-    
+
     # False positives: predictions not matched to any rain event
     all_predictions = set(df.index[yhat == 1])
     fp = len(all_predictions - matched_predictions)
-    
-    # True negatives: hours with no rain and no prediction
-    # (all other hours that aren't TP, FP, or FN)
-    tn = len(df) - tp - fp - fn
+
+    # True negatives: timesteps with no rain AND no prediction.
+    # NOTE: tp and fn are counted in *rain events* (groups of consecutive
+    # rainy timesteps), while fp is counted in *timesteps*.  Mixing them
+    # in the naive formula  tn = len(df) - tp - fp - fn  produces a
+    # meaningless number.  Instead we compute TN purely in timesteps:
+    #   no-rain timesteps  −  false-positive timesteps  = TN timesteps
+    no_rain_timesteps = int((y == 0).sum())
+    tn = no_rain_timesteps - fp
     
     # Calculate metrics
     precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
