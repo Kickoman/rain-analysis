@@ -21,6 +21,7 @@ Author: built for your HA weather-station project.
 from __future__ import annotations
 
 import json
+import warnings
 import glob
 import math
 from dataclasses import dataclass, field
@@ -702,10 +703,14 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
         files = glob.glob(f"{folder_or_glob.rstrip('/')}/**/*.json", recursive=True)
 
     rows = {}
+    skipped = 0
+    
     for f in files:
         try:
-            d = json.load(open(f))
-        except Exception:
+            with open(f) as fh:
+                d = json.load(fh)
+        except (json.JSONDecodeError, OSError):
+            skipped += 1
             continue
         fact = d.get("fact")
         if not fact:
@@ -723,6 +728,13 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
             "yx_wind_speed": fact.get("wind_speed"),
             "yx_is_rain": 1 if "rain" in cond else 0,
         }
+    
+    if skipped > 0:
+        warnings.warn(
+            f"load_yandex_archive: skipped {skipped}/{len(files)} files due to read errors",
+            UserWarning
+        )
+    
     if not rows:
         return pd.DataFrame()
     out = pd.DataFrame.from_dict(rows, orient="index").sort_index()
