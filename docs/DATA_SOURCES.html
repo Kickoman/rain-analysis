@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Sources & Fetching — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        body {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+            margin-top: 1.5em;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.3em;
+        }
+        pre {
+            background: #f6f8fa;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .back-link {
+            margin-bottom: 2em;
+            display: block;
+        }
+        ul, ol {
+            margin: 1em 0;
+        }
+        li {
+            margin: 0.5em 0;
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">← Back to Home</a>
+    <h1>Data Sources & Fetching</h1>
+<br>
+<p>How to obtain all three data sources required for the rain analysis pipeline.</p>
+<br>
+<h2>Overview</h2>
+<br>
+<p>The analysis pipeline needs four data sources aligned on one time grid:</p>
+<br>
+<p>| Source | What | Format | How to get |</p>
+<p>|--------|------|--------|------------|</p>
+<p>| <strong>Home Assistant</strong> | Local sensors (temp, humidity, model output) | CSV | <code>fetch<em>ha</em>data.py</code> |</p>
+<p>| <strong>Open-Meteo</strong> | Ground truth precipitation | JSON | <code>fetch_openmeteo.py</code> |</p>
+<p>| <strong>Meteostat</strong> | Historical weather station data (incl. pressure!) | JSON | <code>fetch_meteostat.py</code> |</p>
+<p>| <strong>Yandex Weather</strong> | Independent weather data for comparison | JSON archive | <code>fetch<em>yandex</em>archive.py</code> |</p>
+<br>
+<h2>1. Home Assistant Data</h2>
+<br>
+<h3>Required Sensors</h3>
+<br>
+<pre><code class="language-">
+sensor.datchik_klimata_temperatura  → outdoor temperature (°C)
+sensor.datchik_klimata_vlazhnost    → outdoor humidity (%)
+sensor.rain_probability             → live model probability (%)
+sensor.filtered_pressure             → barometric pressure (hPa)
+</code></pre>
+<br>
+<h3>Fetch</h3>
+<br>
+<pre><code class="language-bash">
+python fetch_ha_data.py --days 7 --output data/ha.csv
+</code></pre>
+<br>
+<h3>Output Format</h3>
+<br>
+<pre><code class="language-csv">
+entity_id,state,last_changed
+sensor.datchik_klimata_temperatura,17.5,2026-07-05T19:25:05+00:00
+sensor.datchik_klimata_vlazhnost,66,2026-07-05T19:25:05+00:00
+...
+</code></pre>
+<br>
+<p>See <a href="HA<em>DATA</em>FETCHER.md">HA<em>DATA</em>FETCHER.md</a> for full details.</p>
+<br>
+<h2>2. Open-Meteo Data (Ground Truth)</h2>
+<br>
+<h3>Location</h3>
+<br>
+<p>Minsk, Belarus: <strong>53.930716, 27.596646</strong></p>
+<br>
+<h3>API</h3>
+<br>
+<h4>Current + Recent Past (recommended)</h4>
+<br>
+<pre><code class="language-bash">
+python fetch_openmeteo.py \
+    --use-forecast \
+    --days 7 \
+    --output data/openmeteo.json
+</code></pre>
+<br>
+<p>Uses <a href="https://open-meteo.com/en/docs">Open-Meteo Forecast API</a> with <code>past_days</code> parameter.</p>
+<p>Good for: recent data (past 7-92 days).</p>
+<br>
+<h4>Historical Archive</h4>
+<br>
+<pre><code class="language-bash">
+python fetch_openmeteo.py \
+    --start 2026-06-30 \
+    --end 2026-07-06 \
+    --output data/openmeteo.json
+</code></pre>
+<br>
+<p>Uses <a href="https://archive-api.open-meteo.com/v1/archive">Open-Meteo Archive API</a>.</p>
+<p>Good for: older data, exact date ranges.</p>
+<br>
+<p>> <strong>Note:</strong> The <code>--use-forecast</code> flag uses the forecast API which is meant for recent + future data.</p>
+<p>> For historical analysis, use the archive API with <code>--start</code> and <code>--end</code> dates instead.</p>
+<br>
+<h3>Manual Fetch (Curl)</h3>
+<br>
+<pre><code class="language-bash">
+# Forecast API (recent data + future)
+curl "https://api.open-meteo.com/v1/forecast?\
+latitude=53.930716&longitude=27.596646&\
+hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers&\
+timezone=UTC&past_days=7" \
+-o data/openmeteo.json
+
+# Archive API (historical)
+curl "https://archive-api.open-meteo.com/v1/archive?\
+latitude=53.930716&longitude=27.596646&\
+start_date=2026-07-01&end_date=2026-07-07&\
+hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers&\
+timezone=UTC" \
+-o data/openmeteo.json
+</code></pre>
+<br>
+<h3>Output Format</h3>
+<br>
+<pre><code class="language-json">
+{
+  "hourly": {
+    "time": ["2026-07-01T00:00", "2026-07-01T01:00", ...],
+    "temperature_2m": [20.5, 20.1, ...],
+    "relative_humidity_2m": [72, 74, ...],
+    "precipitation": [0.0, 0.0, 0.3, ...],
+    "rain": [0.0, 0.0, 0.3, ...],
+    "showers": [0.0, 0.0, 0.0, ...]
+  },
+  "utc_offset_seconds": 0,
+  ...
+}
+</code></pre>
+<br>
+<p>> <strong>Key field:</strong> <code>precipitation</code> is the hourly total (mm) and serves as ground truth</p>
+<p>> for <code>rain_truth</code> labelling.</p>
+<br>
+<h3>Multiple Files</h3>
+<br>
+<p>You can collect multiple open-meteo responses over time and pass them all:</p>
+<br>
+<pre><code class="language-bash">
+python run_analysis.py \
+    --om-sources data/om_week1.json data/om_week2.json data/om_week3.json \
+    ...
+</code></pre>
+<br>
+<p>Rainlib concatenates them automatically, deduplicating on time.</p>
+<br>
+<h2>3. Meteostat Data (Ground Truth #2 + Pressure)</h2>
+<br>
+<h3>Location</h3>
+<br>
+<p>Station 26850 — Minsk</p>
+<br>
+<h3>Fetch</h3>
+<br>
+<pre><code class="language-bash">
+python fetch_meteostat.py --days 7 --output data/meteostat.json
+</code></pre>
+<br>
+<p>Uses <a href="https://dev.meteostat.net/api/">Meteostat API</a> hourly station data.</p>
+<br>
+<h3>Output Format</h3>
+<br>
+<pre><code class="language-json">
+{
+  "meta": { "station": { "id": "26850" } },
+  "data": [
+    {
+      "time": "2026-07-05 00:00:00",
+      "temp": 14.5,
+      "rhum": 89.0,
+      "prcp": 0.0,
+      "pres": 1007.7,
+      "dwpt": 12.9,
+      "wdir": 320.0,
+      "wspd": 7.0
+    },
+    ...
+  ]
+}
+</code></pre>
+<br>
+<p><strong>Key fields in rainlib:</strong></p>
+<ul>
+<li><code>ms_precip</code> — hourly precipitation (ground truth #2)</li>
+<li><code>ms_pres</code> — atmospheric pressure (for pressure-aware model!)</li>
+<li><code>ms<em>temp</code>, <code>ms</em>rhum</code> — temperature, humidity (cross-check)</li>
+<li><code>ms<em>wspd</code>, <code>ms</em>wdir</code> — wind (future use)</li>
+</ul>
+<br>
+<h3>Why Meteostat?</h3>
+<br>
+<p>Unlike Open-Meteo (reanalysis) and Yandex (spot observations), Meteostat provides:</p>
+<ul>
+<li><strong>Real weather station data</strong> (station 26850 = Minsk)</li>
+<li><strong>Pressure data</strong> — essential for pressure-aware model</li>
+<li><strong>Third vote</strong> — can use majority voting for rain detection</li>
+</ul>
+<br>
+<h2>4. Yandex Weather Data</h2>
+<br>
+<h3>Archive Location</h3>
+<br>
+<p>The Yandex data is collected hourly by a local process and served as an archive:</p>
+<br>
+<pre><code class="language-">
+http://10.8.0.4:7005/weather.tgz
+</code></pre>
+<br>
+<h3>Fetch & Extract</h3>
+<br>
+<pre><code class="language-bash">
+python fetch_yandex_archive.py --output data/yandex/
+</code></pre>
+<br>
+<h3>Archive Structure</h3>
+<br>
+<pre><code class="language-">
+year/month/day/HHMMSS.json
+</code></pre>
+<br>
+<p>Each JSON is a snapshot containing:</p>
+<ul>
+<li><code>now</code> / <code>now_dt</code> — capture time</li>
+<li><code>fact</code> — current weather observation:</li>
+<li><code>temp</code>, <code>feels_like</code>, <code>humidity</code> — basic weather</li>
+<li><code>condition</code> — weather condition (cloudy, rainy, overcast, etc.)</li>
+<li><code>prec<em>prob</code>, <code>prec</em>strength</code> — precipitation data</li>
+<li><code>pressure<em>mm</code>, <code>pressure</em>pa</code> — barometric pressure</li>
+<li><code>wind<em>speed</code>, <code>wind</em>dir</code>, <code>wind_gust</code> — wind data</li>
+<li><code>forecasts</code> — hourly forecast for next ~24 hours</li>
+</ul>
+<br>
+<h3>Example Snapshot</h3>
+<br>
+<pre><code class="language-json">
+{
+  "now": 1783879201,
+  "fact": {
+    "temp": 18,
+    "humidity": 84,
+    "condition": "cloudy",
+    "feels_like": 17,
+    "wind_speed": 3.9,
+    "wind_dir": "nw",
+    "pressure_mm": 740,
+    "prec_prob": 0
+  }
+}
+</code></pre>
+<br>
+<h3>How Rainlib Uses It</h3>
+<br>
+<p>The <code>load<em>yandex</em>archive()</code> function in rainlib.py extracts:</p>
+<ul>
+<li><code>yx<em>temp</code>, <code>yx</em>humidity</code>, <code>yx<em>feels</em>like</code> — temperature/humidity</li>
+<li><code>yx_condition</code> — weather condition string</li>
+<li><code>yx<em>prec</em>prob</code>, <code>yx<em>prec</em>strength</code> — precipitation data</li>
+<li><code>yx<em>pressure</em>mm</code> — barometric pressure (useful for pressure-aware model!)</li>
+<li><code>yx<em>is</em>rain</code> — binary flag (1 if condition contains "rain")</li>
+</ul>
+<br>
+<h2>Pipeline Script (Putting It All Together)</h2>
+<br>
+<pre><code class="language-bash">
+#!/bin/bash
+# collect_all_data.sh — fetch all four sources for analysis
+
+DATE=$(date +%Y-%m-%d)
+OUTDIR="data/${DATE}"
+mkdir -p "${OUTDIR}"
+
+echo "=== 1/4: Home Assistant ==="
+python fetch_ha_data.py \
+    --days 7 \
+    --output "${OUTDIR}/ha.csv" \
+    --quiet
+
+echo "=== 2/4: Open-Meteo ==="
+python fetch_openmeteo.py \
+    --days 7 \
+    --output "${OUTDIR}/openmeteo.json" \
+    --quiet
+
+echo "=== 3/4: Meteostat ==="
+python fetch_meteostat.py \
+    --days 7 \
+    --output "${OUTDIR}/meteostat.json" \
+    --quiet
+
+echo "=== 4/4: Yandex Weather ==="
+python fetch_yandex_archive.py \
+    --output "${OUTDIR}/yandex/" \
+    --quiet
+
+echo "✓ All data collected in ${OUTDIR}/"
+
+echo "=== Running Analysis ==="
+python run_analysis.py \
+    --ha-csv "${OUTDIR}/ha.csv" \
+    --om-sources "${OUTDIR}/openmeteo.json" \
+    --meteostat "${OUTDIR}/meteostat.json" \
+    --yandex-dir "${OUTDIR}/yandex/" \
+    --output "reports/${DATE}.json" \
+    --plots
+</code></pre>
+<br>
+<h2>Troubleshooting</h2>
+<br>
+<h3>HA returns 401</h3>
+<br>
+<ul>
+<li>Token expired or invalid</li>
+<li>Check <code>~/.homeassistant/ha_config.json</code></li>
+<li>Create new long-lived token in HA profile</li>
+</ul>
+<br>
+<h3>Open-Meteo timeout</h3>
+<br>
+<ul>
+<li>Network might be restricted on the analysis machine</li>
+<li>Try curl manually to check connectivity</li>
+<li>Pre-fetch the data on a machine with internet access</li>
+</ul>
+<br>
+<h3>Yandex archive not found</h3>
+<br>
+<ul>
+<li>Check that the hour-process is running: <code>curl -I http://10.8.0.4:7005/</code></li>
+<li>Verify archive URL: <code>curl -s http://10.8.0.4:7005/weather.tgz | tar -tz | head</code></li>
+<li>The archive regenerates hourly; wait for next cycle</li>
+</ul>
+<br>
+<h3>Missing data overlap</h3>
+<br>
+<p>The analysis grid spans the earliest to latest timestamp across all sources.</p>
+<p>If sensors were offline during a period, those columns will be NaN — </p>
+<p>rainlib forward-fills temperature/humidity/pressure columns — precipitation columns are NOT forward-filled (fixed 2026-07-18 to prevent ~80% rain-hour inflation).</p>
+<br>
+</body>
+</html>

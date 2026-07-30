@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baseline Rain Prediction Model (v0.1) — Rain Analysis</title>
+    <link rel="stylesheet" href="../assets/style.css">
+    <style>
+        body {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+            margin-top: 1.5em;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 0.3em;
+        }
+        pre {
+            background: #f6f8fa;
+            border: 1px solid #d1d5da;
+            border-radius: 6px;
+            padding: 16px;
+            overflow-x: auto;
+        }
+        code {
+            background: #f6f8fa;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+        pre code {
+            background: none;
+            padding: 0;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        .back-link {
+            margin-bottom: 2em;
+            display: block;
+        }
+        ul, ol {
+            margin: 1em 0;
+        }
+        li {
+            margin: 0.5em 0;
+        }
+    </style>
+</head>
+<body>
+    <a href="../index.html" class="back-link">← Back to Home</a>
+    <h1>Baseline Rain Prediction Model (v0.1)</h1>
+<br>
+<h2>Обзор</h2>
+<br>
+<p>Текущая модель предсказания дождя (<code>sensor.rain_probability</code>) работает на основе анализа <strong>dew point spread</strong> (разницы между температурой воздуха и точкой росы) и её <strong>динамики во времени</strong>. Модель реализована как template sensor в Home Assistant и выдаёт вероятность дождя в процентах (0-100%).</p>
+<br>
+<p><strong>Дата анализа:</strong> 2026-07-22  </p>
+<p><strong>Версия модели:</strong> Production (model<em>ha</em>live)  </p>
+<p><strong>Источник кода:</strong> <code>rainlib.py</code>, функция <code>model<em>ha</em>live()</code></p>
+<br>
+<p>---</p>
+<br>
+<h2>Физический принцип</h2>
+<br>
+<p>Модель основана на следующем наблюдении:</p>
+<br>
+<p>> <strong>Когда воздух приближается к насыщению влагой (точка росы близка к температуре), вероятность дождя возрастает.</strong></p>
+<br>
+<h3>Основные метрики</h3>
+<br>
+<ol>
+<li><strong>Dew Point Spread (температурный спред)</strong></li>
+</ul>
+<p>   ```</p>
+<p>   spread = temperature - dew_point</p>
+<p>   ```</p>
+<ul>
+<li>Малый spread (< 3°C) → воздух близок к насыщению → высокая вероятность дождя</li>
+<li>Большой spread (> 10°C) → воздух сухой → низкая вероятность дождя</li>
+</ul>
+<br>
+<ol>
+<li><strong>Spread Derivative (тренд)</strong></li>
+</ul>
+<p>   ```</p>
+<p>   spread_deriv = d(spread)/dt  (°C/час)</p>
+<p>   ```</p>
+<ul>
+<li>Отрицательная производная → spread уменьшается → воздух увлажняется → дождь приближается</li>
+<li>Положительная производная → spread растёт → воздух высыхает → дождь маловероятен</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Алгоритм модели</h2>
+<br>
+<p>Модель состоит из трёх компонентов:</p>
+<br>
+<h3>1. Proximity Score (близость к насыщению)</h3>
+<br>
+<pre><code class="language-python">
+proximity = clamp(100 - (spread / proximity_divisor * 100), 0, 100)
+</code></pre>
+<br>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><code>proximity_divisor = 8.0</code> — spread при котором proximity = 0%</li>
+</ul>
+<br>
+<p><strong>Логика:</strong></p>
+<ul>
+<li><code>spread = 0°C</code> → <code>proximity = 100%</code></li>
+<li><code>spread = 8°C</code> → <code>proximity = 0%</code></li>
+<li>Линейная интерполяция между ними</li>
+</ul>
+<br>
+<h3>2. Trend Score (динамика изменения)</h3>
+<br>
+<pre><code class="language-python">
+spread_deriv_3h = derivative(spread, window='3h')
+trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
+</code></pre>
+<br>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><code>trend_gain = 26.7</code> — множитель для производной</li>
+<li><code>trend_floor = -40.0</code> — максимальное вычитание за негативный тренд</li>
+<li><code>trend_ceiling = 40.0</code> — максимальное добавление за позитивный тренд</li>
+<li><code>derivative_window = "3h"</code> — окно для сглаживания производной</li>
+</ul>
+<br>
+<p><strong>Логика:</strong></p>
+<ul>
+<li>Быстрое сужение spread (-1°C/час) → +20 баллов к вероятности</li>
+<li>Быстрое расширение spread (+1°C/час) → -20 баллов</li>
+</ul>
+<br>
+<h3>3. Взвешенная комбинация (без гистерезиса)</h3>
+<br>
+<pre><code class="language-python">
+rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
+</code></pre>
+<br>
+<p><strong>Параметры:</strong></p>
+<ul>
+<li><code>proximity_weight = 0.7</code></li>
+<li><code>trend_weight = 0.7</code></li>
+</ul>
+<br>
+<p><strong>Логика:</strong></p>
+<ul>
+<li>Production модель — stateless (нет гистерезиса)</li>
+<li>Каждый выход зависит только от текущих входных данных</li>
+<li>Для экспериментальной версии с гистерезисом см. <code>model_tuned</code> в MODELS.md</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Источники данных</h2>
+<br>
+<h3>Локальные датчики</h3>
+<ul>
+<li><strong>Температура:</strong> <code>sensor.datchik<em>klimata</em>temperatura</code> (балконный датчик)</li>
+<li><strong>Влажность:</strong> <code>sensor.datchik<em>klimata</em>vlazhnost</code> (балконный датчик)</li>
+<li><strong>Давление:</strong> <code>sensor.filtered_pressure</code> (DIY метеостанция с фильтрацией)</li>
+</ul>
+<br>
+<p>> <strong>Примечание:</strong> Baseline модель (v0.1) использует только температуру и влажность. Для моделей с интеграцией давления см. <a href="MODELS.md">MODELS.md</a> — таблица с pressure-aware вариантами (<code>model<em>pressure</em>aware</code>, <code>model<em>pressure</em>absolute</code>, и др.).</p>
+<br>
+<h3>Внешние источники</h3>
+<ul>
+<li><strong>Yandex Weather:</strong> прогноз погоды (для сравнения)</li>
+<li><strong>Open-Meteo:</strong> ground truth для бэктестинга (осадки)</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Плюсы модели</h2>
+<br>
+<p>✅ <strong>Простота и понятность</strong></p>
+<ul>
+<li>Физически обоснованная модель (dew point spread)</li>
+<li>Легко интерпретируемые параметры</li>
+<li>Не требует машинного обучения</li>
+</ul>
+<br>
+<p>✅ <strong>Работает без давления</strong></p>
+<ul>
+<li>Можно использовать только с температурой и влажностью</li>
+<li>Подходит для минимальной конфигурации датчиков</li>
+</ul>
+<br>
+<p>✅ <strong>Stateless</strong></p>
+<ul>
+<li>Простая, предсказуемая модель без скрытого состояния</li>
+<li>Легко отлаживать и тестировать</li>
+</ul>
+<br>
+<p>✅ <strong>Учёт тренда</strong></p>
+<ul>
+<li>3-часовое окно сглаживает шум</li>
+<li>Ловит <strong>приближение</strong> дождя, а не только текущее состояние</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Минусы модели</h2>
+<br>
+<p>❌ <strong>Не использует давление</strong></p>
+<ul>
+<li>Атмосферное давление — <strong>ключевой предиктор</strong> дождя</li>
+<li>Падение давления часто предшествует дождю за несколько часов</li>
+<li>В проекте есть экспериментальные pressure-aware модели, но baseline v0.1 остаётся без давления для простоты</li>
+</ul>
+<br>
+<p>❌ <strong>Ложные срабатывания в сухие ночи</strong></p>
+<ul>
+<li>Спокойные ночи без ветра → температура падает → spread сужается</li>
+<li>Модель видит это как "приближение дождя"</li>
+<li>Частично решается через <code>dry_ceiling</code>, но недостаточно</li>
+</ul>
+<br>
+<p>❌ <strong>Провал во время дождя</strong></p>
+<ul>
+<li>Сырость во время дождя иногда <strong>снижает</strong> локальную влажность (парадокс)</li>
+<li>Гистерезис помогает, но не полностью решает проблему</li>
+</ul>
+<br>
+<p>❌ <strong>Статические пороги</strong></p>
+<ul>
+<li>Параметры (<code>proximity_divisor = 7.0</code>, etc.) подобраны вручную</li>
+<li>Не адаптируются к сезонным изменениям</li>
+<li>Не учитывают региональную специфику</li>
+</ul>
+<br>
+<p>❌ <strong>Нет учёта внешних факторов</strong></p>
+<ul>
+<li>Ветер (может разогнать облака или наоборот принести дождь)</li>
+<li>Время суток</li>
+<li>Сезонность</li>
+<li>История за последние дни</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Производительность (известные проблемы)</h2>
+<br>
+<p>По данным из README репозитория:</p>
+<br>
+<p>> <strong>"Dry-night false positive"</strong>  </p>
+<p>> Обычные спокойные ночи сужают spread так же сильно, как реальные дождливые ночи → одна только поверхностная влажность не может их разделить. <strong>Это не проблема тюнинга, это отсутствие давления как фичи.</strong></p>
+<br>
+<p>---</p>
+<br>
+<h2>Рекомендации по улучшению</h2>
+<br>
+<h3>Приоритет 1: Интеграция давления</h3>
+<br>
+<p><strong>Статус:</strong> Экспериментальные модели с давлением реализованы в <code>pressure_variants.py</code> (см. <a href="MODELS.md">MODELS.md</a>).</p>
+<br>
+<p><strong>Что было сделано:</strong></p>
+<ul>
+<li>Реализованы 5 вариантов pressure-aware моделей:</li>
+<li><code>model<em>pressure</em>aware</code>: базовая интеграция тренда давления</li>
+<li><code>model<em>pressure</em>absolute</code>: использует и тренд, и абсолютный уровень давления</li>
+<li><code>model<em>pressure</em>long_window</code>: длинные окна (6h/12h) для медленных трендов</li>
+<li><code>model<em>pressure</em>lagged</code>: давление 6 часов назад как предиктор</li>
+<li><code>model<em>pressure</em>combined</code>: комбинация всех подходов выше</li>
+</ul>
+<br>
+<p><strong>Текущие результаты:</strong></p>
+<ul>
+<li>Метрики pressure-aware моделей близки к baseline (F1 ≈ 0.19-0.44)</li>
+<li>Интеграция давления не дала ожидаемого улучшения</li>
+<li>Требуется дальнейший анализ и эксперименты</li>
+</ul>
+<br>
+<h3>Приоритет 2: Адаптивные пороги</h3>
+<br>
+<ul>
+<li>Собрать статистику spread для "дождливых" vs "сухих" ночей</li>
+<li>Сделать <code>proximity_divisor</code> зависимым от времени суток</li>
+<li>Добавить сезонную калибровку</li>
+</ul>
+<br>
+<h3>Приоритет 3: Больше контекста</h3>
+<br>
+<ul>
+<li>История за последние 24-48 часов</li>
+<li>Скорость изменения влажности (не только spread, но и абсолютная влажность)</li>
+<li>Направление и скорость ветра (если датчики появятся)</li>
+</ul>
+<br>
+<h3>Приоритет 4: Машинное обучение</h3>
+<br>
+<ul>
+<li>Обучить модель на исторических данных (есть бэктести��г инфраструктура)</li>
+<li>Логистическая регрессия или градиентный бустинг</li>
+<li>Feature engineering: производные второго порядка, rolling windows, lag features</li>
+</ul>
+<br>
+<p>---</p>
+<br>
+<h2>Заключение</h2>
+<br>
+<p>Baseline модель v0.1 — это <strong>хорошая отправная точка</strong>, основанная на физике и здравом смысле. Она работает удивительно хорошо для модели без давления, но имеет известные ограничения.</p>
+<br>
+<p><strong>Текущее состояние:</strong> Экспериментальные модели с давлением реализованы, но пока не показали значительного улучшения метрик. Интеграция давления остаётся перспективным направлением для дальнейших исследований.</p>
+<br>
+<p>---</p>
+<br>
+<h2>Метаданные</h2>
+<br>
+<ul>
+<li><strong>Автор анализа:</strong> Карасик (AI assistant)</li>
+<li><strong>Последнее обновление:</strong> 2026-07-22</li>
+<li><strong>Репозиторий:</strong> <code>Kickoman/rain-analysis</code></li>
+<li><strong>Home Assistant:</strong> http://10.8.0.4:8123</li>
+</ul>
+<br>
+</body>
+</html>
