@@ -176,6 +176,17 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     # Generate key findings
     findings = []
     
+    # Check for low ground truth coverage (issue #342)
+    meta_7d = results_7d.get('metadata', {})
+    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
+    om_cov = coverage.get('om_coverage_pct', 0) if coverage else 0
+    
+    LOW_COVERAGE_THRESHOLD = 20.0
+    
+    if om_cov < LOW_COVERAGE_THRESHOLD:
+        findings.append(f"⚠️ **WARNING: Low ground truth coverage ({om_cov:.1f}%)** — Model rankings may be unreliable due to insufficient validation data.")
+    
+    
     # Check if best model is consistent across windows
     best_names = [bm[0] for bm in best_models.values()]
     if len(set(best_names)) == 1:
@@ -231,6 +242,12 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
             report += f"- Yandex Weather: {yx_cov:.1f}%\n"
         if ms_cov > 0:
             report += f"- Meteostat: {ms_cov:.1f}%\n"
+        
+        # Add warning if coverage is low (issue #342)
+        if om_cov < LOW_COVERAGE_THRESHOLD:
+            report += f"\n⚠️ **WARNING:** Ground truth coverage below {LOW_COVERAGE_THRESHOLD:.0f}% ({om_cov:.1f}%). "
+            report += "Model rankings may be unreliable. Results should be interpreted with caution.\n"
+        
         
         report += "\n"
     
