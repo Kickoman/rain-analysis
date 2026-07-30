@@ -9,9 +9,9 @@ python-dotenv==1.2.2
 python-multipart==0.0.31
 
 # ML dependencies (required by shared rainlib)
-numpy>=1.24.0
-pandas>=2.0.0
-scikit-learn>=1.3.0
+numpy==1.26.4
+pandas==2.2.0
+scikit-learn==1.4.0
 
 # Testing dependencies
 pytest==9.0.3
