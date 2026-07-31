@@ -78,6 +78,13 @@ cover/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+# SQLite databases (all formats)
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
 
 # Flask stuff:
 instance/
