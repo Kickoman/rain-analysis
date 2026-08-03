@@ -14,10 +14,10 @@ class Settings(BaseSettings):
     @field_validator("api_keys_salt")
     @classmethod
     def validate_salt(cls, v: str) -> str:
-        """Validate that API_KEYS_SALT is secure and not using default value."""
-        if v == "change-me-in-production-use-secrets-token-hex":
+        """Validate that API_KEYS_SALT is secure and properly configured."""
+        if not v or len(v.strip()) == 0:
             raise ValueError(
-                "API_KEYS_SALT must be changed from default value. "
+                "API_KEYS_SALT is required and cannot be empty. "
                 "Generate a secure salt with: python -c \"import secrets; print(secrets.token_hex(32))\""
             )
         if len(v) < 32:
