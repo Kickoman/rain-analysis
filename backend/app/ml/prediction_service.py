@@ -56,7 +56,7 @@ class PredictionService:
         Returns:
             List of MLModel instances with active=True
         """
-        from models.ml import MLModel
+        from ..models.ml import MLModel
         result = await self.db.execute(
             select(MLModel).where(MLModel.active == True)
         )
@@ -73,7 +73,7 @@ class PredictionService:
         Returns:
             MLModel instance or None if not found
         """
-        from models.ml import MLModel
+        from ..models.ml import MLModel
         result = await self.db.execute(
             select(MLModel).where(MLModel.id == model_id)
         )
@@ -134,7 +134,7 @@ class PredictionService:
         Raises:
             ValueError: If model not found or timestamps length mismatch
         """
-        from models.ml import Prediction
+        from ..models.ml import Prediction
         
         if len(features) != len(timestamps):
             raise ValueError(
@@ -193,7 +193,7 @@ class PredictionService:
         Returns:
             List of Prediction objects ordered by timestamp
         """
-        from models.ml import Prediction
+        from ..models.ml import Prediction
         
         query = select(Prediction).where(Prediction.model_id == model_id)
         

@@ -1,8 +1,9 @@
 """Admin endpoints for API key management."""
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
+import threading
 
 from ..database import get_db
 from ..models import APIKey, AdminAuditLog
@@ -279,3 +280,43 @@ async def deactivate_key(
     )
     db.add(audit)
     await db.commit()
+
+
+@router.post("/ml/trigger-daily-task")
+async def trigger_daily_task(
+    admin_key: APIKey = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Manually trigger daily ML task (admin only).
+    
+    Useful for testing the daily task without waiting for the scheduled time.
+    The task runs in a background thread to avoid blocking the request.
+    
+    Args:
+        admin_key: The authenticated admin API key (from dependency)
+        db: Database session
+    
+    Returns:
+        Success message indicating the task was triggered
+    """
+    from ..ml.daily_task import run_daily_task
+    
+    # Run in background thread to avoid blocking
+    thread = threading.Thread(target=run_daily_task, daemon=True)
+    thread.start()
+    
+    # Create audit log entry
+    audit = AdminAuditLog(
+        admin_key_id=admin_key.id,
+        action="trigger_daily_ml_task",
+        target_key_id=None,
+        details={"status": "triggered"}
+    )
+    db.add(audit)
+    await db.commit()
+    
+    return {
+        "message": "Daily ML task triggered successfully",
+        "status": "running_in_background"
+    }
