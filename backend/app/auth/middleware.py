@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from app.models.api_key import APIKey
 from app.models.api_request_log import APIRequestLog
-from app.auth.crypto import verify_api_key
+from app.auth.crypto import hash_api_key
 from app.auth.rate_limiter import InMemoryRateLimiter
 from app.database import AsyncSessionLocal
 import logging
@@ -39,14 +39,17 @@ async def auth_middleware(request: Request, call_next):
     # Verify API key
     async with AsyncSessionLocal() as db:
         try:
-            result = await db.execute(select(APIKey).where(APIKey.is_active == True))
-            keys = result.scalars().all()
+            # Compute hash once - O(1)
+            api_key_hash = hash_api_key(api_key)
 
-            api_key_obj = None
-            for key in keys:
-                if verify_api_key(api_key, key.key_hash):
-                    api_key_obj = key
-                    break
+            # Direct indexed lookup - O(1) instead of loading all keys
+            result = await db.execute(
+                select(APIKey).where(
+                    APIKey.key_hash == api_key_hash,
+                    APIKey.is_active == True
+                )
+            )
+            api_key_obj = result.scalar_one_or_none()
 
             if not api_key_obj:
                 return JSONResponse(
