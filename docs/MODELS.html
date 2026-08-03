@@ -3,241 +3,282 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MODELS.md — Rain Prediction Models — Rain Analysis</title>
-    <link rel="stylesheet" href="../assets/style.css">
+    <title>Rain Analysis Models</title>
     <style>
         body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
             max-width: 900px;
             margin: 0 auto;
             padding: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            line-height: 1.6;
             color: #333;
         }
-        h1, h2, h3, h4 {
-            color: #2c3e50;
-            margin-top: 1.5em;
+        h1, h2, h3 { color: #2c3e50; }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
         }
-        h1 {
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 0.3em;
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px;
+            text-align: left;
         }
-        pre {
-            background: #f6f8fa;
-            border: 1px solid #d1d5da;
-            border-radius: 6px;
-            padding: 16px;
-            overflow-x: auto;
+        th {
+            background-color: #3498db;
+            color: white;
         }
+        tr:nth-child(even) { background-color: #f2f2f2; }
         code {
-            background: #f6f8fa;
+            background-color: #f4f4f4;
             padding: 2px 6px;
             border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 0.9em;
+            font-family: 'Courier New', monospace;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
         }
         pre code {
-            background: none;
+            background-color: transparent;
             padding: 0;
         }
-        a {
-            color: #3498db;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .back-link {
-            margin-bottom: 2em;
-            display: block;
-        }
-        ul, ol {
-            margin: 1em 0;
-        }
-        li {
-            margin: 0.5em 0;
-        }
+        a { color: #3498db; }
+        a:hover { color: #2980b9; }
+        p { margin: 10px 0; }
     </style>
 </head>
 <body>
-    <a href="../index.html" class="back-link">← Back to Home</a>
-    <h1>MODELS.md — Rain Prediction Models</h1>
-<br>
-<p>Complete documentation of all rain prediction models in this analysis framework.</p>
-<br>
-<h2>Model Comparison Table</h2>
-<br>
-<p>| Model | Type | F1 (7d) | Precision | Recall | Status |</p>
-<p>|-------|------|:-------:|:---------:|:------:|--------|</p>
-<p>| <strong>ha_live</strong> | Production | <strong>0.484</strong> | 0.519 | 0.455 | ✅ Best |</p>
-<p>| <strong>original</strong> | Baseline v0.1 | 0.440 | 0.507 | 0.389 | 📊 Reference |</p>
-<p>| <strong>tuned</strong> | Optimized | 0.441 | 0.448 | 0.433 | 🔧 Experimental |</p>
-<p>| <strong>trend_dominant</strong> | Experimental | 0.115 | 0.696 | 0.063 | ❌ Failed |</p>
-<p>| <strong>pressure_aware</strong> | Experimental | 0.440 | 0.507 | 0.389 | 🔧 Testing |</p>
-<p>| <strong>pressure_absolute</strong> | Experimental | 0.190 | 0.165 | 0.226 | 🔧 Testing |</p>
-<p>| <strong>pressure<em>long</em>window</strong> | Experimental | 0.198 | 0.176 | 0.226 | 🔧 Testing |</p>
-<p>| <strong>pressure_lagged</strong> | Experimental | 0.196 | 0.173 | 0.226 | 🔧 Testing |</p>
-<p>| <strong>pressure_combined</strong> | Experimental | 0.194 | 0.170 | 0.226 | 🔧 Testing |</p>
-<p>| <strong>combined</strong> | Experimental | TBD | TBD | TBD | 🔧 Testing |</p>
-<br>
-<p><em>Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h</em></p>
-<br>
-<p>> ⚠️ <strong>Caveat:</strong> These benchmarks predate the 2026-07-18 precipitation forward-fill bugfix. Pre-fix, rain-hour counts were inflated ~80%. Post-fix numbers may differ. See <a href="CHANGELOG.md">CHANGELOG.md</a> for details.</p>
-<br>
-<p>---</p>
-<br>
-<h2>1. Original (Baseline v0.1)</h2>
-<br>
-<p><strong>Status:</strong> Reference baseline  </p>
-<p><strong>Implementation:</strong> <code>sensor.rain_probability</code> in Home Assistant  </p>
-<p><strong>F1:</strong> 0.440 | <strong>Precision:</strong> 0.507 | <strong>Recall:</strong> 0.389</p>
-<br>
-<h3>Algorithm</h3>
-<br>
-<p>Dew-point spread-based detection with trend reinforcement:</p>
-<br>
-<pre><code class="language-python">
+<h1>MODELS.md — Rain Prediction Models</h1><p>Complete documentation of all rain prediction models in this analysis framework.</p><h2>Model Comparison Table</h2><table>
+<thead><tr>
+<th>Model</th>
+<th>Type</th>
+<th>F1 (7d)</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Status</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>ha_live</strong></td>
+<td>Production</td>
+<td><strong>0.484</strong></td>
+<td>0.519</td>
+<td>0.455</td>
+<td>✅ Best</td>
+</tr>
+<tr>
+<td><strong>original</strong></td>
+<td>Baseline v0.1</td>
+<td>0.440</td>
+<td>0.507</td>
+<td>0.389</td>
+<td>📊 Reference</td>
+</tr>
+<tr>
+<td><strong>tuned</strong></td>
+<td>Optimized</td>
+<td>0.441</td>
+<td>0.448</td>
+<td>0.433</td>
+<td>🔧 Experimental</td>
+</tr>
+<tr>
+<td><strong>trend_dominant</strong></td>
+<td>Experimental</td>
+<td>0.115</td>
+<td>0.696</td>
+<td>0.063</td>
+<td>❌ Failed</td>
+</tr>
+<tr>
+<td><strong>pressure_aware</strong></td>
+<td>Experimental</td>
+<td>0.440</td>
+<td>0.507</td>
+<td>0.389</td>
+<td>🔧 Testing</td>
+</tr>
+<tr>
+<td><strong>pressure_absolute</strong></td>
+<td>Experimental</td>
+<td>0.190</td>
+<td>0.165</td>
+<td>0.226</td>
+<td>🔧 Testing</td>
+</tr>
+<tr>
+<td><strong>pressure_long_window</strong></td>
+<td>Experimental</td>
+<td>0.198</td>
+<td>0.176</td>
+<td>0.226</td>
+<td>🔧 Testing</td>
+</tr>
+<tr>
+<td><strong>pressure_lagged</strong></td>
+<td>Experimental</td>
+<td>0.196</td>
+<td>0.173</td>
+<td>0.226</td>
+<td>🔧 Testing</td>
+</tr>
+<tr>
+<td><strong>pressure_combined</strong></td>
+<td>Experimental</td>
+<td>0.194</td>
+<td>0.170</td>
+<td>0.226</td>
+<td>🔧 Testing</td>
+</tr>
+<tr>
+<td><strong>combined</strong></td>
+<td>Experimental</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>TBD</td>
+<td>🔧 Testing</td>
+</tr>
+</tbody></table><p><em>Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h</em></p><p>> ⚠️ <strong>Caveat:</strong> These benchmarks predate the 2026-07-18 precipitation forward-fill bugfix. Pre-fix, rain-hour counts were inflated ~80%. Post-fix numbers may differ. See <a href="CHANGELOG.md">CHANGELOG.md</a> for details.</p><p>---</p><h2>1. Original (Baseline v0.1)</h2><p><strong>Status:</strong> Reference baseline  
+<strong>Implementation:</strong> <code>sensor.rain_probability</code> in Home Assistant  
+<table>
+</tbody></table><h3>Algorithm</h3><p>Dew-point spread-based detection with trend reinforcement:</p><p><code>`</code>python
 spread = temperature - dew_point
-# Proximity: 0°C spread = 100%, 10°C+ spread = 0%
+<h1>Proximity: 0°C spread = 100%, 10°C+ spread = 0%</h1>
 proximity = clamp(100.0 - (spread / proximity_divisor * 100.0), 0, 100)
-# Trend: narrowing spread (negative spread_deriv) boosts score
+<h1>Trend: narrowing spread (negative spread_deriv) boosts score</h1>
 trend_score = clamp(-spread_deriv * trend_gain, -40, 40)
-# Weighted blend (not additive) — both components contribute independently
-rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
-if rain_probability &gt;= threshold:
+<h1>Weighted blend (not additive) — both components contribute independently</h1>
+rain_probability = clamp(proximity <em> 0.7 + trend_score </em> 0.7, 0, 100)
+if rain_probability >= threshold:
     rain_alert = True
-</code></pre>
-<br>
-<p>> <strong>Note:</strong> The original v0.1 model uses hardcoded constants (divisor=10, gain=20,</p>
-<p>> weights=0.7, trend bounds=[-40, 40]) rather than <code>ModelParams</code>. This was fixed</p>
-<p>> in PR #58 to make parameter tuning meaningful. When no params are provided,</p>
-<p>> the v0.1 defaults are used for backward compatibility.</p>
-<br>
-<h3>Parameters</h3>
-<br>
-<p>| Parameter | Value | Purpose |</p>
-<p>|-----------|-------|---------|</p>
-<p>| <code>proximity_divisor</code> | 10 | Spread that maps to 0% proximity (°C) |</p>
-<p>| <code>trend_gain</code> | 20 | Points per °C/h of spread narrowing |</p>
-<p>| <code>trend_bounds</code> | [-40, 40] | Clamp on trend contribution |</p>
-<p>| <code>blend_weights</code> | [0.7, 0.7] | Proximity and trend blend weights |</p>
-<p>| <code>decision_threshold</code> | 50% | Rain/no-rain cutoff |</p>
-<br>
-<h3>How It Works</h3>
-<br>
-<ol>
-<li><strong>Proximity score</strong> — measures how close current conditions are to saturation</li>
-<li>Small spread (T ≈ Td) → high proximity → rain likely</li>
-<li>Large spread (dry air) → low proximity → no rain</li>
-</ul>
-<br>
-<ol>
-<li><strong>Trend reinforcement</strong> — spread narrowing rate (°C/h)</li>
-<li>Spread closing fast (negative <code>spread_deriv</code>) → positive trend score → boosts probability</li>
-<li>Spread widening (positive <code>spread_deriv</code>) → negative trend score → suppresses probability</li>
-<li>Both components clamped: <code>trend_score ∈ [-40, 40]</code>, <code>proximity ∈ [0, 100]</code></li>
-</ul>
-<br>
-<ol>
-<li><strong>Decision</strong> — threshold at 50%</li>
-</ul>
-<br>
-<h3>Strengths</h3>
-<br>
-<ul>
-<li>Simple, interpretable</li>
-<li>No training data required</li>
-<li>Works reasonably well for real rain events</li>
-</ul>
-<br>
-<h3>Weaknesses</h3>
-<br>
-<ul>
-<li><strong>Dry-night false positives</strong> — calm clear nights with falling temperature close the spread just like rain does</li>
-<li><strong>No pressure awareness</strong> — can't distinguish weather system from diurnal cycle</li>
-<li><strong>Low recall (0.389)</strong> — misses 60% of rain events</li>
-</ul>
-<br>
-<h3>Known Issues</h3>
-<br>
-<p>From <code>BASELINE_MODEL.md</code>:</p>
-<br>
-<p>> <em>"Спокойные ночи с падающей температурой закрывают spread точно так же, как и реальные дождливые ночи. Модель не может их отличить, потому что использует только поверхностную влажность."</em></p>
-<br>
-<p><strong>Example false positive:</strong></p>
-<ul>
-<li>23:00 — clear sky, T=18°C, RH=65%, Td=11°C, spread=7°C</li>
-<li>03:00 — still clear, T=12°C, RH=85%, Td=10°C, spread=2°C → <strong>ALERT</strong> ❌</li>
-<li>Reality: no rain, just radiative cooling</li>
-</ul>
-<br>
-<p>---</p>
-<br>
-<h2>2. ha_live (Production Model)</h2>
-<br>
-<p><strong>Status:</strong> ✅ Current production (deployed in Home Assistant)  </p>
-<p><strong>F1:</strong> 0.484 | <strong>Precision:</strong> 0.519 | <strong>Recall:</strong> 0.455</p>
-<br>
-<h3>Algorithm</h3>
-<br>
-<p>Weighted blend of dew-point proximity and trend score:</p>
-<br>
-<pre><code class="language-python">
+<code>`</code></p><p>> <strong>Note:</strong> The original v0.1 model uses hardcoded constants (divisor=10, gain=20,
+> weights=0.7, trend bounds=[-40, 40]) rather than <code>ModelParams</code>. This was fixed
+> in PR #58 to make parameter tuning meaningful. When no params are provided,
+> the v0.1 defaults are used for backward compatibility.</p><h3>Parameters</h3><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>proximity_divisor</code></td>
+<td>10</td>
+<td>Spread that maps to 0% proximity (°C)</td>
+</tr>
+<tr>
+<td><code>trend_gain</code></td>
+<td>20</td>
+<td>Points per °C/h of spread narrowing</td>
+</tr>
+<tr>
+<td><code>trend_bounds</code></td>
+<td>[-40, 40]</td>
+<td>Clamp on trend contribution</td>
+</tr>
+<tr>
+<td><code>blend_weights</code></td>
+<td>[0.7, 0.7]</td>
+<td>Proximity and trend blend weights</td>
+</tr>
+<tr>
+<td><code>decision_threshold</code></td>
+<td>50%</td>
+<td>Rain/no-rain cutoff</td>
+</tr>
+</tbody></table><h3>How It Works</h3><p>1. <strong>Proximity score</strong> — measures how close current conditions are to saturation
+   - Small spread (T ≈ Td) → high proximity → rain likely
+   - Large spread (dry air) → low proximity → no rain
+   
+2. <strong>Trend reinforcement</strong> — spread narrowing rate (°C/h)
+   - Spread closing fast (negative <code>spread_deriv</code>) → positive trend score → boosts probability
+   - Spread widening (positive <code>spread_deriv</code>) → negative trend score → suppresses probability
+   - Both components clamped: <code>trend_score ∈ [-40, 40]</code>, <code>proximity ∈ [0, 100]</code></p><p>3. <strong>Decision</strong> — threshold at 50%</p><h3>Strengths</h3><p>- Simple, interpretable
+- No training data required
+- Works reasonably well for real rain events</p><h3>Weaknesses</h3><p>- <strong>Dry-night false positives</strong> — calm clear nights with falling temperature close the spread just like rain does
+- <strong>No pressure awareness</strong> — can't distinguish weather system from diurnal cycle
+- <strong>Low recall (0.389)</strong> — misses 60% of rain events</p><h3>Known Issues</h3><p>From <code>BASELINE_MODEL.md</code>:</p><p>> <em>"Спокойные ночи с падающей температурой закрывают spread точно так же, как и реальные дождливые ночи. Модель не может их отличить, потому что использует только поверхностную влажность."</em></p><p><strong>Example false positive:</strong>
+- 23:00 — clear sky, T=18°C, RH=65%, Td=11°C, spread=7°C
+- 03:00 — still clear, T=12°C, RH=85%, Td=10°C, spread=2°C → <strong>ALERT</strong> ❌
+- Reality: no rain, just radiative cooling</p><p>---</p><h2>2. ha_live (Production Model)</h2><p><strong>Status:</strong> ✅ Current production (deployed in Home Assistant)  
+<table>
+</tbody></table><h3>Algorithm</h3><p>Weighted blend of dew-point proximity and trend score:</p><p><code>`</code>python
 spread = dew_point_spread  # from sensor.outside_dew_point_spread
-trend = dew_point_spread_trend  # from sensor.outside_dew_point_spread_trend (°C/h)
-
-# Proximity score: 0°C spread = 100, 8°C+ spread = 0
+trend = dew_point_spread_trend  # from sensor.outside_dew_point_spread_trend (°C/h)</p><h1>Proximity score: 0°C spread = 100, 8°C+ spread = 0</h1>
 proximity = 100 - (spread / 8 * 100)
-proximity = clamp(proximity, 0, 100)
-
-# Trend score: narrowing spread (-1.5°C/h or faster) boosts score,
-# widening reduces it. Scaled to ±40 points.
+proximity = clamp(proximity, 0, 100)</p><h1>Trend score: narrowing spread (-1.5°C/h or faster) boosts score,</h1>
+<h1>widening reduces it. Scaled to ±40 points.</h1>
 trend_score = -trend * 26.7
-trend_score = clamp(trend_score, -40, 40)
-
-# Weighted blend
-rain_probability = proximity * 0.7 + trend_score * 0.7
+trend_score = clamp(trend_score, -40, 40)</p><h1>Weighted blend</h1>
+rain_probability = proximity <em> 0.7 + trend_score </em> 0.7
 rain_probability = clamp(rain_probability, 0, 100)
-</code></pre>
-<br>
-<h3>Parameters</h3>
-<br>
-<p>| Parameter | Value | Purpose |</p>
-<p>|-----------|-------|---------|</p>
-<p>| <code>proximity_divisor</code> | 8 | Spread normalization (°C) |</p>
-<p>| <code>trend_multiplier</code> | 26.7 | Maps trend to ±40 point range |</p>
-<p>| <code>proximity_weight</code> | 0.7 | Proximity contribution |</p>
-<p>| <code>trend_weight</code> | 0.7 | Trend contribution |</p>
-<br>
-<h3>Production Implementation</h3>
-<br>
-<p><strong>Template Sensor:</strong></p>
-<br>
-<pre><code class="language-jinja">
-{% set spread = states('sensor.outside_dew_point_spread') | float(10) %}
-{% set trend = states('sensor.outside_dew_point_spread_trend') | float(0) %}
-
-{# Proximity score: 0°C spread = 100, 8°C+ spread = 0 #}
-{% set proximity = (100 - (spread / 8 * 100)) | round(0) %}
-{% set proximity = [proximity, 0] | max %}
-{% set proximity = [proximity, 100] | min %}
-
-{# Trend score: narrowing fast (-1.5°C/h or more) boosts score,
+<code>`</code></p><h3>Parameters</h3><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>proximity_divisor</code></td>
+<td>8</td>
+<td>Spread normalization (°C)</td>
+</tr>
+<tr>
+<td><code>trend_multiplier</code></td>
+<td>26.7</td>
+<td>Maps trend to ±40 point range</td>
+</tr>
+<tr>
+<td><code>proximity_weight</code></td>
+<td>0.7</td>
+<td>Proximity contribution</td>
+</tr>
+<tr>
+<td><code>trend_weight</code></td>
+<td>0.7</td>
+<td>Trend contribution</td>
+</tr>
+</tbody></table><h3>Production Implementation</h3><p><strong>Template Sensor:</strong></p><p><code>`</code>jinja
+<table>
+<tr>
+<td>{% set trend = states('sensor.outside_dew_point_spread_trend')</td>
+<td>float(0) %}</td>
+</tr>
+</tbody></table><p>{# Proximity score: 0°C spread = 100, 8°C+ spread = 0 #}
+<table>
+<tr>
+<td>{% set proximity = [proximity, 0]</td>
+<td>max %}</td>
+</tr>
+<tr>
+<td>{% set proximity = [proximity, 100]</td>
+<td>min %}</td>
+</tr>
+</tbody></table><p>{# Trend score: narrowing fast (-1.5°C/h or more) boosts score,
    widening reduces it. Scaled to +/-40 points. #}
-{% set trend_score = (-trend * 26.7) | round(0) %}
-{% set trend_score = [trend_score, -40] | max %}
-{% set trend_score = [trend_score, 40] | min %}
-
-{# Weighted blend: proximity matters more than trend #}
-{% set total = (proximity * 0.7) + (trend_score * 0.7) %}
-{% set total = [total, 0] | max %}
-{% set total = [total, 100] | min %}
-{{ total | round(0) }}
-</code></pre>
-<br>
-<p><strong>Automation:</strong></p>
-<br>
-<pre><code class="language-yaml">
+<table>
+<tr>
+<td>{% set trend_score = [trend_score, -40]</td>
+<td>max %}</td>
+</tr>
+<tr>
+<td>{% set trend_score = [trend_score, 40]</td>
+<td>min %}</td>
+</tr>
+</tbody></table><p>{# Weighted blend: proximity matters more than trend #}
+{% set total = (proximity <em> 0.7) + (trend_score </em> 0.7) %}
+<table>
+<tr>
+<td>{% set total = [total, 100]</td>
+<td>min %}</td>
+</tr>
+<tr>
+<td>{{ total</td>
+<td>round(0) }}</td>
+</tr>
+</tbody></table>
+<code>`</code></p><p><strong>Automation:</strong></p><p><code>`</code>yaml
 alias: Possible rain notification
 triggers:
   - trigger: numeric_state
@@ -253,467 +294,321 @@ actions:
   - action: telegram_bot.send_message
     data:
       entity_id: notify.telegram_bot_kastus
-      message: &gt;-
+      message: >-
         🌧️ Chutka mažlivy doždž!
         
         Roznaść pamiž temperaturaj pavietra i punktam rasy ŭžo
         {{ states('sensor.outside_dew_point_spread') }}°C i zvužvajecca z
         chutkaściu {{ states('sensor.outside_dew_point_spread_trend') }}°C/h.
 mode: single
-</code></pre>
-<br>
-<p><strong>Trigger:</strong> Dew point spread < 4°C for 5+ minutes AND narrowing faster than -0.5°C/h</p>
-<br>
-<p><strong>Sensors Used:</strong></p>
-<ul>
-<li><code>sensor.outside<em>dew</em>point_spread</code> — temperature minus dew point (°C)</li>
-<li><code>sensor.outside<em>dew</em>point<em>spread</em>trend</code> — 1-hour rate of change (°C/h)</li>
-</ul>
-<br>
-<p><strong>Note:</strong> <code>sensor.pressure<em>rain</em>score</code> exists but is currently unused (for testing/experimentation only).</p>
-<br>
-<h3>How It Works</h3>
-<br>
-<p><strong>Proximity score</strong> measures saturation:</p>
-<ul>
-<li>spread = 0°C (100% RH) → proximity = 100</li>
-<li>spread = 8°C → proximity = 0</li>
-<li>Linear interpolation between</li>
-</ul>
-<br>
-<p><strong>Trend score</strong> detects approaching weather systems:</p>
-<ul>
-<li>Narrowing at -1.5°C/h → +40 points</li>
-<li>Widening at +1.5°C/h → -40 points</li>
-<li>No change → 0 points</li>
-</ul>
-<br>
-<p><strong>Weighted sum:</strong> Both components weighted at 0.7 (yes, this means effective max is 140 before clamping, but result is always clamped to 0-100).</p>
-<br>
-<h3>Improvements Over Original</h3>
-<br>
-<p>✅ <strong>+10% F1</strong> (0.440 → 0.484)  </p>
-<p>✅ <strong>+17% recall</strong> (0.389 → 0.455) — catches more rain  </p>
-<p>✅ <strong>+2% precision</strong> (0.507 → 0.519) — slightly fewer false positives</p>
-<br>
-<h3>Remaining Issues</h3>
-<br>
-<p>Still suffers from dry-night false positives — <strong>precision 0.519</strong> means <strong>48% of alerts are still false</strong>.</p>
-<br>
-<p>The tighter spread threshold (8°C vs 10°C) and trend contribution help, but don't fully distinguish between:</p>
-<ul>
-<li><strong>Real rain:</strong> weather system with falling pressure + closed spread</li>
-<li><strong>Dry night:</strong> radiative cooling with stable pressure + closed spread</li>
-</ul>
-<br>
-<p>Next step: add pressure awareness (see <code>pressure_aware</code> model below).</p>
-<br>
-<p>---</p>
-<br>
-<h2>3. Tuned (Grid-Search Optimized)</h2>
-<br>
-<p><strong>Status:</strong> 🔧 Experimental  </p>
-<p><strong>F1:</strong> 0.441 | <strong>Precision:</strong> 0.448 | <strong>Recall:</strong> 0.433</p>
-<br>
-<h3>Algorithm</h3>
-<br>
-<p>Same structure as <code>model_tuned()</code> in <code>rainlib.py</code> — stateful model with hysteresis and dryness ceiling. Uses <code>ModelParams</code> defaults.</p>
-<br>
-<h3>Actual Parameters (from <code>ModelParams</code> defaults)</h3>
-<br>
-<p>| Parameter | Value | Purpose |</p>
-<p>|-----------|:------|---------|</p>
-<p>| <code>proximity_divisor</code> | 7.0 | Spread that maps to 0% proximity (°C) |</p>
-<p>| <code>hysteresis_decay</code> | 0.30 | Decay rate toward new lower value |</p>
-<p>| <code>trend_gain</code> | 20.0 | Points per °C/h of spread narrowing |</p>
-<p>| <code>trend_floor</code> | -15.0 | Max suppression from widening spread |</p>
-<p>| <code>trend_ceiling</code> | 30.0 | Max boost from narrowing spread |</p>
-<p>| <code>proximity_weight</code> | 0.8 | Proximity contribution weight |</p>
-<p>| <code>trend_weight</code> | 0.5 | Trend contribution weight |</p>
-<p>| <code>dry<em>spread</em>cutoff</code> | 10.0 | Above this spread, cap output |</p>
-<p>| <code>dry_ceiling</code> | 40.0 | Maximum score when spread > cutoff |</p>
-<br>
-<h3>Implementation Notes</h3>
-<br>
-<p>The actual <code>model_tuned()</code> function in <code>rainlib.py</code> uses <code>ModelParams()</code> defaults, <strong>not</strong> grid-search-optimized values. The name "tuned" is historical.</p>
-<br>
-<p>For details on grid search experiments (which found marginal improvements but were not deployed due to overfitting risk), see analysis notebooks.</p>
-<br>
-<h3>Why Not Deployed?</h3>
-<br>
-<ul>
-<li><strong>Overfitting risk</strong> — optimized on same 7-day window used for testing</li>
-<li><strong>Marginal gain</strong> — F1 improvement over <code>ha_live</code> was tiny</li>
-<li><strong>Lower precision</strong> — 0.448 vs 0.519 (more false positives)</li>
-</ul>
-<br>
-<p>Kept as reference for parameter sensitivity analysis.</p>
-<br>
-<p>---</p>
-<br>
-<h2>4. trend_dominant (Failed Experiment)</h2>
-<br>
-<p><strong>Status:</strong> ❌ Failed  </p>
-<p><strong>F1:</strong> 0.115 | <strong>Precision:</strong> 0.696 | <strong>Recall:</strong> 0.063</p>
-<br>
-<h3>Algorithm</h3>
-<br>
-<p><strong>Trend-only model</strong> gated by dry-spread ceiling, with stateful hysteresis. Does <strong>not</strong> use proximity as a weighted term — only as a gate.</p>
-<br>
-<pre><code class="language-python">
-# Actual implementation from rainlib.py::model_trend_dominant
+<code>`</code></p><p><strong>Trigger:</strong> Dew point spread < 4°C for 5+ minutes AND narrowing faster than -0.5°C/h</p><p><strong>Sensors Used:</strong>
+- <code>sensor.outside_dew_point_spread</code> — temperature minus dew point (°C)
+- <code>sensor.outside_dew_point_spread_trend</code> — 1-hour rate of change (°C/h)</p><p><strong>Note:</strong> <code>sensor.pressure_rain_score</code> exists but is currently unused (for testing/experimentation only).</p><h3>How It Works</h3><p><strong>Proximity score</strong> measures saturation:
+- spread = 0°C (100% RH) → proximity = 100
+- spread = 8°C → proximity = 0
+- Linear interpolation between</p><p><strong>Trend score</strong> detects approaching weather systems:
+- Narrowing at -1.5°C/h → +40 points
+- Widening at +1.5°C/h → -40 points
+- No change → 0 points</p><p><strong>Weighted sum:</strong> Both components weighted at 0.7 (yes, this means effective max is 140 before clamping, but result is always clamped to 0-100).</p><h3>Improvements Over Original</h3><p>✅ <strong>+10% F1</strong> (0.440 → 0.484)  
+✅ <strong>+17% recall</strong> (0.389 → 0.455) — catches more rain  
+✅ <strong>+2% precision</strong> (0.507 → 0.519) — slightly fewer false positives</p><h3>Remaining Issues</h3><p>Still suffers from dry-night false positives — <strong>precision 0.519</strong> means <strong>48% of alerts are still false</strong>.</p><p>The tighter spread threshold (8°C vs 10°C) and trend contribution help, but don't fully distinguish between:
+- <strong>Real rain:</strong> weather system with falling pressure + closed spread
+- <strong>Dry night:</strong> radiative cooling with stable pressure + closed spread</p><p>Next step: add pressure awareness (see <code>pressure_aware</code> model below).</p><p>---</p><h2>3. Tuned (Grid-Search Optimized)</h2><p><strong>Status:</strong> 🔧 Experimental  
+<table>
+</tbody></table><h3>Algorithm</h3><p>Same structure as <code>model_tuned()</code> in <code>rainlib.py</code> — stateful model with hysteresis and dryness ceiling. Uses <code>ModelParams</code> defaults.</p><h3>Actual Parameters (from <code>ModelParams</code> defaults)</h3><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>proximity_divisor</code></td>
+<td>7.0</td>
+<td>Spread that maps to 0% proximity (°C)</td>
+</tr>
+<tr>
+<td><code>hysteresis_decay</code></td>
+<td>0.30</td>
+<td>Decay rate toward new lower value</td>
+</tr>
+<tr>
+<td><code>trend_gain</code></td>
+<td>20.0</td>
+<td>Points per °C/h of spread narrowing</td>
+</tr>
+<tr>
+<td><code>trend_floor</code></td>
+<td>-15.0</td>
+<td>Max suppression from widening spread</td>
+</tr>
+<tr>
+<td><code>trend_ceiling</code></td>
+<td>30.0</td>
+<td>Max boost from narrowing spread</td>
+</tr>
+<tr>
+<td><code>proximity_weight</code></td>
+<td>0.8</td>
+<td>Proximity contribution weight</td>
+</tr>
+<tr>
+<td><code>trend_weight</code></td>
+<td>0.5</td>
+<td>Trend contribution weight</td>
+</tr>
+<tr>
+<td><code>dry_spread_cutoff</code></td>
+<td>10.0</td>
+<td>Above this spread, cap output</td>
+</tr>
+<tr>
+<td><code>dry_ceiling</code></td>
+<td>40.0</td>
+<td>Maximum score when spread > cutoff</td>
+</tr>
+</tbody></table><h3>Implementation Notes</h3><p>The actual <code>model_tuned()</code> function in <code>rainlib.py</code> uses <code>ModelParams()</code> defaults, <strong>not</strong> grid-search-optimized values. The name "tuned" is historical.</p><p>For details on grid search experiments (which found marginal improvements but were not deployed due to overfitting risk), see analysis notebooks.</p><h3>Why Not Deployed?</h3><p>- <strong>Overfitting risk</strong> — optimized on same 7-day window used for testing
+- <strong>Marginal gain</strong> — F1 improvement over <code>ha_live</code> was tiny
+- <strong>Lower precision</strong> — 0.448 vs 0.519 (more false positives)</p><p>Kept as reference for parameter sensitivity analysis.</p><p>---</p><h2>4. trend_dominant (Failed Experiment)</h2><p><strong>Status:</strong> ❌ Failed  
+<table>
+</tbody></table><h3>Algorithm</h3><p><strong>Trend-only model</strong> gated by dry-spread ceiling, with stateful hysteresis. Does <strong>not</strong> use proximity as a weighted term — only as a gate.</p><p><code>`</code>python
+<h1>Actual implementation from rainlib.py::model_trend_dominant</h1>
 spread = dew_point_spread
-deriv = spread_derivative  # °C/h
-
-# Trend score (boosted gain: 1.5× normal)
-trend_score = clamp(-deriv * trend_gain * 1.5, -20.0, 100.0)
-
-# Dryness gate: if spread &gt; dry_spread_cutoff, cap output
-if spread &lt; dry_spread_cutoff:
+deriv = spread_derivative  # °C/h</p><h1>Trend score (boosted gain: 1.5× normal)</h1>
+trend_score = clamp(-deriv <em> trend_gain </em> 1.5, -20.0, 100.0)</p><h1>Dryness gate: if spread > dry_spread_cutoff, cap output</h1>
+if spread < dry_spread_cutoff:
     ceiling = 100.0  # no limit
 else:
-    ceiling = dry_ceiling  # cap at ~40
-
-# Apply ceiling
-raw_score = min(trend_score, ceiling)
-
-# Hysteresis: score rises instantly, decays slowly
+    ceiling = dry_ceiling  # cap at ~40</p><h1>Apply ceiling</h1>
+raw_score = min(trend_score, ceiling)</p><h1>Hysteresis: score rises instantly, decays slowly</h1>
 result = hysteretic_decay(raw_score, previous_score, decay=hysteresis_decay)
-</code></pre>
-<br>
-<h3>Key Difference from Documentation</h3>
-<br>
-<p><strong>Old (incorrect) doc claimed:</strong></p>
-<pre><code class="language-python">
-rain_probability = trend * 0.7 + proximity * 0.3  # ❌ NOT what code does
-</code></pre>
-<br>
-<p><strong>Actual logic:</strong></p>
-<ul>
-<li>Trend is the <strong>only</strong> signal</li>
-<li>Proximity acts as a <strong>ceiling gate</strong>, not a weighted term</li>
-<li>When spread is high (dry), trend score is capped at <code>dry_ceiling</code> (~40)</li>
-<li>When spread is low (humid), trend score can reach 100</li>
-</ul>
-<br>
-<h3>Parameters</h3>
-<br>
-<p>| Parameter | Default | Used Value | Purpose |</p>
-<p>|-----------|:-------:|:----------:|---------|</p>
-<p>| <code>trend_gain</code> | 20.0 | <strong>30.0</strong> (1.5×) | Amplified trend sensitivity |</p>
-<p>| <code>trend_bounds</code> | [-15, 30] | <strong>[-20, 100]</strong> | Wider range for trend-only model |</p>
-<p>| <code>dry<em>spread</em>cutoff</code> | 10.0 | 10.0 | Spread above which ceiling applies |</p>
-<p>| <code>dry_ceiling</code> | 40.0 | 40.0 | Max score when spread > cutoff |</p>
-<p>| <code>hysteresis_decay</code> | 0.30 | 0.30 | Decay rate (0 = frozen, 1 = no memory) |</p>
-<br>
-<h3>Hypothesis (Rejected)</h3>
-<br>
-<p><em>"Humidity trend derivative is a stronger rain signal than absolute proximity."</em></p>
-<br>
-<h3>Results</h3>
-<br>
-<ul>
-<li><strong>Recall 0.063</strong> — misses 94% of rain events</li>
-<li><strong>Precision 0.696</strong> — when it does alert, it's usually right (but rarely alerts)</li>
-<li><strong>F1 0.115</strong> — worst of all models</li>
-</ul>
-<br>
-<h3>Why It Failed</h3>
-<br>
-<ol>
-<li><strong>Trend derivative is too noisy</strong> — responds to:</li>
-<li>Sensor drift</li>
-<li>Normal diurnal variation</li>
-<li>Indoor activity (windows open, cooking)</li>
-<li>Short-term weather fluctuations (not just rain)</li>
-</ul>
-<br>
-<ol>
-<li><strong>No absolute humidity anchor</strong> — can't distinguish:</li>
-<li>Rain approach (high humidity + narrowing spread)</li>
-<li>Dry cold front (low humidity + narrowing spread)</li>
-</ul>
-<br>
-<ol>
-<li><strong>Over-conservative gating</strong> — dry ceiling suppresses most alerts</li>
-</ul>
-<br>
-<h3>Lesson Learned</h3>
-<br>
-<p>✅ <strong>Dew-point proximity is the core signal</strong>  </p>
-<p>✅ <strong>Trend is a useful reinforcement, not a standalone predictor</strong>  </p>
-<p>❌ <strong>Trend-only models are too noisy and miss most events</strong></p>
-<br>
-<p>---</p>
-<br>
-<h2>Model Selection Guide</h2>
-<br>
-<p>| Use Case | Recommended Model |</p>
-<p>|----------|-------------------|</p>
-<p>| <strong>Production deployment</strong> | <code>ha_live</code> — best balance |</p>
-<p>| <strong>Baseline comparison</strong> | <code>original</code> — reference point |</p>
-<p>| <strong>Parameter research</strong> | <code>tuned</code> — sensitivity analysis |</p>
-<p>| <strong>What not to do</strong> | <code>trend_dominant</code> — failed approach |</p>
-<br>
-<p>---</p>
-<br>
-<h2>Pressure-Aware Models (✅ Implemented)</h2>
-<br>
-<h3>5. pressure_aware (Baseline Pressure Model)</h3>
-<br>
-<p><strong>Status:</strong> ✅ Implemented  </p>
-<p><strong>Implementation:</strong> <code>rainlib.py::model<em>pressure</em>aware</code>  </p>
-<p><strong>Goal:</strong> Add barometric pressure to eliminate dry-night false positives</p>
-<br>
-<h4>Algorithm</h4>
-<br>
-<p>Adds atmospheric pressure tendency as a third predictive factor:</p>
-<ul>
-<li><strong>Falling pressure</strong> → approaching cyclone/storm → boosts rain probability</li>
-<li><strong>Rising pressure</strong> → clearing weather → suppresses rain probability</li>
-<li><strong>Stable pressure</strong> → no pressure signal → behaves like tuned model</li>
-</ul>
-<br>
-<pre><code class="language-python">
+<code>`</code></p><h3>Key Difference from Documentation</h3><p><strong>Old (incorrect) doc claimed:</strong>
+<code>`</code>python
+rain_probability = trend <em> 0.7 + proximity </em> 0.3  # ❌ NOT what code does
+<code>`</code></p><p><strong>Actual logic:</strong>
+- Trend is the <strong>only</strong> signal
+- Proximity acts as a <strong>ceiling gate</strong>, not a weighted term
+- When spread is high (dry), trend score is capped at <code>dry_ceiling</code> (~40)
+- When spread is low (humid), trend score can reach 100</p><h3>Parameters</h3><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>Used Value</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>trend_gain</code></td>
+<td>20.0</td>
+<td><strong>30.0</strong> (1.5×)</td>
+<td>Amplified trend sensitivity</td>
+</tr>
+<tr>
+<td><code>trend_bounds</code></td>
+<td>[-15, 30]</td>
+<td><strong>[-20, 100]</strong></td>
+<td>Wider range for trend-only model</td>
+</tr>
+<tr>
+<td><code>dry_spread_cutoff</code></td>
+<td>10.0</td>
+<td>10.0</td>
+<td>Spread above which ceiling applies</td>
+</tr>
+<tr>
+<td><code>dry_ceiling</code></td>
+<td>40.0</td>
+<td>40.0</td>
+<td>Max score when spread > cutoff</td>
+</tr>
+<tr>
+<td><code>hysteresis_decay</code></td>
+<td>0.30</td>
+<td>0.30</td>
+<td>Decay rate (0 = frozen, 1 = no memory)</td>
+</tr>
+</tbody></table><h3>Hypothesis (Rejected)</h3><p><em>"Humidity trend derivative is a stronger rain signal than absolute proximity."</em></p><h3>Results</h3><p>- <strong>Recall 0.063</strong> — misses 94% of rain events
+- <strong>Precision 0.696</strong> — when it does alert, it's usually right (but rarely alerts)
+- <strong>F1 0.115</strong> — worst of all models</p><h3>Why It Failed</h3><p>1. <strong>Trend derivative is too noisy</strong> — responds to:
+   - Sensor drift
+   - Normal diurnal variation
+   - Indoor activity (windows open, cooking)
+   - Short-term weather fluctuations (not just rain)</p><p>2. <strong>No absolute humidity anchor</strong> — can't distinguish:
+   - Rain approach (high humidity + narrowing spread)
+   - Dry cold front (low humidity + narrowing spread)</p><p>3. <strong>Over-conservative gating</strong> — dry ceiling suppresses most alerts</p><h3>Lesson Learned</h3><p>✅ <strong>Dew-point proximity is the core signal</strong>  
+✅ <strong>Trend is a useful reinforcement, not a standalone predictor</strong>  
+❌ <strong>Trend-only models are too noisy and miss most events</strong></p><p>---</p><h2>Model Selection Guide</h2><table>
+<thead><tr>
+<th>Use Case</th>
+<th>Recommended Model</th>
+</tr></thead><tbody>
+<tr>
+<td><strong>Production deployment</strong></td>
+<td><code>ha_live</code> — best balance</td>
+</tr>
+<tr>
+<td><strong>Baseline comparison</strong></td>
+<td><code>original</code> — reference point</td>
+</tr>
+<tr>
+<td><strong>Parameter research</strong></td>
+<td><code>tuned</code> — sensitivity analysis</td>
+</tr>
+<tr>
+<td><strong>What not to do</strong></td>
+<td><code>trend_dominant</code> — failed approach</td>
+</tr>
+</tbody></table><p>---</p><h2>Pressure-Aware Models (✅ Implemented)</h2><h3>5. pressure_aware (Baseline Pressure Model)</h3><p><strong>Status:</strong> ✅ Implemented  
+<strong>Implementation:</strong> <code>rainlib.py::model_pressure_aware</code>  
+<strong>Goal:</strong> Add barometric pressure to eliminate dry-night false positives</p><p>#### Algorithm</p><p>Adds atmospheric pressure tendency as a third predictive factor:
+- <strong>Falling pressure</strong> → approaching cyclone/storm → boosts rain probability
+- <strong>Rising pressure</strong> → clearing weather → suppresses rain probability
+- <strong>Stable pressure</strong> → no pressure signal → behaves like tuned model</p><p><code>`</code>python
 proximity = clamp(100 - spread / proximity_divisor * 100, 0, 100)
-trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
-
-# Pressure derivative score — falling pressure adds, rising subtracts
+trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)</p><h1>Pressure derivative score — falling pressure adds, rising subtracts</h1>
 pressure_change = derivative(pressure, window=pressure_window)
-if abs(pressure_change) &lt; abs(pressure_drop_threshold):
+if abs(pressure_change) < abs(pressure_drop_threshold):
     pressure_score = 0.0    # no signal — stable pressure
 else:
     pressure_score = clamp(-pressure_change * pressure_gain,
-                           pressure_floor, pressure_ceiling)
-
-# Weighted blend with hysteresis
-raw = proximity * proximity_weight + trend_score * trend_weight + pressure_score * pressure_weight
+                           pressure_floor, pressure_ceiling)</p><h1>Weighted blend with hysteresis</h1>
+raw = proximity <em> proximity_weight + trend_score </em> trend_weight + pressure_score * pressure_weight
 result = hysteretic_decay(raw)  # rise instantly, decay slowly
-</code></pre>
-<br>
-<h4>Parameters</h4>
-<br>
-<p>| Parameter | Default | Purpose |</p>
-<p>|-----------|---------|---------|</p>
-<p>| <code>pressure_weight</code> | 0.35 | Weight of pressure in blend |</p>
-<p>| <code>pressure_gain</code> | 25.0 | Multiplier for pressure change rate |</p>
-<p>| <code>pressure_floor</code> | -15.0 | Max suppression from rising pressure |</p>
-<p>| <code>pressure_ceiling</code> | 35.0 | Max boost from falling pressure |</p>
-<p>| <code>pressure_window</code> | "3h" | Time window for derivative |</p>
-<p>| <code>pressure<em>drop</em>threshold</code> | -0.5 | Minimum hPa/h to activate signal |</p>
-<br>
-<h4>Key Design Decision: Weighted Blend + Hysteresis (not additive)</h4>
-<br>
-<p>The actual implementation uses a <strong>weighted blend</strong> with hysteresis, NOT the originally proposed additive formula (<code>proximity + trend + pressure_factor</code>). This was chosen because:</p>
-<ol>
-<li><strong>Weighted blend</strong> allows independent tuning of each signal's contribution</li>
-<li><strong>Hysteresis</strong> prevents the score from crashing when pressure briefly rises mid-storm</li>
-<li>The additive approach created excessive noise when pressure was fluctuating</li>
-</ul>
-<br>
-<p>---</p>
-<br>
-<h3>5b. pressure_absolute (Variant A)</h3>
-<br>
-<p><strong>Status:</strong> 🔧 Testing  </p>
-<p><strong>Implementation:</strong> <code>pressure<em>variants.py::model</em>pressure_absolute</code></p>
-<br>
-<p><strong>Hypothesis:</strong> Low absolute pressure (<1000 hPa) is itself a rain indicator, even when pressure is currently rising (cyclone recovery).</p>
-<br>
-<p>Adds absolute pressure bonus to the pressure derivative signal:</p>
-<ul>
-<li>< 990 hPa: +20 bonus (deep cyclone)</li>
-<li>< 1000 hPa: +10 bonus (low pressure system)</li>
-<li>< 1005 hPa: +5 bonus (slightly low)</li>
-</ul>
-<br>
-<p>---</p>
-<br>
-<h3>5c. pressure<em>long</em>window (Variant B)</h3>
-<br>
-<p><strong>Status:</strong> 🔧 Testing  </p>
-<p><strong>Implementation:</strong> <code>pressure<em>variants.py::model</em>pressure<em>long</em>window</code></p>
-<br>
-<p><strong>Hypothesis:</strong> 3h is too short to catch slow pressure changes preceding weather systems. Uses a 12h window with relaxed threshold (0.1 hPa/h).</p>
-<br>
-<p>---</p>
-<br>
-<h3>5d. pressure_lagged (Variant C)</h3>
-<br>
-<p><strong>Status:</strong> 🔧 Testing  </p>
-<p><strong>Implementation:</strong> <code>pressure<em>variants.py::model</em>pressure_lagged</code></p>
-<br>
-<p><strong>Hypothesis:</strong> Pressure changes 6 hours ago predict rain now. Uses pressure lagged by 6h for derivative calculation, accounting for storm travel time.</p>
-<br>
-<p>---</p>
-<br>
-<h3>5e. pressure_combined (Variant D)</h3>
-<br>
-<p><strong>Status:</strong> 🔧 Testing  </p>
-<p><strong>Implementation:</strong> <code>pressure<em>variants.py::model</em>pressure_combined</code></p>
-<br>
-<p><strong>Hypothesis:</strong> Multiple pressure signals together work better than any single one. Combines: 12h long window + 3h lagged short window + absolute pressure bonus.</p>
-<br>
-<p>---</p>
-<br>
-<h3>6. combined (Variant E)</h3>
-<br>
-<p><strong>Status:</strong> 🔧 Testing  </p>
-<p><strong>Implementation:</strong> <code>pressure<em>variants.py::model</em>combined</code></p>
-<br>
-<p><strong>Full multi-signal model</strong> using <strong>all available environmental inputs</strong>:</p>
-<ul>
-<li>Temperature trend (cooling = condensation signal)</li>
-<li>Absolute humidity trend (rising = more moisture available)</li>
-<li>All three pressure signals from <code>pressure_combined</code> (long window + lagged + absolute bonus)</li>
-<li>Core dew-point spread proximity and derivative</li>
-</ul>
-<br>
-<h4>Algorithm</h4>
-<br>
-<pre><code class="language-python">
-# Core signals (same as other models)
+<code>`</code></p><p>#### Parameters</p><table>
+<thead><tr>
+<th>Parameter</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr></thead><tbody>
+<tr>
+<td><code>pressure_weight</code></td>
+<td>0.35</td>
+<td>Weight of pressure in blend</td>
+</tr>
+<tr>
+<td><code>pressure_gain</code></td>
+<td>25.0</td>
+<td>Multiplier for pressure change rate</td>
+</tr>
+<tr>
+<td><code>pressure_floor</code></td>
+<td>-15.0</td>
+<td>Max suppression from rising pressure</td>
+</tr>
+<tr>
+<td><code>pressure_ceiling</code></td>
+<td>35.0</td>
+<td>Max boost from falling pressure</td>
+</tr>
+<tr>
+<td><code>pressure_window</code></td>
+<td>"3h"</td>
+<td>Time window for derivative</td>
+</tr>
+<tr>
+<td><code>pressure_drop_threshold</code></td>
+<td>-0.5</td>
+<td>Minimum hPa/h to activate signal</td>
+</tr>
+</tbody></table><p>#### Key Design Decision: Weighted Blend + Hysteresis (not additive)</p><p>The actual implementation uses a <strong>weighted blend</strong> with hysteresis, NOT the originally proposed additive formula (<code>proximity + trend + pressure_factor</code>). This was chosen because:
+1. <strong>Weighted blend</strong> allows independent tuning of each signal's contribution
+2. <strong>Hysteresis</strong> prevents the score from crashing when pressure briefly rises mid-storm
+3. The additive approach created excessive noise when pressure was fluctuating</p><p>---</p><h3>5b. pressure_absolute (Variant A)</h3><p><strong>Status:</strong> 🔧 Testing  
+<strong>Implementation:</strong> <code>pressure_variants.py::model_pressure_absolute</code></p><p><strong>Hypothesis:</strong> Low absolute pressure (<1000 hPa) is itself a rain indicator, even when pressure is currently rising (cyclone recovery).</p><p>Adds absolute pressure bonus to the pressure derivative signal:
+- < 990 hPa: +20 bonus (deep cyclone)
+- < 1000 hPa: +10 bonus (low pressure system)
+- < 1005 hPa: +5 bonus (slightly low)</p><p>---</p><h3>5c. pressure_long_window (Variant B)</h3><p><strong>Status:</strong> 🔧 Testing  
+<strong>Implementation:</strong> <code>pressure_variants.py::model_pressure_long_window</code></p><p><strong>Hypothesis:</strong> 3h is too short to catch slow pressure changes preceding weather systems. Uses a 12h window with relaxed threshold (0.1 hPa/h).</p><p>---</p><h3>5d. pressure_lagged (Variant C)</h3><p><strong>Status:</strong> 🔧 Testing  
+<strong>Implementation:</strong> <code>pressure_variants.py::model_pressure_lagged</code></p><p><strong>Hypothesis:</strong> Pressure changes 6 hours ago predict rain now. Uses pressure lagged by 6h for derivative calculation, accounting for storm travel time.</p><p>---</p><h3>5e. pressure_combined (Variant D)</h3><p><strong>Status:</strong> 🔧 Testing  
+<strong>Implementation:</strong> <code>pressure_variants.py::model_pressure_combined</code></p><p><strong>Hypothesis:</strong> Multiple pressure signals together work better than any single one. Combines: 12h long window + 3h lagged short window + absolute pressure bonus.</p><p>---</p><h3>6. combined (Variant E)</h3><p><strong>Status:</strong> 🔧 Testing  
+<strong>Implementation:</strong> <code>pressure_variants.py::model_combined</code></p><p><strong>Full multi-signal model</strong> using <strong>all available environmental inputs</strong>:
+- Temperature trend (cooling = condensation signal)
+- Absolute humidity trend (rising = more moisture available)
+- All three pressure signals from <code>pressure_combined</code> (long window + lagged + absolute bonus)
+- Core dew-point spread proximity and derivative</p><p>#### Algorithm</p><p><code>`</code>python
+<h1>Core signals (same as other models)</h1>
 proximity = clamp(100 - spread / proximity_divisor * 100, 0, 100)
-trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
-
-# Temperature trend — cooling indicates condensation
-if temp_trend &lt; -0.5:  # significant cooling
+trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)</p><h1>Temperature trend — cooling indicates condensation</h1>
+if temp_trend < -0.5:  # significant cooling
     temp_score = min(-temp_trend * 8.0, 20.0)
-elif temp_trend &gt; 2.0:  # rapid warming (warm front)
-    temp_score = min(temp_trend * 2.5, 8.0)
-
-# Absolute humidity trend — rising humidity = more moisture
-if abs_humidity_trend &gt; 0:
-    ah_score = min(abs_humidity_trend * 60.0, 25.0)
-
-# Pressure signals (same as pressure_combined)
-# - 12h long window for slow trends
-# - 3h lagged short window
-# - Absolute pressure bonus for cyclones
-
-# Weighted blend with hysteresis
-raw = proximity * 0.8 + trend_score * 0.5 + temp_score * 0.15 + ah_score * 0.18 + pressure_scores
+elif temp_trend > 2.0:  # rapid warming (warm front)
+    temp_score = min(temp_trend * 2.5, 8.0)</p><h1>Absolute humidity trend — rising humidity = more moisture</h1>
+if abs_humidity_trend > 0:
+    ah_score = min(abs_humidity_trend * 60.0, 25.0)</p><h1>Pressure signals (same as pressure_combined)</h1>
+<h1>- 12h long window for slow trends</h1>
+<h1>- 3h lagged short window</h1>
+<h1>- Absolute pressure bonus for cyclones</h1><h1>Weighted blend with hysteresis</h1>
+raw = proximity <em> 0.8 + trend_score </em> 0.5 + temp_score <em> 0.15 + ah_score </em> 0.18 + pressure_scores
 result = hysteretic_decay(raw)
-</code></pre>
-<br>
-<h4>Why This Model?</h4>
-<br>
-<p>The <code>combined</code> model is the <strong>most comprehensive</strong> approach, incorporating:</p>
-<br>
-<ol>
-<li><strong>Surface humidity signals</strong> (spread proximity + derivative) — the baseline predictors</li>
-<li><strong>Temperature dynamics</strong> — distinguishes cooling (condensation) from warming (evaporation)</li>
-<li><strong>Moisture availability</strong> — absolute humidity trend shows water vapor influx</li>
-<li><strong>Atmospheric pressure</strong> — three complementary signals capture weather system approach</li>
-</ul>
-<br>
-<h4>Graceful Degradation</h4>
-<br>
-<p>Falls back when signals are unavailable:</p>
-<ul>
-<li>No temperature/humidity → behaves like <code>pressure_combined</code></li>
-<li>No pressure → behaves like humidity-only model with temp/AH enhancement</li>
-<li>No environmental signals at all → pure spread-based model</li>
-</ul>
-<br>
-<h4>Weights</h4>
-<br>
-<p>| Signal | Weight | Rationale |</p>
-<p>|--------|--------|-----------|</p>
-<p>| Proximity | 0.8 | Core signal — absolute humidity |</p>
-<p>| Spread derivative | 0.5 | Reinforcement — rate of change |</p>
-<p>| Temperature trend | 0.15 | Secondary — condensation indicator |</p>
-<p>| Abs humidity trend | 0.18 | Secondary — moisture availability |</p>
-<p>| Pressure (long) | 0.25 | Tertiary — slow system approach |</p>
-<p>| Pressure (short lagged) | 0.20 | Tertiary — recent drop |</p>
-<p>| Pressure (absolute bonus) | 0.20 | Tertiary — cyclone presence |</p>
-<br>
-<p>---</p>
-<br>
-<h2>Future Models (Planned)</h2>
-<br>
-<h3>7. ensemble_vote (Future)</h3>
-<br>
-<p>Majority-vote ensemble of top-3 models. Alerts only when 2+ models agree.</p>
-<br>
-<p>---</p>
-<br>
-<h2>Performance Benchmarks</h2>
-<br>
-<h3>Test Dataset</h3>
-<br>
-<ul>
-<li><strong>Period:</strong> 2026-07-05 to 2026-07-12 (7 days)</li>
-<li><strong>Ground Truth:</strong> Open-Meteo precipitation ≥0.1mm/h</li>
-<li><strong>Rain Hours:</strong> 97 out of 192 (51%)</li>
-<li><strong>Evaluation:</strong> 10-minute grid, resampled to hourly for scoring</li>
-</ul>
-<br>
-<h3>Metrics Explained</h3>
-<br>
-<ul>
-<li><strong>Precision</strong> = TP / (TP + FP) — <em>"Of all alerts, how many were real rain?"</em></li>
-<li><strong>Recall</strong> = TP / (TP + FN) — <em>"Of all rain events, how many did we catch?"</em></li>
-<li><strong>F1</strong> = 2 × (P × R) / (P + R) — <em>Harmonic mean (balanced score)</em></li>
-</ul>
-<br>
-<h3>Scoring Code</h3>
-<br>
-<p>All models evaluated via <code>rainlib.py</code>:</p>
-<br>
-<pre><code class="language-python">
+<code>`</code></p><p>#### Why This Model?</p><p>The <code>combined</code> model is the <strong>most comprehensive</strong> approach, incorporating:</p><p>1. <strong>Surface humidity signals</strong> (spread proximity + derivative) — the baseline predictors
+2. <strong>Temperature dynamics</strong> — distinguishes cooling (condensation) from warming (evaporation)
+3. <strong>Moisture availability</strong> — absolute humidity trend shows water vapor influx
+4. <strong>Atmospheric pressure</strong> — three complementary signals capture weather system approach</p><p>#### Graceful Degradation</p><p>Falls back when signals are unavailable:
+- No temperature/humidity → behaves like <code>pressure_combined</code>
+- No pressure → behaves like humidity-only model with temp/AH enhancement
+- No environmental signals at all → pure spread-based model</p><p>#### Weights</p><table>
+<thead><tr>
+<th>Signal</th>
+<th>Weight</th>
+<th>Rationale</th>
+</tr></thead><tbody>
+<tr>
+<td>Proximity</td>
+<td>0.8</td>
+<td>Core signal — absolute humidity</td>
+</tr>
+<tr>
+<td>Spread derivative</td>
+<td>0.5</td>
+<td>Reinforcement — rate of change</td>
+</tr>
+<tr>
+<td>Temperature trend</td>
+<td>0.15</td>
+<td>Secondary — condensation indicator</td>
+</tr>
+<tr>
+<td>Abs humidity trend</td>
+<td>0.18</td>
+<td>Secondary — moisture availability</td>
+</tr>
+<tr>
+<td>Pressure (long)</td>
+<td>0.25</td>
+<td>Tertiary — slow system approach</td>
+</tr>
+<tr>
+<td>Pressure (short lagged)</td>
+<td>0.20</td>
+<td>Tertiary — recent drop</td>
+</tr>
+<tr>
+<td>Pressure (absolute bonus)</td>
+<td>0.20</td>
+<td>Tertiary — cyclone presence</td>
+</tr>
+</tbody></table><p>---</p><h2>Future Models (Planned)</h2><h3>7. ensemble_vote (Future)</h3><p>Majority-vote ensemble of top-3 models. Alerts only when 2+ models agree.</p><p>---</p><h2>Performance Benchmarks</h2><h3>Test Dataset</h3><p>- <strong>Period:</strong> 2026-07-05 to 2026-07-12 (7 days)
+- <strong>Ground Truth:</strong> Open-Meteo precipitation ≥0.1mm/h
+- <strong>Rain Hours:</strong> 97 out of 192 (51%)
+- <strong>Evaluation:</strong> 10-minute grid, resampled to hourly for scoring</p><h3>Metrics Explained</h3><p>- <strong>Precision</strong> = TP / (TP + FP) — <em>"Of all alerts, how many were real rain?"</em>
+- <strong>Recall</strong> = TP / (TP + FN) — <em>"Of all rain events, how many did we catch?"</em>
+- <strong>F1</strong> = 2 × (P × R) / (P + R) — <em>Harmonic mean (balanced score)</em></p><h3>Scoring Code</h3><p>All models evaluated via <code>rainlib.py</code>:</p><p><code>`</code>python
 scores = rl.confusion_at_threshold(
     pred=grid['rain_probability'],
     truth=grid['rain_truth'],
     threshold=50.0
 )
-</code></pre>
-<br>
-<p>Returns: <code>{tp, fp, tn, fn, precision, recall, f1}</code></p>
-<br>
-<p>---</p>
-<br>
-<h2>Implementation Notes</h2>
-<br>
-<h3>Adding a New Model</h3>
-<br>
-<ol>
-<li><strong>Implement in <code>rainlib.py</code></strong> or as a standalone function</li>
-<li><strong>Add to <code>run<em>analysis.py</code></strong> in <code>evaluate</em>models()</code></li>
-<li><strong>Update this doc</strong> with algorithm, parameters, and results</li>
-<li><strong>Run full analysis:</strong> <code>python run<em>full</em>analysis.py --days 30</code></li>
-</ul>
-<br>
-<h3>Model Naming Convention</h3>
-<br>
-<ul>
-<li><code>original</code> — baseline reference</li>
-<li><code>ha_live</code> — current production</li>
-<li><code><feature><em><variant></code> — experiments (e.g., <code>pressure</em>aware</code>, <code>trend_dominant</code>)</li>
-<li><code>tuned</code> — optimized via grid search</li>
-<li><code>ensemble_*</code> — voting/combination models</li>
-<li><code>ml_*</code> — machine learning models</li>
-</ul>
-<br>
-<h3>Parameter Storage</h3>
-<br>
-<p>Default parameters are in <code>rainlib.py</code> functions.  </p>
-<p>Override via <code>AnalysisConfig</code> in <code>run_analysis.py</code>.</p>
-<br>
-<p>---</p>
-<br>
-<h2>References</h2>
-<br>
-<ul>
-<li><a href="./BASELINE<em>MODEL.md">BASELINE</em>MODEL.md</a> — Detailed baseline analysis</li>
-<li><a href="./CLI<em>RUNNER.md">CLI</em>RUNNER.md</a> — How to run analysis</li>
-<li><a href="./DATA<em>SOURCES.md">DATA</em>SOURCES.md</a> — Data collection guide</li>
-</ul>
-<br>
-<p>---</p>
-<br>
-<p><strong>Last Updated:</strong> 2026-07-22  </p>
-<p><strong>Maintainer:</strong> Karasik (AI assistant for Kickoman/rain-analysis)</p>
-<br>
+<code>`</code></p><p>Returns: <code>{tp, fp, tn, fn, precision, recall, f1}</code></p><p>---</p><h2>Implementation Notes</h2><h3>Adding a New Model</h3><p>1. <strong>Implement in <code>rainlib.py</code></strong> or as a standalone function
+2. <strong>Add to <code>run_analysis.py</code></strong> in <code>evaluate_models()</code>
+3. <strong>Update this doc</strong> with algorithm, parameters, and results
+4. <strong>Run full analysis:</strong> <code>python run_full_analysis.py --days 30</code></p><h3>Model Naming Convention</h3><p>- <code>original</code> — baseline reference
+- <code>ha_live</code> — current production
+- <code><feature>_<variant></code> — experiments (e.g., <code>pressure_aware</code>, <code>trend_dominant</code>)
+- <code>tuned</code> — optimized via grid search
+- <code>ensemble_*</code> — voting/combination models
+- <code>ml_*</code> — machine learning models</p><h3>Parameter Storage</h3><p>Default parameters are in <code>rainlib.py</code> functions.  
+Override via <code>AnalysisConfig</code> in <code>run_analysis.py</code>.</p><p>---</p><h2>References</h2><p>- <a href="./BASELINE_MODEL.md">BASELINE_MODEL.md</a> — Detailed baseline analysis
+- <a href="./CLI_RUNNER.md">CLI_RUNNER.md</a> — How to run analysis
+- <a href="./DATA_SOURCES.md">DATA_SOURCES.md</a> — Data collection guide</p><p>---</p><p><strong>Last Updated:</strong> 2026-07-22  
+<strong>Maintainer:</strong> Karasik (AI assistant for Kickoman/rain-analysis)
+</p>
 </body>
 </html>
