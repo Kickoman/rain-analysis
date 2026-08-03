@@ -461,7 +461,7 @@ Adds absolute pressure bonus to the pressure derivative signal:
 **Implementation:** `pressure_variants.py::model_combined`
 
 **Full multi-signal model** using **all available environmental inputs**:
-- Temperature trend (cooling = condensation signal)
+- Temperature trend (significant cooling or rapid warming)
 - Absolute humidity trend (rising = more moisture available)
 - All three pressure signals from `pressure_combined` (long window + lagged + absolute bonus)
 - Core dew-point spread proximity and derivative
@@ -473,7 +473,7 @@ Adds absolute pressure bonus to the pressure derivative signal:
 proximity = clamp(100 - spread / proximity_divisor * 100, 0, 100)
 trend_score = clamp(-spread_deriv * trend_gain, trend_floor, trend_ceiling)
 
-# Temperature trend — cooling indicates condensation
+# Temperature trend — significant cooling or rapid warming
 if temp_trend < -0.5:  # significant cooling
     temp_score = min(-temp_trend * 8.0, 20.0)
 elif temp_trend > 2.0:  # rapid warming (warm front)
@@ -502,13 +502,6 @@ The `combined` model is the **most comprehensive** approach, incorporating:
 3. **Moisture availability** — absolute humidity trend shows water vapor influx
 4. **Atmospheric pressure** — three complementary signals capture weather system approach
 
-#### Graceful Degradation
-
-Falls back when signals are unavailable:
-- No temperature/humidity → behaves like `pressure_combined`
-- No pressure → behaves like humidity-only model with temp/AH enhancement
-- No environmental signals at all → pure spread-based model
-
 #### Weights
 
 | Signal | Weight | Rationale |
@@ -520,6 +513,59 @@ Falls back when signals are unavailable:
 | Pressure (long) | 0.25 | Tertiary — slow system approach |
 | Pressure (short lagged) | 0.20 | Tertiary — recent drop |
 | Pressure (absolute bonus) | 0.20 | Tertiary — cyclone presence |
+
+> ⚠️ **Important:** These are **amplification coefficients**, not normalized probability weights.
+> 
+> The model uses an **additive blend**:
+> ```
+> raw = proximity*0.8 + spread_deriv*0.5 + temp*0.15 + humidity*0.18 + pressure_scores
+> ```
+> 
+> - **Sum > 1.0 is expected** — coefficients scale each signal's contribution independently
+> - **Signals are conditional:**
+>   - Temperature: only if trend < -0.5°C/h (cooling) or > 2.0°C/h (warming)
+>   - Abs humidity: only if trend > 0 (rising)
+>   - Pressure: only when `use_pressure=True` and data available
+> - **Ceiling applied:** Result clamped by `dry_ceiling` (40) when spread > 10°C, then hysteresis
+
+#### Blending Formula
+
+```python
+# Step 1: Calculate individual scores
+proximity = clamp(100 - spread/proximity_divisor*100, 0, 100)  # 0-100
+trend_score = clamp(-spread_deriv*trend_gain, -15, 30)        # -15 to +30
+temp_score = conditional (cooling or warming)                  # 0-20
+ah_score = conditional (if rising)                             # 0-25
+pressure_long = clamp(-deriv_12h*gain, -15, 35)               # -15 to +35
+pressure_short = clamp(-deriv_3h_lagged*gain, -15, 35)        # -15 to +35
+pressure_bonus = absolute_pressure_bonus(pressure)             # 0-20
+
+# Step 2: Weighted blend
+raw_score = (
+    proximity * 0.8              # 0-80 points (core)
+    + trend_score * 0.5          # ±15 points (reinforcement)
+    + temp_score * 0.15          # 0-3 points (conditional)
+    + ah_score * 0.18            # 0-4.5 points (conditional)
+    + pressure_long * 0.25       # ±8.75 points (if available)
+    + pressure_short * 0.20      # ±7 points (if available)
+    + pressure_bonus * 0.20      # 0-4 points (if available)
+)
+
+# Step 3: Apply dry-spread ceiling and hysteresis
+if spread > 10°C:
+    raw_score = min(raw_score, 40)  # suppress in dry conditions
+final_score = hysteretic_decay(raw_score)  # 0-100
+```
+
+**Maximum theoretical raw score:** ~122 (all signals favorable + maxed)  
+**Realistic range:** 0-100 after ceiling and hysteresis
+
+#### Graceful Degradation
+
+The model falls back gracefully when signals are unavailable:
+- No temperature/humidity → behaves like `pressure_combined`
+- No pressure → behaves like humidity-only model with temp/AH enhancement
+- No environmental signals at all → pure spread-based model (proximity + derivative only)
 
 ---
 
@@ -595,5 +641,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-22  
+**Last Updated:** 2026-07-29  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
