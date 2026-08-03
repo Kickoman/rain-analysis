@@ -25,6 +25,12 @@ class Settings(BaseSettings):
                 f"API_KEYS_SALT must be at least 32 characters (got {len(v)}). "
                 "Generate with: python -c \"import secrets; print(secrets.token_hex(32))\""
             )
+        # Check for the default insecure value from .env.example
+        if v == "change-me-in-production-use-secrets-token-hex":
+            raise ValueError(
+                "API_KEYS_SALT must be changed from default value. "
+                "Generate a secure salt with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
         return v
     
     class Config:
