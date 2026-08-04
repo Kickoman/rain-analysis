@@ -134,6 +134,39 @@ rain_probability = clamp(rain_probability, 0, 100)
 | `proximity_weight` | 0.7 | Proximity contribution |
 | `trend_weight` | 0.7 | Trend contribution |
 
+#### Weight Interpretation
+
+⚠️ **Important:** Weights in this model are **amplification coefficients**, not normalized probabilities.
+
+- **Sum of weights:** 0.7 + 0.7 = **1.4** (not 1.0)
+- Each signal is multiplied by its weight and then summed
+- The total can exceed 100 before the final clamp to [0, 100]
+- Higher weight = stronger influence on the final score
+
+**Example calculation:**
+
+```python
+# Scenario: humid conditions with rapid spread narrowing
+proximity = 70.0       # spread = 2.4°C
+trend_score = 40.0     # narrowing at -1.5°C/h
+
+# Raw calculation (before clamp)
+raw = proximity * 0.7 + trend_score * 0.7
+    = 70 * 0.7 + 40 * 0.7
+    = 49 + 28
+    = 77
+
+# Final result (after clamp to [0, 100])
+result = clamp(77, 0, 100) = 77%
+```
+
+**Why not normalized to 1.0?**
+- The model uses **amplification** rather than **averaging**
+- Each signal contributes independently to boost the score
+- Clamping to [0, 100] at the end ensures a valid probability range
+
+This is intentional design, not an error. The weights control relative influence, not probability distribution.
+
 ### Production Implementation
 
 **Template Sensor:**
@@ -521,6 +554,67 @@ Falls back when signals are unavailable:
 | Pressure (short lagged) | 0.20 | Tertiary — recent drop |
 | Pressure (absolute bonus) | 0.20 | Tertiary — cyclone presence |
 
+#### Weight Interpretation
+
+⚠️ **Important:** Weights in this model are **amplification coefficients**, not normalized probabilities.
+
+- **Sum of weights:** 0.8 + 0.5 + 0.15 + 0.18 + 0.25 + 0.20 + 0.20 = **2.28** (not 1.0)
+- Each signal is multiplied by its weight and summed
+- The total can significantly exceed 100 before the final clamp to [0, 100]
+- Higher weight = stronger influence on the final score
+
+**Example calculation:**
+
+```python
+# Scenario: approaching storm with multiple positive signals
+proximity = 80.0           # spread = 1.6°C (humid)
+trend_score = 30.0         # narrowing at -1.5°C/h
+temp_score = 12.0          # cooling at -1.5°C/h
+ah_score = 15.0            # humidity rising
+pressure_long = 25.0       # 12h pressure drop
+pressure_short = 20.0      # 3h pressure drop
+pressure_bonus = 10.0      # absolute pressure < 1000 hPa
+
+# Raw calculation (before clamp)
+raw = proximity * 0.8 + trend_score * 0.5 + temp_score * 0.15 + ah_score * 0.18 + 
+      pressure_long * 0.25 + pressure_short * 0.20 + pressure_bonus * 0.20
+    = 80 * 0.8 + 30 * 0.5 + 12 * 0.15 + 15 * 0.18 + 25 * 0.25 + 20 * 0.20 + 10 * 0.20
+    = 64 + 15 + 1.8 + 2.7 + 6.25 + 4 + 2
+    = 95.75
+
+# Final result (after clamp to [0, 100])
+result = clamp(95.75, 0, 100) = 96%
+```
+
+**Scenario with clamping:**
+
+```python
+# All signals strongly positive (unlikely but possible)
+proximity = 100.0
+trend_score = 30.0
+temp_score = 20.0
+ah_score = 25.0
+pressure_scores_total = 55.0  # all three pressure signals maxed
+
+# Raw calculation
+raw = 100 * 0.8 + 30 * 0.5 + 20 * 0.15 + 25 * 0.18 + 55
+    = 80 + 15 + 3 + 4.5 + 55
+    = 157.5  # exceeds 100!
+
+# Final result (clamped)
+result = clamp(157.5, 0, 100) = 100%
+```
+
+**Why not normalized to 1.0?**
+- The model uses **amplification** rather than **averaging**
+- Multiple independent signals reinforce each other
+- Clamping to [0, 100] at the end ensures a valid probability range
+- This allows the model to distinguish between:
+  - Weak rain signal (one indicator barely positive) → score ~40-60
+  - Strong rain signal (multiple indicators aligned) → score ~80-100
+
+This is intentional design, not an error. The weights control relative influence, not probability distribution.
+
 ---
 
 ## Future Models (Planned)
@@ -595,5 +689,5 @@ Override via `AnalysisConfig` in `run_analysis.py`.
 
 ---
 
-**Last Updated:** 2026-07-22  
+**Last Updated:** 2026-08-04  
 **Maintainer:** Karasik (AI assistant for Kickoman/rain-analysis)
