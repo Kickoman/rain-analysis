@@ -93,7 +93,7 @@ rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
 - **Влажность:** `sensor.datchik_klimata_vlazhnost` (балконный датчик)
 - **Давление:** `sensor.filtered_pressure` (DIY метеостанция с фильтрацией)
 
-> **Примечание:** Baseline модель (v0.1) использует только температуру и влажность. Для моделей с интеграцией давления см. [MODELS.md](MODELS.md) — таблица с pressure-aware вариантами (`model_pressure_aware`, `model_pressure_absolute`, и др.).
+> **Примечание:** Baseline модель (v0.1) использует только температуру и влажность. Для моделей с интеграцией давления см. [MODELS.md](../docs/MODELS.md) — таблица с pressure-aware вариантами (`model_pressure_aware`, `model_pressure_absolute`, и др.).
 
 ### Внешние источники
 - **Yandex Weather:** прогноз погоды (для сравнения)
@@ -164,7 +164,7 @@ rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
 
 ### Приоритет 1: Интеграция давления
 
-**Статус:** Экспериментальные модели с давлением реализованы в `pressure_variants.py` (см. [MODELS.md](MODELS.md)).
+**Статус:** Экспериментальные модели с давлением реализованы в `pressure_variants.py` (см. [MODELS.md](../docs/MODELS.md)).
 
 **Что было сделано:**
 - Реализованы 5 вариантов pressure-aware моделей:
