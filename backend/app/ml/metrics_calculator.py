@@ -2,21 +2,16 @@
 Metrics calculator for model performance evaluation.
 
 Calculates daily metrics for ML models by comparing predictions with ground truth.
+
+NOTE: This is a scaffolding implementation. Ground truth fetching is not yet 
+implemented, so calculate_daily_metrics always returns None. This needs to be
+implemented when weather_data table or external API becomes available.
 """
 
 from datetime import date, timedelta
 from typing import Optional, Dict, Any, List
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
-import numpy as np
-from sklearn.metrics import (
-    brier_score_loss,
-    f1_score,
-    fbeta_score,
-    precision_score,
-    recall_score,
-    confusion_matrix,
-)
 import logging
 
 from ..models.ml import Prediction
@@ -70,6 +65,17 @@ class MetricsCalculator:
         # For now, we don't have ground truth data, so we return None
         # When ground truth becomes available, uncomment and implement:
         
+        # # Import metrics libraries only when needed
+        # import numpy as np
+        # from sklearn.metrics import (
+        #     brier_score_loss,
+        #     f1_score,
+        #     fbeta_score,
+        #     precision_score,
+        #     recall_score,
+        #     confusion_matrix,
+        # )
+        # 
         # y_true = await self._fetch_ground_truth(target_date, len(predictions))
         # 
         # if y_true is None or len(y_true) != len(predictions):

@@ -5,9 +5,13 @@ Runs daily at 00:00 UTC to:
 1. Fetch weather data for yesterday
 2. Generate predictions for all active models
 3. Calculate performance metrics (when ground truth available)
+
+NOTE: This is a scaffolding implementation. Core functionality (_fetch_weather_data 
+and calculate_daily_metrics) are not yet implemented and return empty/None results.
+Issue #307 should remain open until full implementation is complete.
 """
 
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 import pandas as pd
 import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,60 +29,71 @@ logger = logging.getLogger(__name__)
 class DailyMLTask:
     """Daily task to generate predictions and calculate metrics."""
     
-    async def run(self):
+    async def run(self, db: AsyncSession = None):
         """
         Main task execution.
         
         Fetches weather data for yesterday, generates predictions for all active models,
         and calculates metrics if ground truth is available.
+        
+        Args:
+            db: Optional database session (for testing). If None, creates new session.
         """
         try:
             logger.info("=" * 60)
             logger.info("Starting daily ML task")
             logger.info("=" * 60)
             
-            async with AsyncSessionLocal() as db:
-                # 1. Determine target date (yesterday)
-                yesterday = (datetime.utcnow().date() - timedelta(days=1))
-                logger.info(f"Target date: {yesterday}")
-                
-                # 2. Fetch weather data for yesterday
-                features_df = await self._fetch_weather_data(db, yesterday)
-                
-                if features_df.empty:
-                    logger.warning(f"No weather data available for {yesterday} - skipping task")
-                    return
-                
-                logger.info(f"Fetched {len(features_df)} weather records for {yesterday}")
-                
-                # 3. Get active models
-                service = PredictionService(db)
-                models = await service.get_active_models()
-                
-                if not models:
-                    logger.warning("No active models found - skipping task")
-                    return
-                
-                logger.info(f"Processing {len(models)} active models")
-                
-                # 4. Generate predictions for each model
-                for model in models:
-                    try:
-                        await self._process_model(db, model, features_df, yesterday)
-                    except Exception as e:
-                        logger.error(
-                            f"Error processing model {model.name} (ID: {model.id}): {e}", 
-                            exc_info=True
-                        )
-                        continue
-                
-                logger.info("=" * 60)
-                logger.info("Daily ML task completed successfully")
-                logger.info("=" * 60)
-                
+            # Use provided session or create new one
+            if db is not None:
+                await self._run_impl(db)
+            else:
+                async with AsyncSessionLocal() as db:
+                    await self._run_impl(db)
+                    
         except Exception as e:
             logger.error(f"Daily ML task failed: {e}", exc_info=True)
             raise
+    
+    async def _run_impl(self, db: AsyncSession):
+        """Internal implementation of run logic."""
+        # 1. Determine target date (yesterday)
+        yesterday = (datetime.now(timezone.utc).date() - timedelta(days=1))
+        logger.info(f"Target date: {yesterday}")
+        
+        # 2. Fetch weather data for yesterday
+        features_df = await self._fetch_weather_data(db, yesterday)
+        
+        if features_df.empty:
+            logger.warning(f"No weather data available for {yesterday} - skipping task")
+            return
+        
+        logger.info(f"Fetched {len(features_df)} weather records for {yesterday}")
+        
+        # 3. Get active models
+        service = PredictionService(db)
+        models = await service.get_active_models()
+        
+        if not models:
+            logger.warning("No active models found - skipping task")
+            return
+        
+        logger.info(f"Processing {len(models)} active models")
+        
+        # 4. Generate predictions for each model
+        for model in models:
+            try:
+                await self._process_model(db, model, features_df, yesterday)
+            except Exception as e:
+                logger.error(
+                    f"Error processing model {model.name} (ID: {model.id}): {e}", 
+                    exc_info=True
+                )
+                continue
+        
+        logger.info("=" * 60)
+        logger.info("Daily ML task completed successfully")
+        logger.info("=" * 60)
     
     async def _fetch_weather_data(
         self, 
@@ -150,12 +165,16 @@ class DailyMLTask:
         
         service = PredictionService(db)
         
-        # Generate timestamps for predictions (one per hour for the full day)
-        start_datetime = datetime.combine(target_date, datetime.min.time())
-        timestamps = [
-            start_datetime + timedelta(hours=i) 
-            for i in range(len(features_df))
-        ]
+        # Generate timestamps for predictions
+        # Use actual timestamps from features_df if available, otherwise generate hourly
+        if 'timestamp' in features_df.columns:
+            timestamps = pd.to_datetime(features_df['timestamp']).tolist()
+        else:
+            start_datetime = datetime.combine(target_date, datetime.min.time())
+            timestamps = [
+                start_datetime + timedelta(hours=i) 
+                for i in range(len(features_df))
+            ]
         
         # Generate and store predictions
         try:
@@ -190,10 +209,13 @@ class DailyMLTask:
             db.add(metric_record)
             await db.commit()
             
+            # Format metrics safely - check for None/numeric before formatting
+            f2_str = f"{metrics['f2_score']:.4f}" if metrics.get('f2_score') is not None else "N/A"
+            brier_str = f"{metrics['brier_score']:.4f}" if metrics.get('brier_score') is not None else "N/A"
+            
             logger.info(
                 f"Metrics saved for {model.name}: "
-                f"F2={metrics.get('f2_score', 'N/A'):.4f}, "
-                f"Brier={metrics.get('brier_score', 'N/A'):.4f}"
+                f"F2={f2_str}, Brier={brier_str}"
             )
         else:
             logger.info(f"No metrics calculated for {model.name} (ground truth unavailable)")
@@ -207,8 +229,13 @@ def run_daily_task():
     """
     Synchronous wrapper for scheduler.
     
-    APScheduler requires a synchronous callable, so we wrap the async
-    run() method with asyncio.run().
+    APScheduler's BackgroundScheduler requires a synchronous callable.
+    This wrapper uses asyncio.run() to execute the async task.
+    
+    WARNING: This creates a new event loop for each execution. If using aiosqlite
+    connection pooling, ensure the engine uses NullPool or is recreated within
+    the task to avoid "attached to a different loop" errors. For production use,
+    consider AsyncIOScheduler with the main event loop instead.
     """
     try:
         asyncio.run(_daily_task.run())
