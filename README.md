@@ -18,10 +18,6 @@ rain-analysis/
 │   ├── alembic/    # Database migrations
 │   ├── tests/      # Backend tests
 │   └── scripts/    # Utility scripts
-├── ml/             # Machine learning models (legacy)
-│   ├── notebooks/  # Jupyter notebooks
-│   ├── training/   # Training scripts
-│   └── tests/      # ML tests
 ├── scripts/        # Data processing utilities (legacy)
 ├── scripts_utils/  # Shared utilities
 ├── tests/          # Legacy test suite
@@ -55,19 +51,6 @@ python run.py
 ```
 
 API documentation: http://localhost:8000/docs
-
-### ML Training (Legacy)
-
-```bash
-# Install dependencies
-pip install pandas numpy matplotlib jupyter
-
-# Run analysis
-cd ml
-python training/train.py
-```
-
-See legacy [README](docs/legacy/README.md) for historical documentation.
 
 ## Authentication
 
@@ -206,8 +189,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - [Authentication](docs/AUTHENTICATION.md) - API authentication guide
 - [Development](docs/DEVELOPMENT.md) - Development guidelines
 - [API Documentation](http://localhost:8000/docs) - Interactive API docs (when running)
-- [Contributing](docs/CONTRIBUTING.md) - Contribution guidelines
-- [Legacy Documentation](docs/legacy/) - Historical ML/analysis docs
+- [Contributing](CONTRIBUTING.md) - Contribution guidelines
 
 ## Roadmap
 
