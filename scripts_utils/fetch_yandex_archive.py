@@ -53,6 +53,25 @@ def download_archive(url: str, dest: str) -> str:
         sys.exit(1)
 
 
+def validate_member_security(member: tarfile.TarInfo) -> None:
+    """Manually validate archive member for security (Python 3.11 compatibility)."""
+    # Reject absolute paths
+    if member.name.startswith('/'):
+        raise ValueError(f"Absolute path in archive: {member.name}")
+    
+    # Reject parent directory references
+    if '..' in member.name.split('/'):
+        raise ValueError(f"Parent directory reference in archive: {member.name}")
+    
+    # Reject symlinks and hardlinks (potential directory traversal)
+    if member.issym() or member.islnk():
+        raise ValueError(f"Link in archive: {member.name}")
+    
+    # Reject device files
+    if member.isdev():
+        raise ValueError(f"Device file in archive: {member.name}")
+
+
 def extract_archive(archive_path: str, output_dir: str, strip_components: int = 2):
     """Extract weather archive, optionally stripping leading path components."""
     print(f"Extracting to {output_dir}...", end=" ", flush=True)
@@ -79,9 +98,16 @@ def extract_archive(archive_path: str, output_dir: str, strip_components: int = 
                     # Members without enough depth are now excluded from extraction
                 members = filtered_members
             
-            # Extract with security filter (Python 3.12+)
-            # 'data' filter rejects absolute paths, '..' components, symlinks, and device files
-            tar.extractall(output_dir, members=members, filter="data")
+            # Extract with security considerations based on Python version
+            if sys.version_info >= (3, 12):
+                # Python 3.12+: use built-in 'data' filter
+                # Rejects absolute paths, '..' components, symlinks, and device files
+                tar.extractall(output_dir, members=members, filter="data")
+            else:
+                # Python 3.11 and below: manually validate each member
+                for member in members:
+                    validate_member_security(member)
+                tar.extractall(output_dir, members=members)
         
         print("✓")
         return len(members)
