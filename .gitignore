@@ -143,6 +143,14 @@ ENV/
 env.bak/
 venv.bak/
 
+# Backend-specific venv names (see issue #382)
+backend_venv/
+test_env/
+test_venv/
+test_venv_temp/
+*_venv/
+*_env/
+
 # Spyder project settings
 .spyderproject
 .spyproject
