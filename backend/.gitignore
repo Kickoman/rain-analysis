@@ -50,8 +50,18 @@ Thumbs.db
 
 # Testing
 .pytest_cache/
+pytest-cache/
 .coverage
+.coverage.*
 htmlcov/
+test-results/
+test-reports/
+junit.xml
+
+# Temporary test data
+tmp/
+temp/
+test_tmp/
 
 # Alembic (keep migrations, ignore db files)
 # Note: We keep alembic/ directory and migrations in version control
