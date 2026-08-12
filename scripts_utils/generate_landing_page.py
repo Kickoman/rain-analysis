@@ -37,7 +37,7 @@ def _extract_report_meta(html: str) -> dict[str, str | None]:
     text = _strip_tags(html)
 
     # Title: "Daily Model Analysis — YYYY-MM-DD" or "<h1>…"
-    meta: dict[str, str | None] = {"date": None, "best_model": None, "best_f1": None}
+    meta: dict[str, str | None] = {"date": None, "best_model": None, "best_f1": None, "om_coverage": None}
 
     m = re.search(r'Daily Model Analysis[^—]*[—–-]\s*(\d{4}-\d{2}-\d{2})', text)
     if m:
@@ -53,6 +53,11 @@ def _extract_report_meta(html: str) -> dict[str, str | None]:
         )
         if f1_m:
             meta["best_f1"] = f1_m.group(1)
+    
+    # Extract Open-Meteo coverage (issue #342)
+    cov_m = re.search(r'Open-Meteo precipitation:\s*([0-9.]+)%', text)
+    if cov_m:
+        meta["om_coverage"] = float(cov_m.group(1))
 
     return meta
 
@@ -94,6 +99,11 @@ def main():
     date = meta["date"] or datetime.utcnow().strftime("%Y-%m-%d")
     best_model = meta["best_model"] or "N/A"
     best_f1 = meta["best_f1"]
+    om_coverage = meta.get("om_coverage")
+    
+    # Issue #342: Don't show "best model" if coverage is too low
+    LOW_COVERAGE_THRESHOLD = 20.0
+    low_coverage = om_coverage is not None and om_coverage < LOW_COVERAGE_THRESHOLD
 
     # Model list (only models that exist in the report)
     models_in_report = _detect_models(html_content)
@@ -109,7 +119,10 @@ def main():
         for m in models_in_report
     )
 
-    best_str = f"{best_model} (F1: {best_f1})" if best_f1 else best_model
+    if low_coverage:
+        best_str = f"⚠️ Insufficient data (coverage: {om_coverage:.1f}%)"
+    else:
+        best_str = f"{best_model} (F1: {best_f1})" if best_f1 else best_model
 
     landing = f'''<!DOCTYPE html>
 <html lang="en">
@@ -147,7 +160,7 @@ def main():
             <h2>Latest Results</h2>
             <div class="report-card">
                 <h3>Daily Report — {date}</h3>
-                <p>Best model: <strong>{best_str}</strong></p>
+                <p>{"⚠️ <strong>Low ground truth coverage</strong> — model rankings may be unreliable.<br>" if low_coverage else ""}Best model: <strong>{best_str}</strong></p>
                 <a href="current/index.html" class="btn">View Full Report →</a>
             </div>
         </section>
