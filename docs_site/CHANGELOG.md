@@ -2,6 +2,66 @@
 
 Notable changes to rain-analysis.
 
+## 2026-08-14
+
+Implements `plans/model-improvements.md`. With the harness fixed the day before,
+the models could finally be measured — and the measurement said the project was
+built on its weakest signal. Over 49,200 hours the dew-point-spread derivative
+that leads every model ranks at ROC AUC 0.49 (chance) while absolute pressure
+reaches 0.75.
+
+### Added
+
+- **Threshold-free metrics.** `rainlib.roc_auc` and `rainlib.average_precision`,
+  reported next to F1 everywhere. F1 at a fixed 50% cutoff had been hiding
+  models that cannot rank at all: `ha_live` posted F1 0.313 at AUC 0.579,
+  `trend_dominant` 0.234 at AUC 0.505. Implemented in-repo and checked against
+  scikit-learn, including tie handling.
+- **A warning target.** `rainlib.label_rain_within` labels "rain in any of the
+  next N hours" (default 3), so ordinary precision and recall measure what an
+  alert is for. The nowcast label is unchanged and still drives the published
+  metric series; the warning target drives model selection.
+- **Baselines** — persistence, always-alert and the Yandex forecast, in every
+  report. There had never been a floor. There should have been: "always alert"
+  scores F1 0.385 on the nowcast, beating eight of the ten hand-tuned models,
+  and persistence scores 0.709, beating all of them.
+- **`pressure_primary`** (`pressure_variants.py`) — weights set from measured
+  single-feature AUC instead of by hand: pressure anomaly leads, humidity
+  proximity is secondary, the spread derivative is a nudge, and the result is
+  scaled by time of day (rain within 3h peaks at 11h UTC, 1.32× the base rate).
+  Best physics model on the archive: nowcast AUC 0.637 against 0.633 for
+  `combined` and 0.579 for the production replica.
+- **`analysis/learned.py`** — causal feature builder, expanding-window
+  walk-forward validation, and a calibrated logistic model with save/load that
+  records its training window, features and coefficients. Scored on identical
+  held-out rows it reaches AUC 0.753 on the 3-hour target against 0.669 for the
+  best hand-tuned model and 0.494 for `ha_live`. Adds scikit-learn, imported
+  lazily so the rest of the pipeline runs without it.
+- **[ALERT_RULE.md](ALERT_RULE.md)** — a replacement for the deployed
+  automation, with its measured scores and the old rule's beside it.
+
+### Fixed
+
+- **The absolute-pressure bonus was calibrated for sea level.** Cut-offs of
+  990/1000/1005 hPa against a barometer at ~220 m, where station pressure has a
+  median of 989.6 and never exceeds 1001: it returned 20 for 51.8% of hours, 10
+  for 46.6%, and zero *never* — a constant +15 offset presented as a cyclone
+  detector, which also shifted every score against the fixed decision threshold.
+  Now a departure from the station's own 30-day median, which needs no elevation
+  constant. Lifts the three models that use it by 0.009–0.013 AUC.
+- **Grid search was scored on its own training window.** `param_tuning` now
+  selects on the earlier 70% and reports on the rest. The gap is not subtle:
+  selection F1 0.429, held-out F1 0.161.
+- **`derivative()` returned all-NaN for a window at or below the sample
+  spacing** — silently, because callers `.fillna(0.0)` the result into "no
+  trend". On the hourly grid the ordinary-looking window `"1h"` did exactly
+  this. It now raises.
+- **`_setup_dataframe` forward-filled `spread` without a limit**, so a dead
+  sensor propagated its last reading through the rest of the run, invisible to
+  the coverage figures. Bounded to 3 hours.
+- Open-Meteo fetches now include cloud cover and wind, and `_get_pressure_variant`
+  no longer needs updating for each new model.
+
 ## 2026-08-13
 
 Model scoring rested on ~17 labelled rain hours, which made every reported

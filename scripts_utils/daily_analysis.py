@@ -399,6 +399,88 @@ def generate_ground_truth_agreement(results_7d) -> str:
     return out
 
 
+def _fmt(value, digits=3):
+    return "N/A" if value is None else f"{value:.{digits}f}"
+
+
+def generate_model_quality(results_7d) -> str:
+    """Ranking quality, the baseline floor, and the fitted model.
+
+    F1 at a fixed 50% threshold was the only headline number, and it hid models
+    that cannot rank at all — `ha_live` posted F1 0.313 while sitting at ROC AUC
+    0.579, and `trend_dominant` 0.234 at AUC 0.505, which is a coin flip. ROC
+    AUC is threshold-free, so no cutoff can rescue a model that does not
+    separate the classes.
+    """
+    scoring = results_7d.get('scoring', {})
+    out = ""
+
+    warning = scoring.get('warning_target') or {}
+    if warning.get('scores'):
+        horizon = warning.get('horizon_hours')
+        out += f"## Warning Target ({horizon}h)\n\n"
+        out += (f"Scored against *rain within the next {horizon} hours* — what an alert "
+                "actually needs to predict — rather than \"is it raining now\". Ranked by "
+                "ROC AUC, because the 50% decision threshold is not calibrated across models.\n\n")
+        out += "| Model | ROC AUC | Avg precision | F1 | Precision | Recall |\n"
+        out += "|-------|:-------:|:-------------:|:--:|:---------:|:------:|\n"
+        ranked = sorted(warning['scores'].items(),
+                        key=lambda kv: -(kv[1].get('roc_auc') or 0))
+        for name, s in ranked:
+            marker = " ✅" if name == warning.get('best_model') else ""
+            out += (f"| {name}{marker} | {_fmt(s.get('roc_auc'))} | {_fmt(s.get('average_precision'))} "
+                    f"| {_fmt(s.get('f1'))} | {_fmt(s.get('precision'))} | {_fmt(s.get('recall'))} |\n")
+        out += "\n_ROC AUC 0.5 is chance. A model at 0.5 is not predicting, whatever its F1._\n\n"
+
+    baselines = scoring.get('baselines') or {}
+    if baselines:
+        out += "### Baselines\n\n"
+        out += ("What any model has to beat. **persistence** = it rained last hour; "
+                "**always_alert** = alert unconditionally, so its precision *is* the base "
+                "rate; **yandex_forecast** = a free external forecast.\n\n")
+        out += "| Baseline | Target | ROC AUC | F1 | Precision | Recall |\n"
+        out += "|----------|--------|:-------:|:--:|:---------:|:------:|\n"
+        for name, targets in baselines.items():
+            for target, s in targets.items():
+                out += (f"| {name} | {target} | {_fmt(s.get('roc_auc'))} | {_fmt(s.get('f1'))} "
+                        f"| {_fmt(s.get('precision'))} | {_fmt(s.get('recall'))} |\n")
+        out += "\n"
+
+        floor = (baselines.get('persistence', {}).get('nowcast', {}) or {}).get('roc_auc')
+        best_model_auc = max((s.get('roc_auc') or 0)
+                             for s in (scoring.get('scores') or {}).values()) or None
+        if floor and best_model_auc and best_model_auc < floor:
+            out += (f"⚠️ No model beats persistence (best AUC {best_model_auc:.3f} vs "
+                    f"{floor:.3f}). Predicting \"the same as last hour\" is currently the "
+                    "strongest thing available.\n\n")
+
+    learned = scoring.get('learned') or {}
+    if learned and 'error' not in learned:
+        out += "### Fitted model\n\n"
+        out += (f"`{learned.get('model')}`, validated walk-forward — trained only on hours "
+                "before the ones it is scored on.\n\n")
+        out += "| Target | ROC AUC | Avg precision | Held-out rows | Base rate |\n"
+        out += "|--------|:-------:|:-------------:|:-------------:|:---------:|\n"
+        for target, s in learned.items():
+            if not isinstance(s, dict) or 'roc_auc' not in s:
+                continue
+            out += (f"| {target} | {_fmt(s.get('roc_auc'))} | {_fmt(s.get('average_precision'))} "
+                    f"| {s.get('n_scored')} | {_fmt(s.get('base_rate'))} |\n")
+        out += "\n"
+
+        # The hand-tuned models scored on exactly the rows the fitted model saw,
+        # so the two columns describe the same hours and the same class balance.
+        for target, s in learned.items():
+            comparison = s.get('comparison_on_same_rows') if isinstance(s, dict) else None
+            if not comparison:
+                continue
+            out += f"**Same held-out rows, {target}:** "
+            out += ", ".join(f"{name} {auc:.3f}" for name, auc in list(comparison.items())[:5])
+            out += f" — fitted model {_fmt(s.get('roc_auc'))}\n\n"
+
+    return out
+
+
 def generate_report(date: str, results_7d, results_14d, results_28d):
     """Generate rich markdown report from multi-window results."""
     
@@ -703,6 +785,12 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     report += generate_ground_truth_agreement(results_7d)
 
     report += "\n---\n\n"
+
+    # ===== MODEL QUALITY: warning target, baselines, fitted model =====
+    quality = generate_model_quality(results_7d)
+    if quality:
+        report += quality
+        report += "\n---\n\n"
 
     # ===== SENSOR DIAGNOSTICS =====
     report += generate_sensor_diagnostics(results_7d)

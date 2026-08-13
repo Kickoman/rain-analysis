@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import os
 import itertools
@@ -90,6 +91,16 @@ class AnalysisConfig:
     decision_threshold: float = 50.0
     deriv_window: str = "3h"
 
+    # Horizon for the warning target: rain in any of the next N hours. The
+    # product is an alert, so this — not "is it raining right now" — is what
+    # model selection should optimise. The nowcast label is still computed and
+    # reported, and remains what the published metric series tracks.
+    rain_within_hours: int = 3
+
+    # Evaluate the fitted model alongside the hand-tuned ones. Off makes the run
+    # independent of scikit-learn.
+    learned_model: bool = True
+
     # Analysis window. Defaults to the union of all source timespans, which lets
     # one long-running source stretch the grid — pass these to pin it down.
     window_start: Optional[str] = None
@@ -97,6 +108,11 @@ class AnalysisConfig:
 
     # Model defaults (baseline)
     model_params: dict = field(default_factory=lambda: asdict(ModelParams()))
+
+    # Share of the labelled window used to *select* grid-search parameters; the
+    # remainder is held back so the reported score is not the maximum of many
+    # draws on its own data.
+    param_tuning_train_frac: float = 0.7
 
     # Grid search space for parameter tuning
     param_grid: dict = field(default_factory=lambda: {
@@ -290,6 +306,8 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     grid = grid.copy()
     labels, gt_source = rl.label_rain(grid, "om_precip", config.rain_threshold_mm, return_source=True)
     grid["rain_truth"] = labels
+    grid["rain_truth_window"] = rl.label_rain_within(labels, config.rain_within_hours,
+                                                    freq=config.grid_freq)
 
     rain_hours = (
         grid[grid["rain_truth"] == 1]
@@ -314,7 +332,17 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     n_unknown = int(grid["rain_truth"].isna().sum())
     n_labelled = n_rain + n_dry
 
+    window = grid["rain_truth_window"]
+    w_rain = int((window == 1).sum())
+    w_labelled = int(window.notna().sum())
+
     stats = {
+        "warning_horizon_hours": config.rain_within_hours,
+        "warning_distribution": {
+            "rain_hours": w_rain,
+            "labelled_hours": w_labelled,
+            "rain_base_rate_pct": float(w_rain / w_labelled * 100) if w_labelled else None,
+        },
         "total_rain_hours": len(rain_hours),
         "total_rain_mm": float(rain_hours.get(om_precip_col, pd.Series(dtype=float)).sum())
         if om_precip_col in rain_hours.columns else None,
@@ -378,6 +406,27 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     return grid, model_stats
 
 
+def _or_none(value):
+    """JSON-friendly float: NaN becomes null rather than an unparseable token."""
+    if value is None:
+        return None
+    return None if (isinstance(value, float) and math.isnan(value)) else float(value)
+
+
+def display_name_for(col: str) -> str:
+    """Report name for a model column.
+
+    `ha_rain_prob` is the value the deployed sensor actually recorded;
+    `model_ha_live` is this repo's reimplementation of it. They are named apart
+    so a divergence between them is visible instead of averaging into one row.
+    """
+    if col == "ha_rain_prob":
+        return "ha_live_actual"
+    if col == "model_ha_live":
+        return "ha_live_replica"
+    return col.replace("model_", "")
+
+
 def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     """§6-§7: Score all models + threshold sweep + F-beta recommendations."""
     model_cols = [f"model_{n}" for n in MODELS]
@@ -395,17 +444,17 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         c = rl.confusion_at_threshold(grid[col], grid["rain_truth"], config.decision_threshold)
         lt = rl.lead_time(grid[col], grid["rain_truth"], config.decision_threshold)
 
-        if col == "ha_rain_prob":
-            display_name = "ha_live_actual"
-        elif col == "model_ha_live":
-            display_name = "ha_live_replica"
-        else:
-            display_name = col.replace("model_", "")
+        display_name = display_name_for(col)
 
         scores[display_name] = {
             "precision": c["precision"] if not (isinstance(c["precision"], float) and np.isnan(c["precision"])) else None,
             "recall": c["recall"] if not (isinstance(c["recall"], float) and np.isnan(c["recall"])) else None,
             "f1": c["f1"] if not (isinstance(c["f1"], float) and np.isnan(c["f1"])) else None,
+            # Threshold-free, so a model cannot hide behind a lucky cutoff. F1 at a
+            # fixed 50% threshold let models sit at AUC 0.49 — chance — while still
+            # posting a respectable-looking score.
+            "roc_auc": _or_none(rl.roc_auc(grid[col], grid["rain_truth"])),
+            "average_precision": _or_none(rl.average_precision(grid[col], grid["rain_truth"])),
             "tp": c["tp"],
             "fp": c["fp"],
             "fn": c["fn"],
@@ -475,6 +524,184 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         "best_overall": best_overall,
         "temporal_scoring": temporal_scores,
         "scores_vs_meteostat": score_against_alternative_truth(grid, config),
+        "warning_target": score_warning_target(grid, config),
+        "baselines": score_baselines(grid, config),
+        "learned": score_learned_model(grid, config),
+    }
+
+
+def score_learned_model(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
+    """Walk-forward score for the fitted model, against both targets.
+
+    Reported next to the hand-tuned models so the cost of guessing the weights
+    is visible. Never trained on the rows it is scored on. Returns an `error`
+    entry rather than raising: a missing scikit-learn or too short a window
+    should not take the whole daily report down.
+    """
+    if not config.learned_model:
+        return {}
+
+    try:
+        from analysis import learned
+    except ImportError:  # running with analysis/ on sys.path rather than as a package
+        import learned
+
+    try:
+        features = learned.build_features(grid)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    targets = {"nowcast": grid.get("rain_truth")}
+    if config.rain_within_hours > 0 and "rain_truth_window" in grid.columns:
+        targets[f"within_{config.rain_within_hours}h"] = grid["rain_truth_window"]
+
+    out = {"model": "logistic_regression"}
+    for name, truth in targets.items():
+        if truth is None or truth.notna().sum() == 0:
+            continue
+        try:
+            result = learned.walk_forward(features, truth)
+        except (ValueError, ImportError) as exc:
+            out[name] = {"error": str(exc)}
+            continue
+
+        entry = result.to_dict()
+        # The learned score covers only held-out rows, and only those with every
+        # feature present. Scoring the hand-tuned models over the whole window
+        # and putting the two numbers side by side would compare different rows
+        # on a different class balance, so they are re-scored here on exactly
+        # the rows the learned model was judged on.
+        scored_index = result.predictions.dropna().index
+        entry["comparison_on_same_rows"] = _rescore_on(grid, truth, scored_index)
+        out[name] = entry
+
+    return out
+
+
+def _rescore_on(grid: pd.DataFrame, truth: pd.Series, index: pd.Index) -> dict:
+    """ROC AUC for every model and baseline, restricted to `index`."""
+    subset_truth = truth.reindex(index)
+    out = {}
+
+    columns = {display_name_for(c): c for c in
+               [f"model_{n}" for n in MODELS] + ["ha_rain_prob"] if c in grid.columns}
+    for name, col in columns.items():
+        value = rl.roc_auc(grid[col].reindex(index), subset_truth)
+        if not math.isnan(value):
+            out[name] = float(value)
+
+    for name, pred in build_baselines(grid).items():
+        value = rl.roc_auc(pred.reindex(index), subset_truth)
+        if not math.isnan(value):
+            out[name] = float(value)
+
+    return dict(sorted(out.items(), key=lambda kv: -kv[1]))
+
+
+def build_baselines(grid: pd.DataFrame) -> dict[str, pd.Series]:
+    """Reference predictors that any real model must beat.
+
+    None of these is a candidate for deployment; they exist to give the model
+    scores a floor. Until now there was none, so a model could rank tenth out of
+    ten and still look like it was doing something.
+
+    - **persistence** — it rained last hour, so say it will rain. The standard
+      forecasting baseline, and on this data it beats every hand-tuned model.
+    - **always_alert** — alert unconditionally. Its precision *is* the base rate,
+      which makes it the honest reference for "is this model's precision real?".
+    - **yandex_forecast** — a free external forecast. A local-sensor model that
+      cannot beat it has not earned the sensors.
+    """
+    baselines = {}
+
+    if "rain_truth" in grid.columns:
+        # Shift, not ffill: this must be strictly what was known an hour ago.
+        baselines["persistence"] = (grid["rain_truth"].shift(1) * 100.0)
+
+    baselines["always_alert"] = pd.Series(100.0, index=grid.index)
+
+    if "yx_prec_prob" in grid.columns and grid["yx_prec_prob"].notna().any():
+        # Yandex reports 0-1; the rest of the pipeline speaks percent.
+        yx = grid["yx_prec_prob"].astype(float)
+        baselines["yandex_forecast"] = yx * 100.0 if yx.max() <= 1.0 else yx
+
+    return baselines
+
+
+def score_baselines(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
+    """Score the reference predictors against both the nowcast and warning targets."""
+    baselines = build_baselines(grid)
+    if not baselines:
+        return {}
+
+    targets = {"nowcast": grid.get("rain_truth")}
+    if config.rain_within_hours > 0 and "rain_truth_window" in grid.columns:
+        targets[f"within_{config.rain_within_hours}h"] = grid["rain_truth_window"]
+
+    out = {}
+    for name, pred in baselines.items():
+        entry = {}
+        for target_name, truth in targets.items():
+            if truth is None or truth.notna().sum() == 0:
+                continue
+            c = rl.confusion_at_threshold(pred, truth, config.decision_threshold)
+            entry[target_name] = {
+                "precision": _or_none(c["precision"]),
+                "recall": _or_none(c["recall"]),
+                "f1": _or_none(c["f1"]),
+                "roc_auc": _or_none(rl.roc_auc(pred, truth)),
+                "n_samples": c["n"],
+            }
+        if entry:
+            out[name] = entry
+    return out
+
+
+def score_warning_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
+    """Score every model against "rain within the next N hours".
+
+    Kept separate from `scores` on purpose. `scores` measures the nowcast and is
+    what the published metric series has always tracked; changing its meaning
+    would silently break that series a second time. This is the target the
+    product actually needs, so it is what `best_model` here selects on.
+
+    Ranked by ROC AUC rather than F1: the decision threshold is fixed at 50 on
+    scores that are not calibrated probabilities, so F1 mostly measures where a
+    model's output happens to sit relative to that line.
+    """
+    if config.rain_within_hours <= 0 or "rain_truth_window" not in grid.columns:
+        return {}
+
+    truth = grid["rain_truth_window"]
+    if truth.notna().sum() == 0:
+        return {}
+
+    model_cols = [f"model_{n}" for n in MODELS]
+    if "ha_rain_prob" in grid.columns:
+        model_cols.append("ha_rain_prob")
+
+    out = {}
+    for col in model_cols:
+        if col not in grid.columns:
+            continue
+        c = rl.confusion_at_threshold(grid[col], truth, config.decision_threshold)
+        out[display_name_for(col)] = {
+            "precision": _or_none(c["precision"]),
+            "recall": _or_none(c["recall"]),
+            "f1": _or_none(c["f1"]),
+            "roc_auc": _or_none(rl.roc_auc(grid[col], truth)),
+            "average_precision": _or_none(rl.average_precision(grid[col], truth)),
+            "n_samples": c["n"],
+        }
+
+    ranked = [(name, s["roc_auc"]) for name, s in out.items() if s["roc_auc"] is not None]
+    best = max(ranked, key=lambda r: r[1])[0] if ranked else None
+
+    return {
+        "horizon_hours": config.rain_within_hours,
+        "scores": out,
+        "best_model": best,
+        "ranked_by": "roc_auc",
     }
 
 
@@ -514,30 +741,73 @@ def score_against_alternative_truth(grid: pd.DataFrame, config: AnalysisConfig) 
 
 
 def param_tuning(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
-    """§10: Grid search over ModelParams."""
-    results = []
-    keys = list(config.param_grid)
+    """§10: Grid search over ModelParams, selected on the past and reported on the future.
 
-    for combo in itertools.product(*config.param_grid.values()):
+    Previously this fitted and reported on the same rows, so the headline "best
+    F1" was the maximum of ~36 draws on one window — a number that says more
+    about the size of the grid than about the parameters. Selection now happens
+    on the earlier `param_tuning_train_frac` of the window and the reported
+    score comes from the later part, which the search never saw.
+
+    Both numbers are returned. A large gap between them is the finding: it means
+    the grid is fitting the window, not the weather.
+    """
+    keys = list(config.param_grid)
+    combos = list(itertools.product(*config.param_grid.values()))
+
+    labelled = grid.index[grid["rain_truth"].notna()]
+    split_at = None
+    if len(labelled) >= 20:
+        split_at = labelled[int(len(labelled) * config.param_tuning_train_frac)]
+
+    def score_on(pred, mask) -> dict:
+        c = rl.confusion_at_threshold(pred[mask], grid["rain_truth"][mask],
+                                      config.decision_threshold)
+        return {
+            "precision": _or_none(c["precision"]),
+            "recall": _or_none(c["recall"]),
+            "f1": _or_none(c["f1"]),
+            "n": c["n"],
+        }
+
+    train_mask = grid.index < split_at if split_at is not None else pd.Series(True, index=grid.index)
+    test_mask = grid.index >= split_at if split_at is not None else pd.Series(True, index=grid.index)
+
+    results = []
+    for combo in combos:
         kw = dict(zip(keys, combo))
-        p = ModelParams(**kw)
         ctx = ModelContext(spread=grid["spread"], spread_deriv=grid["spread_deriv"])
-        pred = rl.model_tuned(ctx, p)
-        c = rl.confusion_at_threshold(pred, grid["rain_truth"], config.decision_threshold)
+        pred = rl.model_tuned(ctx, ModelParams(**kw))
+        train = score_on(pred, train_mask)
         results.append({
             **kw,
-            "precision": c["precision"] if not np.isnan(c["precision"]) else None,
-            "recall": c["recall"] if not np.isnan(c["recall"]) else None,
-            "f1": c["f1"] if not np.isnan(c["f1"]) else None,
+            # Kept under the historical key names so existing report code and
+            # tests keep working; these are the *selection* scores.
+            "precision": train["precision"],
+            "recall": train["recall"],
+            "f1": train["f1"],
+            "holdout": score_on(pred, test_mask) if split_at is not None else None,
         })
 
-    # Sort by F1 descending
     results.sort(key=lambda r: r["f1"] if r["f1"] is not None else -1, reverse=True)
 
     top_n = 15
+    best = results[0] if results else None
     return {
         "total_combinations": len(results),
-        "best_params": results[0] if results else None,
+        "best_params": best,
+        "validation": {
+            "split_at": str(split_at) if split_at is not None else None,
+            "train_frac": config.param_tuning_train_frac,
+            "selection_f1": best["f1"] if best else None,
+            "holdout_f1": (best.get("holdout") or {}).get("f1") if best else None,
+            "note": ("Selected on the earlier part of the window, reported on the later part. "
+                     "Selection F1 is optimistic by construction; the holdout figure is the "
+                     "one to quote."
+                     if split_at is not None else
+                     "Too few labelled hours to split; selection and reporting share rows, "
+                     "so the F1 below is optimistic."),
+        },
         f"top_{top_n}": results[:top_n],
     }
 
