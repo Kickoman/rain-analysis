@@ -137,6 +137,45 @@ def extract_best_model_fbeta2(results, min_precision=0.6):
     
     return best_model, best_fbeta2
 
+
+def check_data_overlap(results_7d, results_14d, results_28d):
+    """Check if different windows share identical datasets (Issue #157)."""
+    windows_data = {}
+    
+    for name, res in [('7d', results_7d), ('14d', results_14d), ('28d', results_28d)]:
+        ds = res['metadata']['data_stats']
+        windows_data[name] = {
+            'start': ds['grid_start'],
+            'end': ds['grid_end'],
+            'shape': tuple(ds['grid_shape'])
+        }
+    
+    warnings = []
+    
+    # Check if 7d and 14d have identical data
+    if windows_data['7d']['shape'] == windows_data['14d']['shape']:
+        if windows_data['7d']['start'] == windows_data['14d']['start']:
+            warnings.append({
+                'windows': ['7d', '14d'],
+                'reason': 'identical_dataset',
+                'shape': windows_data['7d']['shape'],
+                'start': windows_data['7d']['start'],
+                'end': windows_data['7d']['end']
+            })
+    
+    # Check if 14d and 28d have identical data
+    if windows_data['14d']['shape'] == windows_data['28d']['shape']:
+        if windows_data['14d']['start'] == windows_data['28d']['start']:
+            warnings.append({
+                'windows': ['14d', '28d'],
+                'reason': 'identical_dataset',
+                'shape': windows_data['14d']['shape'],
+                'start': windows_data['14d']['start'],
+                'end': windows_data['14d']['end']
+            })
+    
+    return windows_data, warnings
+
 def generate_report(date: str, results_7d, results_14d, results_28d):
     """Generate rich markdown report from multi-window results."""
     
@@ -159,12 +198,34 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     best_overall_model = best_models['7d'][0]
     
     report = f"""# Daily Model Analysis — {date}
+    
+    # Check for data overlap issues (Issue #157)
+    windows_data, overlap_warnings = check_data_overlap(results_7d, results_14d, results_28d)
 
 **Generated:** {datetime.now(timezone.utc).isoformat()}
 
 **Analysis windows:** 7-day (recent), 14-day (medium-term), 28-day (long-term)
 
 ---
+
+    # Add data coverage section if there are warnings (Issue #157)
+    if overlap_warnings:
+        report += "## ⚠️ Data Coverage Warning\n\n"
+        for warn in overlap_warnings:
+            windows_str = ' and '.join(warn['windows'])
+            report += f"**{windows_str} windows use identical datasets** (shape={warn['shape']}):\n"
+            report += f"- Range: {warn['start']} → {warn['end']}\n"
+            report += f"- This means metrics for these windows will be identical\n"
+            report += f"- Likely cause: insufficient historical data available (<28 days)\n"
+            report += f"- Fix: Wait for more data to accumulate, or check `fetch_ha_data.py` for date range issues\n\n"
+        
+        # Add actual coverage info
+        report += "**Actual data coverage:**\n\n"
+        for window_name in ['7d', '14d', '28d']:
+            wd = windows_data[window_name]
+            report += f"- **{window_name}**: {wd['start']} → {wd['end']} (shape={wd['shape']})\n"
+        report += "\n---\n\n"
+    
 
 ## Executive Summary
 
