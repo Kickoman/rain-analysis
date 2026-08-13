@@ -32,6 +32,16 @@ def _strip_tags(html: str) -> str:
     return re.sub(r'<[^>]+>', '', html)
 
 
+def _is_failed_experiment(model_name: str) -> bool:
+    """Check if a model is marked as a failed experiment in MODEL_DESCRIPTIONS.
+    
+    Returns True if the model's description starts with ❌, indicating
+    it's a known failed experiment that should not be considered a valid "best model".
+    """
+    desc = MODEL_DESCRIPTIONS.get(model_name, "")
+    return desc.startswith("❌")
+
+
 def _extract_report_meta(html: str) -> dict[str, str | None]:
     """Parse current/index.html for date and best model info."""
     text = _strip_tags(html)
@@ -104,6 +114,9 @@ def main():
     # Issue #342: Don't show "best model" if coverage is too low
     LOW_COVERAGE_THRESHOLD = 20.0
     low_coverage = om_coverage is not None and om_coverage < LOW_COVERAGE_THRESHOLD
+    
+    # Issue #336: Warn if "best model" is a known failed experiment
+    failed_experiment = best_model != "N/A" and _is_failed_experiment(best_model)
 
     # Model list (only models that exist in the report)
     models_in_report = _detect_models(html_content)
@@ -119,8 +132,13 @@ def main():
         for m in models_in_report
     )
 
+    # Build best model string with warnings
     if low_coverage:
         best_str = f"⚠️ Insufficient data (coverage: {om_coverage:.1f}%)"
+    elif failed_experiment:
+        # Show the model name/F1 but add a warning that it's a failed experiment
+        best_str = f"{best_model} (F1: {best_f1})" if best_f1 else best_model
+        best_str += "<br><small style='color: #ff6b6b;'>⚠️ This is a known failed experiment — see model descriptions</small>"
     else:
         best_str = f"{best_model} (F1: {best_f1})" if best_f1 else best_model
 
