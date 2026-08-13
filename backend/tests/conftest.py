@@ -7,7 +7,7 @@ backend_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(backend_dir))
 
 # Set test environment variables before any imports
-os.environ["API_KEYS_SALT"] = "test-salt-for-testing"
+os.environ["API_KEYS_SALT"] = "test-salt-for-testing-minimum-32-characters-required"
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 import pytest
