@@ -6,22 +6,28 @@ Rain forecasting based on sensor data.
 
 ```
 rain-analysis/
-├── backend/        # FastAPI web application
-│   ├── app/        # Application code
+├── backend/             # FastAPI web application
+│   ├── app/             # Application code
 │   │   ├── auth/        # Authentication system
+│   │   ├── ml/          # ML model integration
 │   │   ├── models/      # SQLAlchemy ORM models
 │   │   ├── routers/     # API endpoints
 │   │   ├── schemas/     # Pydantic validation schemas
 │   │   ├── database.py  # Database setup
 │   │   ├── config.py    # Configuration
 │   │   └── main.py      # FastAPI application
-│   ├── alembic/    # Database migrations
-│   ├── tests/      # Backend tests
-│   └── scripts/    # Utility scripts
-├── scripts/        # Data processing utilities (legacy)
-├── scripts_utils/  # Shared utilities
-├── tests/          # Legacy test suite
-└── docs/           # Documentation
+│   ├── alembic/         # Database migrations
+│   ├── scripts/         # Utility scripts (key generation, etc.)
+│   └── tests/           # Backend tests
+├── analysis/            # ML analysis and model training
+│   ├── rainlib.py       # Core ML library (models, training, evaluation)
+│   └── rain_analysis.ipynb  # Jupyter notebook for exploration
+├── rainlib/             # Shared re-export package for analysis.rainlib
+├── scripts_utils/       # Shared data processing utilities
+├── data/                # Training data and archives
+├── reports/             # Generated analysis reports
+├── docs/                # Documentation
+└── tests/               # Integration tests
 ```
 
 ## Quick Start
@@ -51,6 +57,18 @@ python run.py
 ```
 
 API documentation: http://localhost:8000/docs
+
+### ML Analysis
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run full analysis pipeline
+python analysis/run_full_analysis.py --days 7 --output-dir reports/
+```
+
+See `analysis/` directory for ML model training and evaluation code.
 
 ## Authentication
 
@@ -114,7 +132,7 @@ pytest -v
 # With coverage report
 pytest -v --cov=app --cov-report=term-missing
 
-# Legacy ML tests
+# Integration tests
 pytest tests/ -v
 ```
 
@@ -177,6 +195,11 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - **SQLite/aiosqlite** - Database (development)
 - **Passlib** - Cryptographic utilities for API key hashing
 
+### ML Stack
+- **pandas** - Data manipulation
+- **numpy** - Numerical computing
+- **matplotlib** - Visualization
+
 ### Testing
 - **pytest** - Test framework
 - **pytest-asyncio** - Async test support
@@ -221,9 +244,44 @@ Phase 2 implemented secure API access:
 
 See [Phase 2 tracking issue](https://github.com/Kickoman/rain-analysis/issues/225) for details.
 
-### Phase 3: Data Ingestion (Planned)
+### Phase 3: Models Integration & Predictions API 🔄 (In Progress)
 
-Next phase will focus on data endpoints and ingestion.
+Phase 3 focuses on integrating ML models into the backend:
+
+1. ✅ Database schema for models (#301)
+2. ✅ Model loader and cache (#302)
+3. ✅ Predictions service (#303)
+4. ✅ Models API endpoints (#304)
+5. ✅ Predictions API endpoints (#305)
+6. ✅ Admin endpoints for model management (#306)
+7. 🔄 Background task for daily ML analysis (#307)
+8. 🔄 Phase 3 testing and documentation (#308)
+
+See [Phase 3 tracking issue](https://github.com/Kickoman/rain-analysis/issues/231) for details.
+
+### Phase 4: Reports API & History Migration 📋 (Planned)
+
+Migration of historical reports and implementation of reports API.
+
+See [Phase 4 tracking issue](https://github.com/Kickoman/rain-analysis/issues/232) for details.
+
+### Phase 5: Frontend — Dashboard & Model Pages 📋 (Planned)
+
+Web dashboard for visualizing model performance and predictions.
+
+See [Phase 5 tracking issue](https://github.com/Kickoman/rain-analysis/issues/233) for details.
+
+### Phase 6: Deployment & Infrastructure 📋 (Planned)
+
+Production deployment setup and infrastructure configuration.
+
+See [Phase 6 tracking issue](https://github.com/Kickoman/rain-analysis/issues/234) for details.
+
+### Phase 7: Legacy Compatibility & Migration 📋 (Planned)
+
+Migration from GitHub Pages to the new backend system.
+
+See [Phase 7 tracking issue](https://github.com/Kickoman/rain-analysis/issues/235) for details.
 
 ## Requirements
 
