@@ -137,6 +137,76 @@
 &gt;<br>
 &gt; See the table below for current figures, and <a href="CHANGELOG.html">CHANGELOG.md</a> for details.</p>
 
+<h3>Ranking quality (2026-08-14)</h3>
+
+<p>F1 at a fixed 50% threshold, the table below, turned out to be the wrong lens. It<br>
+cannot tell a model that ranks well from one whose output happens to sit near<br>
+the cutoff. ROC AUC can, and it is unflattering — measured on the 3-hour warning<br>
+target over identical held-out rows:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>ROC AUC</th>
+<th>note</th>
+</tr></thead><tbody>
+<tr>
+<td>logistic regression (<code>analysis/learned.py</code>)</td>
+<td><strong>0.753</strong></td>
+<td>fitted, walk-forward</td>
+</tr>
+<tr>
+<td><strong>pressure_primary</strong></td>
+<td>0.669</td>
+<td>best hand-tuned</td>
+</tr>
+<tr>
+<td>persistence (&quot;it rained last hour&quot;)</td>
+<td>0.643</td>
+<td>baseline</td>
+</tr>
+<tr>
+<td>Yandex forecast</td>
+<td>0.589</td>
+<td>free external forecast</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.548</td>
+<td></td>
+</tr>
+<tr>
+<td>tuned / pressure_*</td>
+<td>0.524–0.540</td>
+<td></td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.522</td>
+<td></td>
+</tr>
+<tr>
+<td><strong>ha_live</strong> (production)</td>
+<td><strong>0.494</strong></td>
+<td>below chance</td>
+</tr>
+<tr>
+<td>always-alert</td>
+<td>0.500</td>
+<td>baseline</td>
+</tr>
+</tbody></table></div>
+
+<p>The production model does not rank rain above dry hours. Every model built on<br>
+the dew-point-spread derivative sits within a few points of chance, which is<br>
+what that feature measures at (AUC 0.492 over 49,200 hours).</p>
+
+<code>pressure_primary</code> is the one model here whose weights come from measurement
+rather than intuition: pressure anomaly leads, humidity is secondary, the
+derivative is a nudge, and the output is scaled by time of day. See
+<a href="ALERT_RULE.html">ALERT_RULE.md</a> for the deployable rule built on the same finding.
+
 <h3>Current benchmarks (2026-08-13)</h3>
 
 <p>Measured over <strong>2026-07-01 → 2026-08-13</strong> (1036 hourly points, 247 rain hours,<br>
@@ -1188,7 +1258,7 @@ Override via <code>AnalysisConfig</code> in <code>run_analysis.py</code>.
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-13 21:38 UTC</p>
+        <p>Generated: 2026-08-13 22:21 UTC</p>
     </footer>
 </body>
 </html>

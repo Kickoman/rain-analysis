@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALERT_RULE — Rain Analysis</title>
+    <meta name="description" content="ALERT_RULE — documentation for the rain-analysis project.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>The rain alert</h1>
+
+<p>What actually runs in the house: a Home Assistant automation that sends a<br>
+Telegram message when rain looks likely. This page documents the rule, what it<br>
+was measured at, and the rule it replaces.</p>
+
+<h2>The rule</h2>
+
+<code>`</code>
+pressure_anomaly &lt; −3 hPa   AND   outdoor_humidity &gt; 75 %
+<code>`</code>
+
+<p>where <code>pressure_anomaly</code> is the current barometer reading minus its own median<br>
+over the previous 30 days.</p>
+
+<p>Two things about it are worth stating plainly, because both contradict how this<br>
+project has modelled rain until now.</p>
+
+<strong>It leads with pressure, not humidity dynamics.</strong> Every model in <code>MODELS</code> is
+built on the dew-point-spread derivative, which measures at ROC AUC 0.49 over
+49,200 hours — chance. Absolute pressure reaches 0.75. See
+<a href="MODELS.html">MODELS.md</a> and <code>plans/model-improvements.md</code>.
+
+<strong>It uses no dew-point spread at all.</strong> A <code>spread &lt; 4 °C</code> term was offered to
+the threshold search and rejected: adding it changed precision by 0.002 and cost
+recall. The spread is not useless, but on top of pressure and humidity it adds
+nothing.
+
+<h3>Why an anomaly rather than an absolute pressure</h3>
+
+<p>The barometer sits at roughly 220 m, where station pressure has a median of<br>
+989.6 hPa and never exceeds 1001. Any rule written against sea-level figures —<br>
+&quot;below 1000 hPa means low&quot; — is true here almost all the time. Subtracting the<br>
+station&#x27;s own recent median removes the elevation offset without needing to know<br>
+the elevation, and tracks the seasonal drift for free.</p>
+
+<h2>What it scores</h2>
+
+<p>Ground truth is Open-Meteo precipitation ≥ 0.1 mm/h; the target is rain in any of<br>
+the next three hours. Measured on two independent datasets:</p>
+
+<div class="table-wrap">
+<table>
+<tr>
+<td><strong>Deployed rule</strong> (local sensors, 31 d)</td>
+<td>0.404</td>
+<td>0.109</td>
+<td>0.90</td>
+<td>1.72×</td>
+</tr>
+<tr>
+<td><strong>This rule</strong> (local sensors, 31 d)</td>
+<td>0.789</td>
+<td>0.171</td>
+<td>0.26</td>
+<td>3.36×</td>
+</tr>
+<tr>
+<td><strong>Deployed rule</strong> (reanalysis, 17 mo held out)</td>
+<td>0.401</td>
+<td>0.096</td>
+<td>1.04</td>
+<td>1.47×</td>
+</tr>
+<tr>
+<td><strong>This rule</strong> (reanalysis, 17 mo held out)</td>
+<td>0.555</td>
+<td>0.397</td>
+<td>0.30</td>
+<td>2.03×</td>
+</tr>
+</tbody></table></div>
+
+<p>The rule is better on all three axes at once — more of its alerts are right, it<br>
+catches more rain, and it interrupts you less often. That combination is<br>
+unusual enough to be worth double-checking, which is why both datasets are<br>
+quoted.</p>
+
+<strong>Take the reanalysis row as the honest estimate.</strong> The local sample covers 31
+days with 175 rain events, and its precision of 0.789 is almost certainly
+flattering; the 17-month held-out figure of 0.555 is measured over 12,294 hours
+and is the number to expect. Both agree on the direction and on the ordering
+against the deployed rule.
+
+<h3>Threshold choice</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>anomaly threshold</th>
+<th>precision</th>
+<th>recall</th>
+<th>alerts/day</th>
+</tr></thead><tbody>
+<tr>
+<td>&lt; −1 hPa</td>
+<td>0.519</td>
+<td>0.488</td>
+<td>0.40</td>
+</tr>
+<tr>
+<td>&lt; −2 hPa</td>
+<td>0.537</td>
+<td>0.449</td>
+<td>0.35</td>
+</tr>
+<tr>
+<td><strong>&lt; −3 hPa</strong></td>
+<td><strong>0.555</strong></td>
+<td><strong>0.397</strong></td>
+<td><strong>0.30</strong></td>
+</tr>
+<tr>
+<td>&lt; −4 hPa</td>
+<td>0.566</td>
+<td>0.347</td>
+<td>0.29</td>
+</tr>
+</tbody></table></div>
+
+<p>(reanalysis, held out.) −3 is chosen over −1 because an alert acted on by a<br>
+person has to be worth believing: the extra 0.09 of recall at −1 costs a third<br>
+more interruptions. Move it to −1 if missing rain matters more to you than being<br>
+interrupted.</p>
+
+<h2>Implementation</h2>
+
+<p>Three helpers and one automation. The 30-day median comes from the <code>statistics</code><br>
+integration, so no custom code is needed.</p>
+
+<code>`</code>yaml
+<h1>1. The station&#x27;s own 30-day normal.</h1>
+<h1>   sampling_size must be large: the barometer reports every few minutes, and</h1>
+<h1>   the default of 20 samples would cover about an hour, not a month.</h1>
+sensor:
+  - platform: statistics
+    name: &quot;Pressure median 30d&quot;
+    entity_id: sensor.filtered_pressure
+    state_characteristic: median
+    max_age:
+      days: 30
+    sampling_size: 5000
+
+<h1>2. How far below normal we are, in hPa.</h1>
+template:
+  - sensor:
+      - name: &quot;Pressure anomaly&quot;
+        unique_id: pressure_anomaly
+        unit_of_measurement: &quot;hPa&quot;
+        state_class: measurement
+        state: &gt;
+          {% set now = states(&#x27;sensor.filtered_pressure&#x27;) | float(none) %}
+          {% set normal = states(&#x27;sensor.pressure_median_30d&#x27;) | float(none) %}
+          {% if now is none or normal is none %}
+            unknown
+          {% else %}
+            {{ (now - normal) | round(2) }}
+          {% endif %}
+
+<h1>3. The rule itself. delay_on debounces a brief dip; delay_off is the re-arm</h1>
+<h1>   interval, so a single weather system produces one alert rather than a</h1>
+<h1>   stream of them as the condition flickers around the threshold.</h1>
+  - binary_sensor:
+      - name: &quot;Rain likely&quot;
+        unique_id: rain_likely
+        device_class: moisture
+        delay_on: &quot;00:20:00&quot;
+        delay_off: &quot;02:00:00&quot;
+        state: &gt;
+          {{ states(&#x27;sensor.pressure_anomaly&#x27;) | float(99) &lt; -3
+             and states(&#x27;sensor.datchik_klimata_vlazhnost&#x27;) | float(0) &gt; 75 }}
+<code>`</code>
+
+<code>`</code>yaml
+<h1>The automation fires on the transition into the state, never while it holds.</h1>
+alias: Rain likely notification
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.rain_likely
+    from: &quot;off&quot;
+    to: &quot;on&quot;
+actions:
+  - action: telegram_bot.send_message
+    data:
+      entity_id: notify.telegram_bot_kastus
+      message: &gt;-
+        🌧️ Chutka mažlivy doždž u najbližšyja 3 hadziny.
+
+Cisk {{ states(&#x27;sensor.pressure_anomaly&#x27;) }} hPa niža za narmalny,
+        vilhotnaść {{ states(&#x27;sensor.datchik_klimata_vlazhnost&#x27;) }}%.
+mode: single
+<code>`</code>
+
+<h3>Notes on deployment</h3>
+
+<ul>
+<li><code>sensor.pressure_median_30d</code> needs 30 days of history before it means</li>
+</ul>
+  anything. Home Assistant&#x27;s long-term statistics for <code>sensor.filtered_pressure</code>
+  begin 2026-07-12, so the median is trustworthy from mid-August onward. Until
+  then the anomaly reads as a smaller departure than it should and the rule
+  under-fires — which is the safe direction.
+<ul>
+<li><code>delay_off: 2h</code> is the re-arm interval. Without it the binary sensor chatters</li>
+</ul>
+  whenever the anomaly sits near −3, and each flicker is a message.
+<ul>
+<li>The old automation triggered directly on <code>sensor.outside_dew_point_spread</code>.</li>
+</ul>
+  Remove it when this one goes in, or you will get both.
+
+<h2>The rule this replaces</h2>
+
+<code>`</code>yaml
+<h1>Deployed until 2026-08-14 — kept here as the reference to beat.</h1>
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.outside_dew_point_spread
+    below: 4
+    for: {minutes: 5}
+conditions:
+  - condition: numeric_state
+    entity_id: sensor.outside_dew_point_spread_trend
+    below: -0.5
+<code>`</code>
+
+<p>Its measured recall is 0.096–0.109: it missed about nine rain events in ten, and<br>
+around 60% of the alerts it did send were wrong. The trend term is the weakest<br>
+signal available, and firing on a <code>numeric_state</code> crossing with no re-arm made<br>
+it about one alert per day.</p>
+
+<h2>Caveats</h2>
+
+<ul>
+<li>Ground truth is Open-Meteo, which agrees with Meteostat at only κ = 0.495. A</li>
+</ul>
+  meaningful share of the measured error belongs to the yardstick rather than to
+  the rule; a local rain gauge would settle it.
+<ul>
+<li>The thresholds were fitted on 2021-01 → 2025-03 and measured on 2025-03 →</li>
+</ul>
+  2026-08. They are not tuned to the local barometer, which has too little
+  history for that yet — re-check them once a full year of local pressure has
+  accumulated.
+<ul>
+<li>This is a rule, deliberately. The fitted model in <code>analysis/learned.py</code> scores</li>
+</ul>
+  ROC AUC 0.753 against this rule&#x27;s inputs and would do better, but it cannot
+  run as a Home Assistant template; deploying it needs the backend to serve
+  predictions.
+<hr>
+_Measured 2026-08-14. Reproduce with <code>data/archive/ha_hourly.csv</code> and the
+Open-Meteo archive; see <code>plans/model-improvements.md</code> for the method._
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-08-13 22:21 UTC</p>
+    </footer>
+</body>
+</html>
