@@ -144,9 +144,10 @@ def check_data_overlap(results_7d, results_14d, results_28d):
     
     for name, res in [('7d', results_7d), ('14d', results_14d), ('28d', results_28d)]:
         ds = res['metadata']['data_stats']
+        # Handle both old test format (missing grid_start/end) and new format
         windows_data[name] = {
-            'start': ds['grid_start'],
-            'end': ds['grid_end'],
+            'start': ds.get('grid_start', 'N/A'),
+            'end': ds.get('grid_end', 'N/A'),
             'shape': tuple(ds['grid_shape'])
         }
     
@@ -197,16 +198,18 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     # Use 7d best model as default "best overall" for GitHub Pages compatibility
     best_overall_model = best_models['7d'][0]
     
-    report = f"""# Daily Model Analysis — {date}
-    
     # Check for data overlap issues (Issue #157)
     windows_data, overlap_warnings = check_data_overlap(results_7d, results_14d, results_28d)
+    
+    report = f"""# Daily Model Analysis — {date}
 
 **Generated:** {datetime.now(timezone.utc).isoformat()}
 
 **Analysis windows:** 7-day (recent), 14-day (medium-term), 28-day (long-term)
 
 ---
+
+"""
 
     # Add data coverage section if there are warnings (Issue #157)
     if overlap_warnings:
@@ -226,8 +229,7 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
             report += f"- **{window_name}**: {wd['start']} → {wd['end']} (shape={wd['shape']})\n"
         report += "\n---\n\n"
     
-
-## Executive Summary
+    report += f"""## Executive Summary
 
 **Best overall (F-beta=2):** {best_overall_model} @ 7d
 
