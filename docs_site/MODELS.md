@@ -615,6 +615,61 @@ result = clamp(157.5, 0, 100) = 100%
 
 This is intentional design, not an error. The weights control relative influence, not probability distribution.
 
+#### Conditional Signal Application
+
+⚠️ **Important:** Temperature, humidity, and pressure signals are applied **conditionally**, not always.
+
+**Temperature trend:** Applied only when significant change detected
+```python
+if temp_trend < -0.5:          # Significant cooling → condensation signal
+    temp_score = min(-temp_trend * 8.0, 20.0)
+elif temp_trend > 2.0:         # Rapid warming → warm front
+    temp_score = min(temp_trend * 2.5, 8.0)
+else:
+    temp_score = 0             # Normal range → no contribution
+```
+
+**Absolute humidity trend:** Applied only when rising
+```python
+if abs_humidity_trend > 0:     # Rising moisture
+    ah_score = min(abs_humidity_trend * 60.0, 25.0)
+else:
+    ah_score = 0               # Falling or stable → no contribution
+```
+
+**Pressure signals:** Applied only when enabled and data available
+```python
+if use_pressure and pressure_data_available:
+    pressure_long = clamp(-deriv_12h * gain, -15, 35)
+    pressure_short = clamp(-deriv_3h_lagged * gain, -15, 35)
+    pressure_bonus = absolute_pressure_bonus(pressure)
+else:
+    pressure_long = pressure_short = pressure_bonus = 0
+```
+
+#### Complete Blending Formula
+
+```python
+# Step 1: Calculate individual scores (with conditions)
+proximity = clamp(100 - spread/proximity_divisor*100, 0, 100)     # Always active
+trend_score = clamp(-spread_deriv*trend_gain, -15, 30)            # Always active
+temp_score = conditional_temp_score(temp_trend)                    # 0 or 0-20
+ah_score = conditional_humidity_score(abs_humidity_trend)          # 0 or 0-25
+pressure_scores = conditional_pressure_scores(use_pressure, data)  # 0 or calculated
+
+# Step 2: Weighted blend
+raw_score = (proximity * 0.8 + trend_score * 0.5 + temp_score * 0.15 + 
+             ah_score * 0.18 + pressure_scores)
+
+# Step 3: Apply dry-spread ceiling
+if spread > 10.0:  # Dry conditions
+    raw_score = min(raw_score, 40.0)
+
+# Step 4: Hysteresis (score rises instantly, decays slowly)
+final_score = hysteretic_decay(raw_score, previous_score, decay=0.30)
+final_score = clamp(final_score, 0, 100)
+```
+
 ---
 
 ## Future Models (Planned)
