@@ -19,7 +19,7 @@ python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
-| `--meteostat` | | `None` | Meteostat JSON file |
+    --meteostat data/meteostat.json \
     --output analysis_report.json \
     --plots
 ```
@@ -36,9 +36,22 @@ python run_analysis.py \
 | `--plots` | | off | Also generate PNG timeline + calibration plots |
 | `--threshold` | | `50.0` | Probability threshold for rain/no-rain decision |
 | `--rain-threshold` | | `0.1` | Minimum precipitation (mm/h) to label as rain |
+| `--grid-freq` | | `1h` | Analysis grid frequency |
+| `--window-start` | | — | Clip the grid to start here (ISO 8601, UTC) |
+| `--window-end` | | — | Clip the grid to end here (ISO 8601, UTC) |
 | `--quiet`, `-q` | | off | Suppress text summary on stdout |
 
 > **Tip:** Pass multiple open-meteo files with `--om-sources data/day1.json data/day2.json`.
+
+> **Always pass `--window-start` / `--window-end` for a fixed-length analysis.**
+> Without them the grid spans the *union* of every source's timespan, so a
+> long-running source stretches the window: a 43-day Yandex archive turned a
+> 7-day run into a mostly-empty 43-day grid and made every coverage figure
+> meaningless. `run_full_analysis.py` passes them for you.
+
+> The grid is hourly because the ground truth is hourly. On the previous
+> 10-minute grid only one row in six could ever carry a label, which capped
+> reported ground-truth coverage at 16.7% however complete the data was.
 
 ## Output Files
 
@@ -139,7 +152,6 @@ Data range: 2026-06-30 21:00 → 2026-07-06 20:10
 | Notebook section | Script |
 |------------------|--------|
 | §1 — Point at data | `--ha-csv`, `--om-sources`, `--yandex-dir` flags |
-| `--meteostat` | | `None` | Meteostat JSON file |
 | §2 — Load & align | `load_data()` → `rl.build_grid()` |
 | §3 — Features | `compute_features()` → same rainlib functions |
 | §4 — Ground truth | `label_ground_truth()` → `rl.label_rain()` |
@@ -207,7 +219,7 @@ python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
-| `--meteostat` | | `None` | Meteostat JSON file |
+    --meteostat data/meteostat.json \
     --output reports/$(date +%Y-%m-%d).json \
     --quiet
 ```

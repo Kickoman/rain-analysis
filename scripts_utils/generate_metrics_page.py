@@ -373,6 +373,11 @@ def main():
     <header>
         <h1>🌧️ Rain Prediction Model Analysis</h1>
         <p>Automated performance tracking and reports</p>
+        <p style="font-size:0.85em;opacity:0.85;max-width:70ch;margin:0.6em auto 0">
+            ⚠️ Points before <strong>2026-08-13</strong> come from the pre-fix
+            harness, which scored models on roughly 17 labelled rain hours.
+            They are not comparable with later points — see the changelog.
+        </p>
     </header>
 
     <nav>

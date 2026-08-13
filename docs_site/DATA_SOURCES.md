@@ -9,9 +9,34 @@ The analysis pipeline needs four data sources aligned on one time grid:
 | Source | What | Format | How to get |
 |--------|------|--------|------------|
 | **Home Assistant** | Local sensors (temp, humidity, model output) | CSV | `fetch_ha_data.py` |
+| **HA long-term statistics** | Same sensors, hourly, beyond recorder retention | CSV | `fetch_ha_statistics.py` |
 | **Open-Meteo** | Ground truth precipitation | JSON | `fetch_openmeteo.py` |
 | **Meteostat** | Historical weather station data (incl. pressure!) | JSON | `fetch_meteostat.py` |
 | **Yandex Weather** | Independent weather data for comparison | JSON archive | `fetch_yandex_archive.py` |
+
+## Retention: what you can still get, and for how long
+
+This is the constraint that shapes the whole dataset.
+
+| Source | How far back | Resolution |
+|--------|--------------|------------|
+| HA recorder (`fetch_ha_data.py`) | **~10 days**, then purged forever | irregular, ~10 min |
+| HA statistics (`fetch_ha_statistics.py`) | survives purging | hourly mean/min/max |
+| `data/archive/` (`archive_ha_data.py`) | everything ever archived | hourly |
+| Open-Meteo archive, Meteostat | years | hourly |
+
+Two consequences worth internalising:
+
+1. **Local sensor history is perishable.** Anything not copied out of Home
+   Assistant before it purges cannot be recovered from anywhere. This is why
+   `archive_ha_data.py` exists and why `data/archive/` is committed to git —
+   it is the project's actual dataset, not a cache.
+2. **`sensor.rain_probability` has no long-term statistics** (it is a template
+   sensor with no numeric `state_class`). The deployed model's historical output
+   therefore only exists inside the recorder window; beyond that only the
+   replica can be recomputed. Reports mark this rather than scoring it as zero.
+
+Prefer sources in this order: `data/archive/` → statistics → recorder.
 
 ## 1. Home Assistant Data
 
@@ -40,6 +65,22 @@ sensor.datchik_klimata_vlazhnost,66,2026-07-05T19:25:05+00:00
 ```
 
 See [HA_DATA_FETCHER.md](HA_DATA_FETCHER.md) for full details.
+
+## 1b. Home Assistant Long-Term Statistics
+
+The recorder purges raw state history after ~10 days, but hourly statistics for
+sensors with a numeric `state_class` are kept indefinitely. `fetch_ha_statistics.py`
+reads them over the WebSocket API and writes the same three-column CSV, so
+`rainlib.load_ha_csv()` reads either interchangeably.
+
+```bash
+python fetch_ha_statistics.py --days 45 --output data/ha_stats.csv
+python archive_ha_data.py --input data/ha_stats.csv
+```
+
+The second command merges into `data/archive/ha_hourly.csv`, keyed on
+(entity_id, timestamp) so re-running never duplicates. Run both regularly: the
+archive is what grows the dataset past whatever Home Assistant still holds.
 
 ## 2. Open-Meteo Data (Ground Truth)
 

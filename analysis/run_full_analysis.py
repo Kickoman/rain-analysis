@@ -23,7 +23,7 @@ import os
 import json
 import subprocess
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 
 def run_command(cmd: list, description: str, allow_fail: bool = False) -> bool:
@@ -142,10 +142,19 @@ def main():
         print("    Analysis will continue without pressure/precip data from Meteostat")
 
     # Step 5: Run analysis
+    #
+    # The window is passed explicitly: without it the grid spans the union of
+    # every source's timespan, so the multi-day Yandex archive would stretch a
+    # 7-day run into a mostly-empty 43-day grid.
+    window_end = datetime.now(timezone.utc)
+    window_start = window_end - timedelta(days=args.days)
+
     analysis_cmd = [
         args.python, "run_analysis.py",
         "--ha-csv", str(ha_csv),
         "--yandex-dir", str(yandex_dir),
+        "--window-start", window_start.isoformat(),
+        "--window-end", window_end.isoformat(),
         "--output", str(report_json),
     ]
     

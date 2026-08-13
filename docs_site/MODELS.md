@@ -19,7 +19,50 @@ Complete documentation of all rain prediction models in this analysis framework.
 
 *Scores from 7-day test (2026-07-05 to 2026-07-12), ground truth: Open-Meteo ≥0.1mm/h*
 
-> ⚠️ **Caveat:** These benchmarks predate the 2026-07-18 precipitation forward-fill bugfix. Pre-fix, rain-hour counts were inflated ~80%. Post-fix numbers may differ. See [CHANGELOG.md](CHANGELOG.md) for details.
+> ⛔ **This table is obsolete — do not cite these numbers.** They predate two
+> corrections that change every figure in it:
+>
+> 1. The 2026-07-18 precipitation forward-fill bugfix (pre-fix, rain-hour counts
+>    were inflated ~80%).
+> 2. The 2026-08-13 harness fixes: the analysis grid was not clipped to the
+>    requested window, coverage was measured against a 10-minute grid carrying
+>    hourly ground truth, and the `ha_live` replica was fed a recomputed
+>    derivative instead of the trend sensor production actually reads. Together
+>    these left model scoring resting on ~17 labelled rain hours.
+>
+> See the table below for current figures, and [CHANGELOG.md](CHANGELOG.md) for details.
+
+### Current benchmarks (2026-08-13)
+
+Measured over **2026-07-01 → 2026-08-13** (1036 hourly points, 247 rain hours,
+23.8% base rate), ground truth Open-Meteo ≥0.1mm/h at a 50% decision threshold.
+This is the first run on a dataset large enough for the ranking to mean anything —
+it draws on Home Assistant long-term statistics, which survive recorder purging.
+
+| Model | F1 | Precision | Recall | F1 vs Meteostat label |
+|-------|:---:|:---------:|:------:|:---------------------:|
+| **combined** | **0.400** | 0.395 | 0.405 | 0.406 |
+| pressure_combined | 0.383 | 0.389 | 0.377 | 0.400 |
+| pressure_absolute | 0.382 | 0.384 | 0.381 | 0.394 |
+| pressure_long_window | 0.368 | 0.389 | 0.348 | 0.378 |
+| pressure_lagged | 0.367 | 0.383 | 0.352 | 0.377 |
+| pressure_aware | 0.364 | 0.381 | 0.348 | 0.373 |
+| tuned | 0.363 | 0.379 | 0.348 | 0.372 |
+| original | 0.316 | 0.361 | 0.280 | 0.338 |
+| ha_live_replica | 0.313 | 0.349 | 0.301 | 0.333 |
+| trend_dominant | 0.234 | 0.536 | 0.150 | 0.242 |
+
+Two things worth noting:
+
+- **The ranking is identical under both ground truths** (Open-Meteo and
+  Meteostat), so it reflects the models rather than the choice of yardstick.
+  That matters because the two sources agree only moderately — Cohen's
+  κ = 0.495 over the same period.
+- **Pressure-aware variants do beat the humidity-only baselines**, reversing the
+  earlier conclusion that pressure "did not help". That conclusion was drawn
+  when scoring rested on ~17 rain hours.
+- `trend_dominant` remains the weakest by F1 but has the **highest precision**
+  (0.536) — it alerts rarely and is usually right when it does.
 
 ---
 

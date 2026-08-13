@@ -204,5 +204,9 @@ pyrightconfig.json
 /data/*
 !/data/.gitkeep
 
+# The HA archive is the project's actual dataset. Home Assistant purges its own
+# history, so anything not committed here cannot be re-fetched later.
+!/data/archive/
+
 # Python bytecode (explicit)
 *.pyc

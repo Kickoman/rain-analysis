@@ -26,6 +26,15 @@ DEFAULT_LON = 27.596646
 USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
 
+# Hourly variables requested from both the forecast and archive endpoints.
+# surface_pressure is the station-level reading, the like-for-like reference for
+# the local barometer; Meteostat's `pres` is reduced to sea level, so comparing
+# the two shows Minsk's ~220 m elevation as a ~26 hPa "sensor bias".
+HOURLY_VARIABLES = (
+    "temperature_2m,relative_humidity_2m,dew_point_2m,"
+    "precipitation,rain,showers,surface_pressure"
+)
+
 def generate_mock_data(start_date: str, end_date: str) -> dict:
     """Generate mock Open-Meteo API response for testing."""
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -108,7 +117,7 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
         url = (
             f"https://api.open-meteo.com/v1/forecast?"
             f"latitude={lat}&longitude={lon}"
-            f"&hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers"
+            f"&hourly={HOURLY_VARIABLES}"
             f"&timezone=UTC"
             f"&past_days={days_back}"
         )
@@ -125,7 +134,7 @@ def fetch_data(lat: float, lon: float, start_date: str, end_date: str,
             f"https://archive-api.open-meteo.com/v1/archive?"
             f"latitude={lat}&longitude={lon}"
             f"&start_date={start_date}&end_date={end_date}"
-            f"&hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers"
+            f"&hourly={HOURLY_VARIABLES}"
             f"&timezone=UTC"
         )
     

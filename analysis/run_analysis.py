@@ -75,12 +75,25 @@ class AnalysisConfig:
         "sensor.datchik_klimata_vlazhnost": "rh",
         "sensor.rain_probability": "ha_rain_prob",
         "sensor.filtered_pressure": "pressure",
+        # The two sensors the deployed template actually reads. Only the trend
+        # has long-term statistics, so beyond the recorder window the spread
+        # still has to be recomputed from temperature and humidity.
+        "sensor.outside_dew_point_spread": "ha_spread",
+        "sensor.outside_dew_point_spread_trend": "ha_spread_trend",
     })
 
-    grid_freq: str = "10min"
+    # Hourly: ground truth (open-meteo, Meteostat) and HA long-term statistics
+    # are both hourly, so a finer grid adds no information — it only leaves 5 of
+    # every 6 rows unlabelled, which used to cap reported coverage at 16.7%.
+    grid_freq: str = "1h"
     rain_threshold_mm: float = 0.1
     decision_threshold: float = 50.0
     deriv_window: str = "3h"
+
+    # Analysis window. Defaults to the union of all source timespans, which lets
+    # one long-running source stretch the grid — pass these to pin it down.
+    window_start: Optional[str] = None
+    window_end: Optional[str] = None
 
     # Model defaults (baseline)
     model_params: dict = field(default_factory=lambda: asdict(ModelParams()))
@@ -145,6 +158,54 @@ def validate_time_overlap(ha, om, yx, ms):
 
 
 
+def source_ranges(ha, om, yx, ms) -> dict:
+    """First/last timestamp and row count actually delivered by each source.
+
+    A source that silently stops updating looks identical to a healthy one in
+    aggregate metrics, so record the raw span and let the report show it.
+    """
+    ranges = {}
+    for frame, name in ((ha, "home_assistant"), (om, "open_meteo"),
+                        (yx, "yandex"), (ms, "meteostat")):
+        if frame is None or frame.empty:
+            ranges[name] = {"rows": 0, "first": None, "last": None}
+        else:
+            ranges[name] = {
+                "rows": int(len(frame)),
+                "first": str(frame.index.min()),
+                "last": str(frame.index.max()),
+            }
+    return ranges
+
+
+def compute_coverage(grid: pd.DataFrame, ha: pd.DataFrame) -> dict:
+    """Per-source coverage over the analysis window.
+
+    Meaningful only because the grid is now clipped to the requested window and
+    its frequency matches the hourly cadence of the data. Previously this
+    divided hourly observations by a 10-minute grid spanning the union of every
+    source, so ground-truth coverage could not exceed 16.7% however complete
+    the data actually was.
+    """
+    grid_len = len(grid)
+    if grid_len == 0:
+        return {k: 0.0 for k in ("ha_coverage_pct", "om_coverage_pct",
+                                 "yx_coverage_pct", "ms_coverage_pct")}
+
+    def pct(mask) -> float:
+        return float(mask.sum() / grid_len * 100)
+
+    ha_cols = [c for c in grid.columns if c in ha.columns]
+    coverage = {
+        "ha_coverage_pct": pct(grid[ha_cols].notna().any(axis=1)) if ha_cols else 0.0,
+        "om_coverage_pct": pct(grid["om_precip"].notna()) if "om_precip" in grid.columns else 0.0,
+        "yx_coverage_pct": pct(grid["yx_is_rain"].notna()) if "yx_is_rain" in grid.columns else 0.0,
+        "ms_coverage_pct": pct(grid["ms_precip"].notna()) if "ms_precip" in grid.columns else 0.0,
+    }
+    coverage["grid_rows"] = int(grid_len)
+    return coverage
+
+
 def load_data(config: AnalysisConfig) -> pd.DataFrame:
     """§1-§2: Load & align everything onto one grid."""
     # Local sensors
@@ -164,7 +225,8 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
     ms = rl.load_meteostat(config.meteostat_json) if config.meteostat_json else pd.DataFrame()
 
     validate_time_overlap(ha, om, yx, ms)
-    grid = rl.build_grid(ha, om, yx, ms, freq=config.grid_freq)
+    grid = rl.build_grid(ha, om, yx, ms, freq=config.grid_freq,
+                         start=config.window_start, end=config.window_end)
 
     stats = {
         "ha_rows": len(ha_long),
@@ -178,38 +240,13 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
         "grid_shape": grid.shape,
         "grid_start": str(grid.index.min()),
         "grid_end": str(grid.index.max()),
+        "grid_freq": config.grid_freq,
+        # What each source actually delivered, so a source that quietly stopped
+        # updating is visible in the report instead of being averaged away.
+        "source_ranges": source_ranges(ha, om, yx, ms),
     }
 
-    # Coverage statistics for transparency in reports
-    grid_len = len(grid)
-    coverage = {}
-    
-    # HA coverage: any non-NaN value across HA columns
-    ha_cols = [c for c in grid.columns if c in ha.columns]
-    if ha_cols:
-        coverage["ha_coverage_pct"] = float((grid[ha_cols].notna().any(axis=1).sum() / grid_len) * 100)
-    else:
-        coverage["ha_coverage_pct"] = 0.0
-    
-    # Open-Meteo coverage
-    if "om_precip" in grid.columns:
-        coverage["om_coverage_pct"] = float((grid["om_precip"].notna().sum() / grid_len) * 100)
-    else:
-        coverage["om_coverage_pct"] = 0.0
-    
-    # Yandex coverage
-    if "yx_is_rain" in grid.columns:
-        coverage["yx_coverage_pct"] = float((grid["yx_is_rain"].notna().sum() / grid_len) * 100)
-    else:
-        coverage["yx_coverage_pct"] = 0.0
-    
-    # Meteostat coverage
-    if "ms_precip" in grid.columns:
-        coverage["ms_coverage_pct"] = float((grid["ms_precip"].notna().sum() / grid_len) * 100)
-    else:
-        coverage["ms_coverage_pct"] = 0.0
-    
-    stats["coverage"] = coverage
+    stats["coverage"] = compute_coverage(grid, ha)
 
 
     return grid, stats
@@ -272,6 +309,11 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
                     "precip_mm": float(val),
                 })
 
+    n_rain = int((grid["rain_truth"] == 1).sum())
+    n_dry = int((grid["rain_truth"] == 0).sum())
+    n_unknown = int(grid["rain_truth"].isna().sum())
+    n_labelled = n_rain + n_dry
+
     stats = {
         "total_rain_hours": len(rain_hours),
         "total_rain_mm": float(rain_hours.get(om_precip_col, pd.Series(dtype=float)).sum())
@@ -279,9 +321,14 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
         "rain_hours": rain_summary,
         "ground_truth_source": gt_source,
         "distribution": {
-            "rain_hours": int((grid["rain_truth"] == 1).sum()),
-            "dry_hours": int((grid["rain_truth"] == 0).sum()),
-            "unknown_hours": int(grid["rain_truth"].isna().sum()),
+            "rain_hours": n_rain,
+            "dry_hours": n_dry,
+            "unknown_hours": n_unknown,
+            # Share of labelled hours that were rainy. Reporting rain as a share
+            # of the whole grid instead hid the real class balance: 17 rain
+            # hours out of 192 labelled (8.9%) was shown as 1.5%.
+            "labelled_hours": n_labelled,
+            "rain_base_rate_pct": float(n_rain / n_labelled * 100) if n_labelled else None,
         },
     }
 
@@ -300,6 +347,7 @@ def run_models(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
         abs_humidity=grid.get("abs_humidity"),
         temp=grid.get("temp"),
         pressure=grid.get("pressure"),
+        ha_spread_trend=grid.get("ha_spread_trend"),
     )
 
     model_stats = {}
@@ -426,7 +474,43 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         "fbeta_recommendations": fbeta_recs,
         "best_overall": best_overall,
         "temporal_scoring": temporal_scores,
+        "scores_vs_meteostat": score_against_alternative_truth(grid, config),
     }
+
+
+def score_against_alternative_truth(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
+    """Re-score every model against the Meteostat label instead of Open-Meteo.
+
+    The primary label stays Open-Meteo. Scoring a second time against an
+    independent source shows how much of a model's measured performance is a
+    property of the model and how much is a property of the yardstick: a ranking
+    that survives both is worth acting on, one that flips is not.
+    """
+    if "ms_precip" not in grid.columns or not grid["ms_precip"].notna().any():
+        return {}
+
+    truth = (grid["ms_precip"] >= config.rain_threshold_mm).astype(float)
+    truth[grid["ms_precip"].isna()] = np.nan
+
+    out = {}
+    for col in [f"model_{n}" for n in MODELS] + (["ha_rain_prob"] if "ha_rain_prob" in grid.columns else []):
+        if col not in grid.columns:
+            continue
+        if col == "ha_rain_prob":
+            name = "ha_live_actual"
+        elif col == "model_ha_live":
+            name = "ha_live_replica"
+        else:
+            name = col.replace("model_", "")
+
+        c = rl.confusion_at_threshold(grid[col], truth, config.decision_threshold)
+        out[name] = {
+            "precision": None if np.isnan(c["precision"]) else c["precision"],
+            "recall": None if np.isnan(c["recall"]) else c["recall"],
+            "f1": None if np.isnan(c["f1"]) else c["f1"],
+            "tp": c["tp"], "fp": c["fp"], "fn": c["fn"],
+        }
+    return out
 
 
 def param_tuning(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
@@ -540,7 +624,91 @@ def cross_check(grid: pd.DataFrame) -> dict:
         "data_coverage": sources,
         "yandex_vs_truth": yandex_vs_truth,
         "precip_comparison": three_way,
+        "sensor_diagnostics": sensor_diagnostics(grid),
+        "ground_truth_agreement": ground_truth_agreement(grid),
     }
+
+
+def ground_truth_agreement(grid: pd.DataFrame, threshold_mm: float = 0.1) -> dict:
+    """Chance-corrected agreement between the candidate ground-truth sources.
+
+    Open-Meteo is reanalysis of a model grid cell, Meteostat is a real station
+    ~km away, Yandex is a spot observation. They disagree substantially, so part
+    of every model's error is the yardstick's, not the model's. Raw agreement
+    hides this because rain is rare and both sources call most hours dry, so
+    Cohen's kappa is reported alongside it.
+    """
+    labels = {}
+    if "om_precip" in grid.columns:
+        labels["om"] = (grid["om_precip"] >= threshold_mm).astype(float).where(grid["om_precip"].notna())
+    if "ms_precip" in grid.columns:
+        labels["ms"] = (grid["ms_precip"] >= threshold_mm).astype(float).where(grid["ms_precip"].notna())
+    if "yx_is_rain" in grid.columns:
+        labels["yx"] = grid["yx_is_rain"].astype(float)
+
+    pairs = {}
+    names = sorted(labels)
+    for i, first in enumerate(names):
+        for second in names[i + 1:]:
+            result = rl.cohens_kappa(labels[first], labels[second])
+            if result["n"]:
+                pairs[f"{first}_vs_{second}"] = result
+
+    return {"sources": names, "pairs": pairs}
+
+
+def _agreement(a: pd.Series, b: pd.Series) -> dict | None:
+    """Correlation, bias and MAE between two aligned series."""
+    df = pd.DataFrame({"a": a, "b": b}).dropna()
+    if len(df) < 2:
+        return None
+    diff = df["a"] - df["b"]
+    return {
+        "n": int(len(df)),
+        "corr": float(df["a"].corr(df["b"])),
+        "bias": float(diff.mean()),
+        "mae": float(diff.abs().mean()),
+    }
+
+
+def sensor_diagnostics(grid: pd.DataFrame) -> dict:
+    """How far the local sensors drift from reference sources, and whether the
+    ha_live replica reproduces the deployed sensor.
+
+    Models are scored on the raw sensor because that is what runs in production.
+    This section keeps the sensor's own error visible separately, so a model
+    result is not mistaken for a calibration problem or vice versa.
+    """
+    comparisons = {}
+    for name, local, reference in [
+        ("temp_vs_open_meteo", "temp", "om_temp"),
+        ("temp_vs_meteostat", "temp", "ms_temp"),
+        ("rh_vs_open_meteo", "rh", "om_rh"),
+        ("rh_vs_meteostat", "rh", "ms_rhum"),
+        # Against Open-Meteo's station-level pressure only. Meteostat's `pres`
+        # is reduced to sea level, so differencing it against the local
+        # barometer reports Minsk's ~220 m elevation as a ~26 hPa sensor bias.
+        ("pressure_vs_open_meteo", "pressure", "om_pressure"),
+    ]:
+        if local in grid.columns and reference in grid.columns:
+            result = _agreement(grid[local], grid[reference])
+            if result:
+                comparisons[name] = result
+
+    # The Python dew-point spread against Home Assistant's own spread sensor:
+    # isolates a formula error from a sensor bias, since both read the same probe.
+    if "spread" in grid.columns and "ha_spread" in grid.columns:
+        result = _agreement(grid["spread"], grid["ha_spread"])
+        if result:
+            comparisons["spread_vs_ha_sensor"] = result
+
+    # Replica against the deployed sensor. These must agree closely; if they do
+    # not, the "model comparison" is comparing something that is not in production.
+    replica = None
+    if "model_ha_live" in grid.columns and "ha_rain_prob" in grid.columns:
+        replica = _agreement(grid["model_ha_live"], grid["ha_rain_prob"])
+
+    return {"reference_comparisons": comparisons, "replica_vs_actual": replica}
 
 
 def generate_summary(report: dict) -> str:
@@ -738,6 +906,8 @@ def build_report(grid: pd.DataFrame, stats: dict, config: AnalysisConfig,
                 "decision_threshold": config.decision_threshold,
                 "deriv_window": config.deriv_window,
                 "grid_freq": config.grid_freq,
+                "window_start": config.window_start,
+                "window_end": config.window_end,
                 "model_params": config.model_params,
             },
             "data_stats": stats,
@@ -768,6 +938,12 @@ def main():
                         help="Decision threshold %% for classification (default: 50)")
     parser.add_argument("--rain-threshold", type=float, default=0.1,
                         help="Min precip mm/h to label as rain (default: 0.1)")
+    parser.add_argument("--grid-freq", default=None,
+                        help="Grid frequency (default: 1h, matching the hourly ground truth)")
+    parser.add_argument("--window-start", default=None,
+                        help="Clip the analysis grid to start at this time (ISO 8601, UTC)")
+    parser.add_argument("--window-end", default=None,
+                        help="Clip the analysis grid to end at this time (ISO 8601, UTC)")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress text summary on stdout")
 
@@ -780,6 +956,9 @@ def main():
         meteostat_json=args.meteostat,
         decision_threshold=args.threshold,
         rain_threshold_mm=args.rain_threshold,
+        window_start=args.window_start,
+        window_end=args.window_end,
+        **({"grid_freq": args.grid_freq} if args.grid_freq else {}),
     )
 
     output_dir = os.path.dirname(os.path.abspath(args.output)) or "."

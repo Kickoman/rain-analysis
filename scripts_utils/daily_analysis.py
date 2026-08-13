@@ -177,6 +177,228 @@ def check_data_overlap(results_7d, results_14d, results_28d):
     
     return windows_data, warnings
 
+# Below this share of the analysis window carrying ground truth, model rankings
+# rest on too few labelled hours to be trusted. Meaningful only since coverage
+# started being measured over the analysis window on an hourly grid — against
+# the old 10-minute grid it could never exceed 16.7%, so it always fired.
+LOW_COVERAGE_THRESHOLD = 20.0
+
+
+def _metric_by_window_rows(all_models, windows, metric: str) -> str:
+    """One table row per model, `metric` across the three windows.
+
+    A model with nothing to score renders as N/A. Passing it through as 0.000
+    put ha_live_actual at the bottom of every ranking, when in fact
+    `sensor.rain_probability` simply has no data outside the recorder window.
+    """
+    rows = ""
+    for model in all_models:
+        cells = []
+        for window_name in ['7d', '14d', '28d']:
+            score = windows[window_name].get('scoring', {}).get('scores', {}).get(model, {})
+            value = score.get(metric)
+            cells.append("N/A" if value is None or score.get('n_samples') == 0
+                         else f"{value:.3f}")
+        rows += f"| {model:<20} | {' | '.join(cells)} |\n"
+    return rows
+
+
+def generate_data_context(results_7d) -> str:
+    """Ground truth source, per-source coverage, and class balance (7d window).
+
+    One shared renderer: this block used to be pasted verbatim at four points in
+    the report, so every reader saw the same numbers four times over.
+    """
+    meta = results_7d.get('metadata', {})
+    data_stats = meta.get('data_stats', {})
+    gt_stats = data_stats.get('ground_truth', {})
+
+    out = "## Data Context\n\n"
+    out += f"**Ground truth source:** {gt_stats.get('ground_truth_source', 'unknown')}\n\n"
+
+    coverage = data_stats.get('coverage', {})
+    if coverage:
+        om_cov = coverage.get('om_coverage_pct', 0)
+        out += "**Data coverage (7-day window):**\n\n"
+        out += f"- Home Assistant sensors: {coverage.get('ha_coverage_pct', 0):.1f}%\n"
+        out += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
+        if coverage.get('yx_coverage_pct', 0) > 0:
+            out += f"- Yandex Weather: {coverage['yx_coverage_pct']:.1f}%\n"
+        if coverage.get('ms_coverage_pct', 0) > 0:
+            out += f"- Meteostat: {coverage['ms_coverage_pct']:.1f}%\n"
+
+        if om_cov < LOW_COVERAGE_THRESHOLD:
+            out += (f"\n⚠️ **WARNING:** Ground truth coverage below {LOW_COVERAGE_THRESHOLD:.0f}% "
+                    f"({om_cov:.1f}%). Model rankings may be unreliable. "
+                    "Results should be interpreted with caution.\n")
+        out += "\n"
+
+    # What each source actually delivered — a source stuck in the past is
+    # invisible in aggregate metrics but obvious here.
+    ranges = data_stats.get('source_ranges', {})
+    if ranges:
+        out += "**Source data ranges:**\n\n"
+        for name, info in ranges.items():
+            label = name.replace('_', ' ').title()
+            if info.get('rows'):
+                out += f"- {label}: {info['rows']} rows, {info['first']} → {info['last']}\n"
+            else:
+                out += f"- {label}: no data\n"
+        out += "\n"
+
+    distribution = gt_stats.get('distribution', {})
+    if distribution:
+        rain_h = distribution.get('rain_hours', 0)
+        dry_h = distribution.get('dry_hours', 0)
+        unknown_h = distribution.get('unknown_hours', 0)
+        labelled = distribution.get('labelled_hours', rain_h + dry_h)
+
+        out += "**Ground truth distribution:**\n\n"
+        if labelled > 0:
+            # Percentages are of *labelled* hours: sharing them out over the whole
+            # grid understated the class balance badly (17/192 = 8.9% showed as 1.5%).
+            base_rate = distribution.get('rain_base_rate_pct')
+            if base_rate is None:
+                base_rate = rain_h / labelled * 100
+            out += f"- Rain hours: {rain_h} of {labelled} labelled ({base_rate:.1f}% base rate)\n"
+            out += f"- Dry hours: {dry_h}\n"
+        else:
+            out += f"- Rain hours: {rain_h}\n"
+            out += f"- Dry hours: {dry_h}\n"
+        if unknown_h > 0:
+            out += f"- Unlabelled hours: {unknown_h}\n"
+        out += "\n"
+
+    return out
+
+
+# The replica should reproduce the deployed sensor almost exactly; past this the
+# "model comparison" is no longer comparing what actually runs in production.
+REPLICA_MAX_MAE = 2.0
+
+
+def generate_sensor_diagnostics(results_7d) -> str:
+    """Local sensor drift, and whether the ha_live replica matches production.
+
+    Models are scored on the raw sensor because that is what production reads.
+    This section keeps the sensor's own error visible separately, so a weak model
+    score is not mistaken for a calibration fault, or the reverse.
+    """
+    diagnostics = results_7d.get('cross_check', {}).get('sensor_diagnostics', {})
+    if not diagnostics:
+        return ""
+
+    out = "## Sensor Diagnostics\n\n"
+
+    comparisons = diagnostics.get('reference_comparisons', {})
+    if comparisons:
+        out += "Local sensors against reference sources (7d window):\n\n"
+        out += "| Comparison | n | Corr | Bias | MAE |\n"
+        out += "|------------|:-:|:----:|:----:|:---:|\n"
+        for name, stats in comparisons.items():
+            label = name.replace('_', ' ')
+            out += (f"| {label} | {stats['n']} | {stats['corr']:+.3f} | "
+                    f"{stats['bias']:+.2f} | {stats['mae']:.2f} |\n")
+        out += "\n"
+
+    replica = diagnostics.get('replica_vs_actual')
+    if replica:
+        out += "**ha_live replica vs deployed sensor:** "
+        out += (f"corr {replica['corr']:.3f}, bias {replica['bias']:+.2f}, "
+                f"MAE {replica['mae']:.2f} over {replica['n']} points\n\n")
+        if replica['mae'] > REPLICA_MAX_MAE:
+            out += (f"⚠️ **WARNING:** replica diverges from production "
+                    f"(MAE {replica['mae']:.2f} > {REPLICA_MAX_MAE}). "
+                    "Model rankings do not describe the deployed model.\n\n")
+    else:
+        out += ("_No overlap with `sensor.rain_probability`: it has no long-term "
+                "statistics, so it only exists within the recorder retention window._\n\n")
+
+    return out
+
+
+# Landis & Koch bands for Cohen's kappa. Below "substantial", disagreement
+# between the ground-truth sources is a material share of every model's error.
+KAPPA_BANDS = [
+    (0.80, "almost perfect"),
+    (0.60, "substantial"),
+    (0.40, "moderate"),
+    (0.20, "fair"),
+    (0.00, "slight"),
+]
+
+
+def kappa_label(kappa: float) -> str:
+    if kappa != kappa:  # NaN
+        return "undefined"
+    for floor, label in KAPPA_BANDS:
+        if kappa >= floor:
+            return label
+    return "poor"
+
+
+def generate_ground_truth_agreement(results_7d) -> str:
+    """How much the candidate ground-truth sources agree, and whether the model
+    ranking survives swapping one for another.
+
+    Raw agreement flatters rare events — two sources that call almost every hour
+    dry agree ~85% while telling you nothing — so kappa is reported next to it.
+    A ranking that holds under both labels is a property of the models; one that
+    reorders is a property of the yardstick.
+    """
+    cross = results_7d.get('cross_check', {})
+    agreement = cross.get('ground_truth_agreement', {})
+    pairs = agreement.get('pairs', {})
+
+    out = ""
+    if pairs:
+        out += "**Ground truth source agreement (chance-corrected):**\n\n"
+        out += "| Pair | n | Raw agreement | Cohen's κ | Interpretation |\n"
+        out += "|------|:-:|:-------------:|:---------:|----------------|\n"
+        for name, stats in pairs.items():
+            label = name.replace('_vs_', ' vs ').upper()
+            out += (f"| {label} | {stats['n']} | {stats['observed_agreement'] * 100:.1f}% | "
+                    f"{stats['kappa']:.3f} | {kappa_label(stats['kappa'])} |\n")
+        out += "\n"
+
+        worst = min(s['kappa'] for s in pairs.values() if s['kappa'] == s['kappa'])
+        if worst < 0.60:
+            out += (f"⚠️ Ground truth sources agree only moderately (κ={worst:.2f}). "
+                    "Part of every model's error is the yardstick's, not the model's.\n\n")
+
+    alternative = results_7d.get('scoring', {}).get('scores_vs_meteostat', {})
+    primary = results_7d.get('scoring', {}).get('scores', {})
+    if alternative and primary:
+        out += "**Model F1 under each ground truth:**\n\n"
+        out += "| Model | Open-Meteo | Meteostat |\n"
+        out += "|-------|:----------:|:---------:|\n"
+
+        def f1_of(source, model):
+            value = source.get(model, {}).get('f1')
+            return value
+
+        ranked = sorted(primary, key=lambda m: -(f1_of(primary, m) or 0))
+        for model in ranked:
+            om, ms = f1_of(primary, model), f1_of(alternative, model)
+            if om is None and ms is None:
+                continue
+            out += (f"| {model} | {'N/A' if om is None else f'{om:.3f}'} "
+                    f"| {'N/A' if ms is None else f'{ms:.3f}'} |\n")
+        out += "\n"
+
+        ranked_alt = sorted(alternative, key=lambda m: -(f1_of(alternative, m) or 0))
+        common = [m for m in ranked if m in alternative]
+        common_alt = [m for m in ranked_alt if m in primary]
+        if common and common == common_alt:
+            out += "✅ Ranking is identical under both ground truths — it reflects the models, not the label.\n\n"
+        elif common:
+            out += (f"⚠️ Ranking changes with the ground truth "
+                    f"(Open-Meteo best: **{common[0]}**, Meteostat best: **{common_alt[0]}**). "
+                    "Treat the ordering as unresolved.\n\n")
+
+    return out
+
+
 def generate_report(date: str, results_7d, results_14d, results_28d):
     """Generate rich markdown report from multi-window results."""
     
@@ -243,9 +465,7 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     meta_7d = results_7d.get('metadata', {})
     coverage = meta_7d.get('data_stats', {}).get('coverage', {})
     om_cov = coverage.get('om_coverage_pct', 0) if coverage else 0
-    
-    LOW_COVERAGE_THRESHOLD = 20.0
-    
+
     if om_cov < LOW_COVERAGE_THRESHOLD:
         findings.append(f"⚠️ **WARNING: Low ground truth coverage ({om_cov:.1f}%)** — Model rankings may be unreliable due to insufficient validation data.")
     
@@ -278,67 +498,9 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
 
     # ===== DATA TRANSPARENCY SECTION =====
     # Added for issue #162: surface ground-truth source and data coverage
-    
-    report += "## Data Context\n\n"
-    
-    # Ground truth source (7d window)
-    meta_7d = results_7d.get('metadata', {})
-    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
-    gt_source = gt_stats.get('ground_truth_source', 'unknown')
-    
-    report += f"**Ground truth source:** {gt_source}\n\n"
-    
-    # Data coverage (7d window)
-    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
-    if coverage:
-        report += "**Data coverage (7-day window):**\n\n"
-        
-        ha_cov = coverage.get('ha_coverage_pct', 0)
-        om_cov = coverage.get('om_coverage_pct', 0)
-        yx_cov = coverage.get('yx_coverage_pct', 0)
-        ms_cov = coverage.get('ms_coverage_pct', 0)
-        
-        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
-        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
-        
-        if yx_cov > 0:
-            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
-        if ms_cov > 0:
-            report += f"- Meteostat: {ms_cov:.1f}%\n"
-        
-        # Add warning if coverage is low (issue #342)
-        if om_cov < LOW_COVERAGE_THRESHOLD:
-            report += f"\n⚠️ **WARNING:** Ground truth coverage below {LOW_COVERAGE_THRESHOLD:.0f}% ({om_cov:.1f}%). "
-            report += "Model rankings may be unreliable. Results should be interpreted with caution.\n"
-        
-        
-        report += "\n"
-    
-    # Ground truth distribution (7d window)
-    distribution = gt_stats.get('distribution', {})
-    if distribution:
-        rain_h = distribution.get('rain_hours', 0)
-        dry_h = distribution.get('dry_hours', 0)
-        unknown_h = distribution.get('unknown_hours', 0)
-        total_h = rain_h + dry_h + unknown_h
-        
-        report += "**Ground truth distribution:**\n\n"
-        
-        if total_h > 0:
-            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
-            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
-        else:
-            report += f"- Rain hours: {rain_h}\n"
-            report += f"- Dry hours: {dry_h}\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h}\n"
-        
-        report += "\n"
-
+    report += generate_data_context(results_7d)
     report += "\n---\n\n"
-    
+
     # ===== GITHUB PAGES COMPATIBILITY TABLE =====
     # This table is parsed by generate_history_index.py and generate_metrics_page.py
     # Format: <tr><td>model</td><td>F1</td><td>Precision</td><td>Recall</td>
@@ -350,10 +512,19 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     scores_7d = results_7d.get('scoring', {}).get('scores', {})
     for model in all_models:
         s = scores_7d.get(model, {})
+        status = "✅" if model == best_overall_model else "📊"
+        # A model with no scored samples is not a model that scored zero. Rendering
+        # both as 0.000 hid the fact that ha_live_actual has no data at all beyond
+        # the recorder window, since sensor.rain_probability has no statistics.
+        # Reports written before n_samples existed are judged on their metrics.
+        no_samples = s.get('n_samples') == 0
+        no_metrics = all(s.get(k) is None for k in ('f1', 'precision', 'recall'))
+        if no_samples or no_metrics:
+            report += f"| {model:<20} | N/A | N/A | N/A | ⚪ no data |\n"
+            continue
         f1 = safe_get(s, 'f1')
         p = safe_get(s, 'precision')
         r = safe_get(s, 'recall')
-        status = "✅" if model == best_overall_model else "📊"
         report += f"| {model:<20} | {f1:.3f} | {p:.3f} | {r:.3f} | {status} |\n"
     
     report += f"\n**Best overall (F-beta=2):** {best_overall_model} @ 7d\n\n"
@@ -374,107 +545,44 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     report += "|-------|:---:|:---:|:---:|:------|\n"
     
     for model in all_models:
+        # None means no threshold cleared the precision floor in that window.
+        # That is not the same as scoring zero, and rendering it as 0.000 made
+        # models look like they were "degrading" when they were merely filtered.
         fbeta2_vals = []
         for window_name in ['7d', '14d', '28d']:
             res = windows[window_name]
             fbeta_recs = res.get('scoring', {}).get('fbeta_recommendations', {})
             beta2 = fbeta_recs.get(model, {}).get('beta_2.0', {})
-            fbeta = safe_get(beta2, 'fbeta')
-            fbeta2_vals.append(fbeta)
-        
-        # Trend analysis: improving/stable/degrading
-        if fbeta2_vals[0] > 0 and fbeta2_vals[2] > fbeta2_vals[0] * 1.1:
+            fbeta2_vals.append(beta2.get('fbeta'))
+
+        first, last = fbeta2_vals[0], fbeta2_vals[2]
+        if first is None or last is None:
+            trend = "— not comparable"
+        elif first > 0 and last > first * 1.1:
             trend = "📈 improving"
-        elif fbeta2_vals[0] > 0 and fbeta2_vals[2] < fbeta2_vals[0] * 0.9:
+        elif first > 0 and last < first * 0.9:
             trend = "📉 degrading"
         else:
             trend = "➡️ stable"
-        
-        report += f"| {model:<20} | {fbeta2_vals[0]:.3f} | {fbeta2_vals[1]:.3f} | {fbeta2_vals[2]:.3f} | {trend} |\n"
+
+        cells = " | ".join("N/A" if v is None else f"{v:.3f}" for v in fbeta2_vals)
+        report += f"| {model:<20} | {cells} | {trend} |\n"
+
+    report += ("\n_N/A means no threshold reached the precision floor in that window — "
+               "not a score of zero._\n")
     
     report += "\n### Precision by Window\n\n"
     report += "| Model | 7d | 14d | 28d |\n"
     report += "|-------|:---:|:---:|:---:|\n"
     
-    for model in all_models:
-        prec_vals = []
-        for window_name in ['7d', '14d', '28d']:
-            res = windows[window_name]
-            scores = res.get('scoring', {}).get('scores', {})
-            p = safe_get(scores.get(model, {}), 'precision')
-            prec_vals.append(p)
-        
-        report += f"| {model:<20} | {prec_vals[0]:.3f} | {prec_vals[1]:.3f} | {prec_vals[2]:.3f} |\n"
-    
+    report += _metric_by_window_rows(all_models, windows, 'precision')
+
     report += "\n### Recall by Window\n\n"
     report += "| Model | 7d | 14d | 28d |\n"
     report += "|-------|:---:|:---:|:---:|\n"
-    
-    for model in all_models:
-        rec_vals = []
-        for window_name in ['7d', '14d', '28d']:
-            res = windows[window_name]
-            scores = res.get('scoring', {}).get('scores', {})
-            r = safe_get(scores.get(model, {}), 'recall')
-            rec_vals.append(r)
-        
-        report += f"| {model:<20} | {rec_vals[0]:.3f} | {rec_vals[1]:.3f} | {rec_vals[2]:.3f} |\n"
-    
 
-    # ===== DATA TRANSPARENCY SECTION =====
-    # Added for issue #162: surface ground-truth source and data coverage
-    
-    report += "## Data Context\n\n"
-    
-    # Ground truth source (7d window)
-    meta_7d = results_7d.get('metadata', {})
-    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
-    gt_source = gt_stats.get('ground_truth_source', 'unknown')
-    
-    report += f"**Ground truth source:** {gt_source}\n\n"
-    
-    # Data coverage (7d window)
-    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
-    if coverage:
-        report += "**Data coverage (7-day window):**\n\n"
-        
-        ha_cov = coverage.get('ha_coverage_pct', 0)
-        om_cov = coverage.get('om_coverage_pct', 0)
-        yx_cov = coverage.get('yx_coverage_pct', 0)
-        ms_cov = coverage.get('ms_coverage_pct', 0)
-        
-        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
-        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
-        
-        if yx_cov > 0:
-            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
-        if ms_cov > 0:
-            report += f"- Meteostat: {ms_cov:.1f}%\n"
-        
-        report += "\n"
-    
-    # Ground truth distribution (7d window)
-    distribution = gt_stats.get('distribution', {})
-    if distribution:
-        rain_h = distribution.get('rain_hours', 0)
-        dry_h = distribution.get('dry_hours', 0)
-        unknown_h = distribution.get('unknown_hours', 0)
-        total_h = rain_h + dry_h + unknown_h
-        
-        report += "**Ground truth distribution:**\n\n"
-        
-        if total_h > 0:
-            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
-            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
-        else:
-            report += f"- Rain hours: {rain_h}\n"
-            report += f"- Dry hours: {dry_h}\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h}\n"
-        
-        report += "\n"
+    report += _metric_by_window_rows(all_models, windows, 'recall')
+
 
     report += "\n---\n\n"
     
@@ -551,61 +659,6 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
         report += f"| {i} | {model:<20} | {prec:.3f} | {rec:.3f} | {f1:.3f} |\n"
     
 
-    # ===== DATA TRANSPARENCY SECTION =====
-    # Added for issue #162: surface ground-truth source and data coverage
-    
-    report += "## Data Context\n\n"
-    
-    # Ground truth source (7d window)
-    meta_7d = results_7d.get('metadata', {})
-    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
-    gt_source = gt_stats.get('ground_truth_source', 'unknown')
-    
-    report += f"**Ground truth source:** {gt_source}\n\n"
-    
-    # Data coverage (7d window)
-    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
-    if coverage:
-        report += "**Data coverage (7-day window):**\n\n"
-        
-        ha_cov = coverage.get('ha_coverage_pct', 0)
-        om_cov = coverage.get('om_coverage_pct', 0)
-        yx_cov = coverage.get('yx_coverage_pct', 0)
-        ms_cov = coverage.get('ms_coverage_pct', 0)
-        
-        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
-        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
-        
-        if yx_cov > 0:
-            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
-        if ms_cov > 0:
-            report += f"- Meteostat: {ms_cov:.1f}%\n"
-        
-        report += "\n"
-    
-    # Ground truth distribution (7d window)
-    distribution = gt_stats.get('distribution', {})
-    if distribution:
-        rain_h = distribution.get('rain_hours', 0)
-        dry_h = distribution.get('dry_hours', 0)
-        unknown_h = distribution.get('unknown_hours', 0)
-        total_h = rain_h + dry_h + unknown_h
-        
-        report += "**Ground truth distribution:**\n\n"
-        
-        if total_h > 0:
-            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
-            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
-        else:
-            report += f"- Rain hours: {rain_h}\n"
-            report += f"- Dry hours: {dry_h}\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h}\n"
-        
-        report += "\n"
-
     report += "\n---\n\n"
     
     # ===== PRECIPITATION SOURCE RELIABILITY =====
@@ -645,67 +698,18 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
         report += f"- Agreement: {yandex_truth.get('agreement_hours', 0)}h\n"
         report += f"- Yandex-only: {yandex_truth.get('yandex_only', 0)}h (false positives)\n"
         report += f"- Actual-only: {yandex_truth.get('actual_only', 0)}h (missed events)\n"
-    
 
-    # ===== DATA TRANSPARENCY SECTION =====
-    # Added for issue #162: surface ground-truth source and data coverage
-    
-    report += "## Data Context\n\n"
-    
-    # Ground truth source (7d window)
-    meta_7d = results_7d.get('metadata', {})
-    gt_stats = meta_7d.get('data_stats', {}).get('ground_truth', {})
-    gt_source = gt_stats.get('ground_truth_source', 'unknown')
-    
-    report += f"**Ground truth source:** {gt_source}\n\n"
-    
-    # Data coverage (7d window)
-    coverage = meta_7d.get('data_stats', {}).get('coverage', {})
-    if coverage:
-        report += "**Data coverage (7-day window):**\n\n"
-        
-        ha_cov = coverage.get('ha_coverage_pct', 0)
-        om_cov = coverage.get('om_coverage_pct', 0)
-        yx_cov = coverage.get('yx_coverage_pct', 0)
-        ms_cov = coverage.get('ms_coverage_pct', 0)
-        
-        report += f"- Home Assistant sensors: {ha_cov:.1f}%\n"
-        report += f"- Open-Meteo precipitation: {om_cov:.1f}%\n"
-        
-        if yx_cov > 0:
-            report += f"- Yandex Weather: {yx_cov:.1f}%\n"
-        if ms_cov > 0:
-            report += f"- Meteostat: {ms_cov:.1f}%\n"
-        
-        report += "\n"
-    
-    # Ground truth distribution (7d window)
-    distribution = gt_stats.get('distribution', {})
-    if distribution:
-        rain_h = distribution.get('rain_hours', 0)
-        dry_h = distribution.get('dry_hours', 0)
-        unknown_h = distribution.get('unknown_hours', 0)
-        total_h = rain_h + dry_h + unknown_h
-        
-        report += "**Ground truth distribution:**\n\n"
-        
-        if total_h > 0:
-            report += f"- Rain hours: {rain_h} ({rain_h/total_h*100:.1f}%)\n"
-            report += f"- Dry hours: {dry_h} ({dry_h/total_h*100:.1f}%)\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h} ({unknown_h/total_h*100:.1f}%)\n"
-        else:
-            report += f"- Rain hours: {rain_h}\n"
-            report += f"- Dry hours: {dry_h}\n"
-            if unknown_h > 0:
-                report += f"- Unknown: {unknown_h}\n"
-        
-        report += "\n"
+    report += "\n"
+    report += generate_ground_truth_agreement(results_7d)
 
     report += "\n---\n\n"
-    
+
+    # ===== SENSOR DIAGNOSTICS =====
+    report += generate_sensor_diagnostics(results_7d)
+    report += "\n---\n\n"
+
     # ===== KEY OBSERVATIONS =====
-    
+
     report += "## Key Observations & Recommendations\n\n"
     
     observations = []

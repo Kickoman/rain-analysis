@@ -54,6 +54,7 @@ from analysis.rainlib import (
     label_rain,
     
     # Metrics
+    cohens_kappa,
     confusion_at_threshold,
     sweep_threshold,
     lead_time,
@@ -105,6 +106,7 @@ __all__ = [
     "label_rain",
     
     # Metrics
+    "cohens_kappa",
     "confusion_at_threshold",
     "sweep_threshold",
     "lead_time",

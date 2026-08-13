@@ -26,6 +26,7 @@ import glob
 import math
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -320,6 +321,10 @@ class ModelContext:
     pressure: pd.Series | None = None
     temp: pd.Series | None = None
     abs_humidity: pd.Series | None = None
+    # Home Assistant's own dew-point-spread trend helper, when it was recorded.
+    # Production reads this sensor directly, so a replica that recomputes the
+    # derivative in Python is not scoring the same model the deployment runs.
+    ha_spread_trend: pd.Series | None = None
 
 
 def _clamp(x, lo, hi):
@@ -465,9 +470,23 @@ def model_ha_live(ctx: ModelContext,
         rain_probability = clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
 
     This is stateless (no hysteresis), so each output depends only on current inputs.
+
+    The trend term comes from `sensor.outside_dew_point_spread_trend` when that
+    sensor is available (`ctx.ha_spread_trend`), because that is the input the
+    deployed template actually reads. Only when it is missing does the replica
+    fall back to the Python-computed derivative, whose window need not match
+    Home Assistant's helper.
     """
+    trend = ctx.ha_spread_trend if ctx.ha_spread_trend is not None else ctx.spread_deriv
+    if ctx.ha_spread_trend is not None:
+        # Gaps in the recorded sensor mean "no trend reported", not "no data" —
+        # fall back per-sample rather than dropping the row.
+        trend = trend.reindex(ctx.spread.index)
+        if ctx.spread_deriv is not None:
+            trend = trend.fillna(ctx.spread_deriv)
+
     proximity = _clamp(100.0 - (ctx.spread / 8.0 * 100.0), 0, 100)
-    trend_score = _clamp(-ctx.spread_deriv * 26.7, -40, 40)
+    trend_score = _clamp(-trend * 26.7, -40, 40)
     total = _clamp(proximity * 0.7 + trend_score * 0.7, 0, 100)
     return total.round(0)
 
@@ -558,11 +577,34 @@ def model_pressure_aware(ctx: ModelContext,
 
 
 # Registry so the notebook can loop over models by name.
+def _import_pressure_variants():
+    """Import the pressure_variants module, which lives in scripts_utils/.
+
+    A bare `import pressure_variants` only resolves when scripts_utils/ happens
+    to be on sys.path. When it is not, all five pressure models fail at call
+    time — and since they are registered lazily, MODELS still advertises them,
+    so the failure surfaces as a mid-analysis crash rather than a clear error.
+    """
+    try:
+        import pressure_variants
+        return pressure_variants
+    except ImportError:
+        import importlib
+        import sys as _sys
+        scripts_utils = str(Path(__file__).resolve().parent.parent / "scripts_utils")
+        if scripts_utils not in _sys.path:
+            _sys.path.insert(0, scripts_utils)
+        return importlib.import_module("pressure_variants")
+
+
 def _get_pressure_variant(name):
     """Lazy-load pressure variant models on demand (optional import)."""
-    from pressure_variants import (model_pressure_absolute, model_pressure_long_window,
-                                   model_pressure_lagged, model_pressure_combined,
-                                   model_combined)
+    pv = _import_pressure_variants()
+    model_pressure_absolute = pv.model_pressure_absolute
+    model_pressure_long_window = pv.model_pressure_long_window
+    model_pressure_lagged = pv.model_pressure_lagged
+    model_pressure_combined = pv.model_pressure_combined
+    model_combined = pv.model_combined
     variants = {
         "pressure_absolute": model_pressure_absolute,
         "pressure_long_window": model_pressure_long_window,
@@ -673,8 +715,8 @@ def load_open_meteo(obj) -> pd.DataFrame:
     times_utc = times_utc.tz_localize("UTC")
 
     cols = {}
-    for key in ["temperature_2m", "relative_humidity_2m",
-                "precipitation", "rain", "showers"]:
+    for key in ["temperature_2m", "relative_humidity_2m", "dew_point_2m",
+                "precipitation", "rain", "showers", "surface_pressure"]:
         if key in hourly:
             cols[key] = hourly[key]
     out = pd.DataFrame(cols, index=times_utc)
@@ -683,9 +725,13 @@ def load_open_meteo(obj) -> pd.DataFrame:
     out = out.rename(columns={
         "temperature_2m": "om_temp",
         "relative_humidity_2m": "om_rh",
+        "dew_point_2m": "om_dew_point",
         "precipitation": "om_precip",
         "rain": "om_rain",
         "showers": "om_showers",
+        # Station-level pressure — comparable with the local barometer, unlike
+        # Meteostat's sea-level-reduced `pres`.
+        "surface_pressure": "om_pressure",
     })
     return out
 
@@ -820,18 +866,56 @@ YX_STATE_COLUMNS = {
     'yx_pressure_pa', 'yx_daytime', 'yx_polar',
     'yx_season', 'yx_obs_time', 'yx_uptime',
 }
+# How stale an observation may be and still describe the current grid point.
+STATE_FFILL_LIMIT = pd.Timedelta(hours=6)
+
+
+def _ffill_onto_grid(df: pd.DataFrame, grid: pd.DatetimeIndex,
+                     tolerance: pd.Timedelta) -> pd.DataFrame:
+    """Forward-fill each column onto `grid`, never reaching back past `tolerance`.
+
+    Filling is per column and bounded in *time*. The obvious alternative —
+    reindexing onto the union of source and grid timestamps and calling
+    `.ffill(limit=n)` — bounds staleness in *rows* of that union, which is not
+    the same thing. `ha_wide()` produces a frame where each sensor is NaN at
+    every other sensor's timestamps, so a column's own samples sit many union
+    rows apart: with a 1-hour grid the row limit worked out to 1, and a
+    temperature sensor reporting every 12 minutes landed on only 28 of 235 grid
+    hours. The limit must be expressed against the clock, not the row count.
+    """
+    out = pd.DataFrame(index=grid)
+    for col in df.columns:
+        series = df[col].dropna()
+        if series.empty:
+            out[col] = np.nan
+            continue
+        series = series.sort_index()
+        series = series[~series.index.duplicated(keep="last")]
+        out[col] = series.reindex(grid, method="ffill", tolerance=tolerance)
+    return out
+
+
 def build_grid(ha_wide_df: pd.DataFrame | None = None,
                om_df: pd.DataFrame | None = None,
                yx_df: pd.DataFrame | None = None,
                ms_df: pd.DataFrame | None = None,
                freq: str = "10min",
-               ffill_limit_min: int = 90) -> pd.DataFrame:
+               ffill_limit_min: int = 90,
+               start: pd.Timestamp | str | None = None,
+               end: pd.Timestamp | str | None = None) -> pd.DataFrame:
     """Resample every source onto one regular grid and merge.
 
     **IMPORTANT FIX (2026-07-18):** Precipitation columns are NO LONGER
     forward-filled. Precipitation is a rate (mm/h), not a state. If it
     rained at 01:00, that does NOT mean it rained at 02:00. Previous
     implementation had a bug that inflated rain hour counts by ~80%.
+
+    **IMPORTANT FIX (2026-08-13):** `start`/`end` clip the grid to the window
+    you actually want to analyse. Without them the grid spans the *union* of
+    every source's timespan, so one long-running source silently stretches the
+    grid: a 43-day Yandex archive turned a 7-day analysis into a 43-day grid
+    that was 84% empty, which in turn made every coverage figure meaningless.
+    Sources are still allowed to forward-fill from samples just before `start`.
 
     New behavior:
     * Local HA sensors (state variables like temp/humidity/pressure) are
@@ -845,25 +929,35 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
       - Condition/state (yx_condition, yx_is_rain): ffill up to 6 hours
       - These are observation states, not rates
 
+    Parameters
+    ----------
+    start, end : optional window bounds (tz-aware, or naive/str assumed UTC).
+        Default to the earliest/latest timestamp across all sources.
+
     Returns one tidy DataFrame indexed by the regular UTC grid.
     """
     frames = [f for f in (ha_wide_df, om_df, yx_df, ms_df) if f is not None and not f.empty]
     if not frames:
         raise ValueError("No data sources provided to build_grid().")
 
-    start = min(f.index.min() for f in frames)
-    end = max(f.index.max() for f in frames)
-    grid = pd.date_range(start.floor(freq), end.ceil(freq), freq=freq, tz="UTC")
+    def _as_utc(value):
+        ts = pd.Timestamp(value)
+        return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
-    limit = int(ffill_limit_min / int(pd.Timedelta(freq).total_seconds() / 60))
+    grid_start = _as_utc(start) if start is not None else min(f.index.min() for f in frames)
+    grid_end = _as_utc(end) if end is not None else max(f.index.max() for f in frames)
+
+    if grid_start > grid_end:
+        raise ValueError(f"build_grid(): start {grid_start} is after end {grid_end}")
+
+    grid = pd.date_range(grid_start.floor(freq), grid_end.ceil(freq), freq=freq, tz="UTC")
+
     out = pd.DataFrame(index=grid)
     out.index.name = "time"
 
     if ha_wide_df is not None and not ha_wide_df.empty:
-        ha_r = ha_wide_df.sort_index().reindex(
-            ha_wide_df.index.union(grid)
-        ).ffill(limit=limit).reindex(grid)
-        out = out.join(ha_r)
+        out = out.join(_ffill_onto_grid(ha_wide_df, grid,
+                                        pd.Timedelta(minutes=ffill_limit_min)))
 
     if om_df is not None and not om_df.empty:
         # Separate precipitation (no ffill) from state variables (ffill)
@@ -877,10 +971,7 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
             om_r = om_r.join(om_precip)
         if om_state_cols:
             # State variables: forward-fill up to 6 hours
-            om_state = om_df[om_state_cols].sort_index().reindex(
-                om_df.index.union(grid)
-            ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
-            om_r = om_r.join(om_state)
+            om_r = om_r.join(_ffill_onto_grid(om_df[om_state_cols], grid, STATE_FFILL_LIMIT))
         out = out.join(om_r)
 
     if yx_df is not None and not yx_df.empty:
@@ -898,10 +989,7 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
         if unknown_cols:
             warnings.warn(f"Unknown Yandex columns will be treated as state variables: {unknown_cols}")
         
-        yx_r = yx_df.sort_index().reindex(
-            yx_df.index.union(grid)
-        ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
-        out = out.join(yx_r)
+        out = out.join(_ffill_onto_grid(yx_df, grid, STATE_FFILL_LIMIT))
 
     if ms_df is not None and not ms_df.empty:
         # Separate precipitation (no ffill) from state variables (ffill)
@@ -915,10 +1003,7 @@ def build_grid(ha_wide_df: pd.DataFrame | None = None,
             ms_r = ms_r.join(ms_precip)
         if ms_state_cols:
             # State variables: forward-fill up to 6 hours
-            ms_state = ms_df[ms_state_cols].sort_index().reindex(
-                ms_df.index.union(grid)
-            ).ffill(limit=6 * (60 // int(pd.Timedelta(freq).total_seconds() / 60))).reindex(grid)
-            ms_r = ms_r.join(ms_state)
+            ms_r = ms_r.join(_ffill_onto_grid(ms_df[ms_state_cols], grid, STATE_FFILL_LIMIT))
         out = out.join(ms_r)
 
     return out
@@ -1000,6 +1085,48 @@ def confusion_at_threshold(pred: pd.Series, truth: pd.Series,
         "tp": tp, "fp": fp, "tn": tn, "fn": fn,
         "precision": precision, "recall": recall, "f1": f1,
         "n": len(df),
+    }
+
+
+def cohens_kappa(a: pd.Series, b: pd.Series) -> dict:
+    """Agreement between two binary labellings, corrected for chance.
+
+    Raw agreement is misleading when rain is rare: two sources that both call
+    almost every hour dry agree ~90% of the time while telling you nothing.
+    Kappa subtracts the agreement expected by chance:
+
+        kappa = (p_observed - p_chance) / (1 - p_chance)
+
+    1.0 is perfect agreement, 0.0 is chance, negative is worse than chance.
+    Rows where either source is missing are dropped.
+
+    Returns n, observed agreement, kappa, and the counts each source called rain.
+    NaN kappa means it is undefined — one source labelled everything the same
+    way, so there is no variation to agree about.
+    """
+    df = pd.DataFrame({"a": a, "b": b}).dropna()
+    n = len(df)
+    if n == 0:
+        return {"n": 0, "observed_agreement": float("nan"), "kappa": float("nan"),
+                "a_rain": 0, "b_rain": 0, "both_rain": 0}
+
+    x = (df["a"] > 0).astype(int)
+    y = (df["b"] > 0).astype(int)
+
+    observed = float((x == y).mean())
+    # Chance agreement from each source's marginal rain rate
+    px, py = x.mean(), y.mean()
+    expected = float(px * py + (1 - px) * (1 - py))
+
+    kappa = float("nan") if expected >= 1.0 else (observed - expected) / (1 - expected)
+
+    return {
+        "n": int(n),
+        "observed_agreement": observed,
+        "kappa": kappa,
+        "a_rain": int(x.sum()),
+        "b_rain": int(y.sum()),
+        "both_rain": int((x & y).sum()),
     }
 
 

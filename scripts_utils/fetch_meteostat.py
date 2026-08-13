@@ -27,10 +27,25 @@ import requests
 DEFAULT_STATION = "26850"  # Minsk
 USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 
+# The API rejects any single request spanning more than 30 days:
+#   {"detail": "Tried to request data for 43 days. Maximum is 30."}
+# Longer ranges are split into chunks and stitched back together.
+MAX_DAYS_PER_REQUEST = 30
 
-def fetch_data(station: str, start_date: str, end_date: str) -> dict:
-    """Fetch weather data from Meteostat API."""
-    
+
+def date_chunks(start_date: str, end_date: str, max_days: int = MAX_DAYS_PER_REQUEST):
+    """Split an inclusive date range into chunks of at most `max_days`."""
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+
+    while start <= end:
+        chunk_end = min(start + timedelta(days=max_days - 1), end)
+        yield start.strftime("%Y-%m-%d"), chunk_end.strftime("%Y-%m-%d")
+        start = chunk_end + timedelta(days=1)
+
+
+def fetch_chunk(station: str, start_date: str, end_date: str) -> dict:
+    """Fetch one within-limit range from the Meteostat API."""
     url = "https://d.meteostat.net/app/proxy/stations/hourly"
     params = {
         "station": station,
@@ -41,31 +56,54 @@ def fetch_data(station: str, start_date: str, end_date: str) -> dict:
     headers = {
         "User-Agent": USER_AGENT,
     }
-    
-    print(f"Fetching from Meteostat...", file=sys.stderr)
-    print(f"  Station: {station}", file=sys.stderr)
+
     print(f"  Range: {start_date} to {end_date}", file=sys.stderr)
-    
+
     try:
         r = requests.get(url, params=params, headers=headers, timeout=30)
         r.raise_for_status()
-        data = r.json()
-        
-        # Validate response contains data
-        records = data.get('data', [])
-        if not records:
-            print(f"[ERROR] No data returned (empty result). "
-                  f"Possible causes: station offline, date range invalid, or blocked.",
-                  file=sys.stderr)
-            sys.exit(1)
-        
-        return data
+        return r.json()
     except requests.RequestException as e:
-        print(f"[ERROR] Failed to fetch: {e}", file=sys.stderr)
+        # The API explains range violations in the body; surface that instead of
+        # a bare status code.
+        detail = ""
+        response = getattr(e, "response", None)
+        if response is not None:
+            try:
+                detail = f" — {response.json().get('detail', '')}"
+            except ValueError:
+                detail = f" — {response.text[:200]}"
+        print(f"[ERROR] Failed to fetch: {e}{detail}", file=sys.stderr)
         sys.exit(1)
     except json.JSONDecodeError as e:
         print(f"[ERROR] Invalid JSON response: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+def fetch_data(station: str, start_date: str, end_date: str) -> dict:
+    """Fetch weather data from Meteostat, chunking ranges over the API limit."""
+    print(f"Fetching from Meteostat...", file=sys.stderr)
+    print(f"  Station: {station}", file=sys.stderr)
+
+    merged = None
+    by_time = {}
+
+    for chunk_start, chunk_end in date_chunks(start_date, end_date):
+        data = fetch_chunk(station, chunk_start, chunk_end)
+        if merged is None:
+            merged = {k: v for k, v in data.items() if k != "data"}
+        for record in data.get("data", []):
+            by_time[record.get("time")] = record
+
+    if not by_time:
+        print(f"[ERROR] No data returned (empty result). "
+              f"Possible causes: station offline, date range invalid, or blocked.",
+              file=sys.stderr)
+        sys.exit(1)
+
+    merged = merged or {}
+    merged["data"] = [by_time[t] for t in sorted(by_time)]
+    return merged
 
 
 def main():

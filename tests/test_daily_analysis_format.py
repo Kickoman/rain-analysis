@@ -249,10 +249,57 @@ def test_report_footer():
     print("✓ Report footer present")
 
 
+def _results_with_scores(scores):
+    """MOCK_RESULTS with the model scores replaced."""
+    import copy
+    results = copy.deepcopy(MOCK_RESULTS)
+    results['scoring']['scores'] = scores
+    return results
+
+
+def test_model_without_samples_renders_as_no_data():
+    """A model with nothing to score is not a model that scored zero.
+
+    `sensor.rain_probability` has no long-term statistics, so beyond the recorder
+    window ha_live_actual has no overlap at all. Rendering that as 0.000 put it
+    in the table looking like the worst performer.
+    """
+    results = _results_with_scores({
+        'ha_live': {'f1': 0.456, 'precision': 0.678, 'recall': 0.789, 'n_samples': 200},
+        'ha_live_actual': {'f1': None, 'precision': None, 'recall': None, 'n_samples': 0},
+    })
+
+    report = generate_report("2026-08-13", results, results, results)
+    row = next(l for l in report.split('\n') if 'ha_live_actual' in l and '|' in l)
+
+    assert 'no data' in row
+    assert '0.000' not in row
+
+
+def test_model_that_genuinely_scored_zero_still_shows_zero():
+    """A real zero must stay visible — it is a result, not an absence."""
+    results = _results_with_scores({
+        'ha_live': {'f1': 0.456, 'precision': 0.678, 'recall': 0.789, 'n_samples': 200},
+        'trend_dominant': {'f1': 0.0, 'precision': 0.0, 'recall': 0.0, 'n_samples': 200},
+    })
+
+    report = generate_report("2026-08-13", results, results, results)
+    row = next(l for l in report.split('\n') if 'trend_dominant' in l and '|' in l)
+
+    assert '0.000' in row
+    assert 'no data' not in row
+
+
+def test_data_context_is_rendered_once():
+    """The block used to be pasted verbatim at four points in the report."""
+    report = generate_report("2026-07-20", MOCK_RESULTS, MOCK_RESULTS, MOCK_RESULTS)
+    assert report.count('## Data Context') == 1
+
+
 if __name__ == "__main__":
     print("Testing daily_analysis.py output format...")
     print("=" * 70)
-    
+
     test_report_header()
     test_executive_summary()
     test_github_pages_table_format()
