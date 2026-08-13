@@ -3,6 +3,7 @@ Test suite for load_yandex_archive() error handling (issue #340).
 
 Tests that the function properly handles:
 - Malformed JSON files
+- Binary/non-UTF-8 files (UnicodeDecodeError)
 - Missing files
 - Read errors
 - Warning when files are skipped
@@ -40,27 +41,27 @@ def test_load_yandex_archive_skips_malformed_json():
             assert "skipped 1/2 files" in str(w[0].message)
 
 
-def test_load_yandex_archive_skips_unreadable_files():
-    """Should skip files with read errors (e.g., permissions)."""
-    valid_data = {"now": 1721469600, "fact": {"condition": "cloudy", "temp": 15}}
+def test_load_yandex_archive_skips_binary_files():
+    """Should skip binary/non-UTF-8 files (UnicodeDecodeError) and continue processing."""
+    valid_data = {"now": 1721469600, "fact": {"condition": "clear", "temp": 20}}
     
     with tempfile.TemporaryDirectory() as tmpdir:
         # Valid file
-        valid_path = Path(tmpdir) / "valid.json"
-        valid_path.write_text(json.dumps(valid_data))
-        
-        # Create unreadable file (empty file that will cause KeyError on d["now"])
-        bad_path = Path(tmpdir) / "unreadable.json"
-        bad_path.write_text("{}")
+        (Path(tmpdir) / "valid.json").write_text(json.dumps(valid_data))
+        # Binary file that will trigger UnicodeDecodeError
+        (Path(tmpdir) / "binary.json").write_bytes(b'\xff\xfe\x00\x00binary data')
         
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             df = rl.load_yandex_archive(tmpdir)
             
-            # Should load the valid file
+            # Should successfully load the valid file
             assert len(df) == 1
-            # Note: {} is valid JSON but missing "now" key, so it will be skipped silently
-            # in the existing logic (d.get("fact") returns None)
+            assert df["yx_temp"].iloc[0] == 20
+            
+            # Should emit warning about skipped file
+            assert len(w) == 1
+            assert "skipped 1/2 files" in str(w[0].message)
 
 
 def test_load_yandex_archive_all_files_broken():

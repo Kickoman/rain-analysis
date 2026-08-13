@@ -709,7 +709,8 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
         try:
             with open(f) as fh:
                 d = json.load(fh)
-        except (json.JSONDecodeError, OSError):
+        except (ValueError, OSError):
+        # ValueError catches JSONDecodeError and UnicodeDecodeError
             skipped += 1
             continue
         fact = d.get("fact")
