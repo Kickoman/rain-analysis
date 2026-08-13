@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HA_DATA_FETCHER — Rain Analysis</title>
+    <meta name="description" content="HA_DATA_FETCHER — documentation for the rain-analysis project.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>Home Assistant Data Fetcher</h1>
+
+<p>Script for exporting Home Assistant sensor history to CSV format required by <code>run_analysis.py</code>.</p>
+
+<h2>Overview</h2>
+
+<code>fetch_ha_data.py</code> queries the Home Assistant history API and exports sensor data
+in the exact format expected by the rain analysis pipeline:
+
+<code>`</code>csv
+entity_id,state,last_changed
+sensor.datchik_klimata_temperatura,17.5,2026-07-05T19:25:05+00:00
+sensor.datchik_klimata_vlazhnost,66,2026-07-05T19:25:05+00:00
+...
+<code>`</code>
+
+<h2>Quick Start</h2>
+
+<code>`</code>bash
+python fetch_ha_data.py \
+    --days 7 \
+    --output data/ha_export.csv
+<code>`</code>
+
+This fetches the last 7 days of history for the default sensors:
+<ul>
+<li><code>sensor.datchik_klimata_temperatura</code> (outdoor temperature)</li>
+<li><code>sensor.datchik_klimata_vlazhnost</code> (outdoor humidity)</li>
+<li><code>sensor.rain_probability</code> (live model output)</li>
+<li><code>sensor.filtered_pressure</code> (barometric pressure)</li>
+</ul>
+
+<h2>Arguments</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Flag</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>--config</code></td>
+<td></td>
+<td><code>~/.homeassistant/ha_config.json</code></td>
+<td>Path to HA config (url + token)</td>
+</tr>
+<tr>
+<td><code>--entities</code></td>
+<td></td>
+<td>See above</td>
+<td>Entity IDs to export (space-separated)</td>
+</tr>
+<tr>
+<td><code>--days</code></td>
+<td></td>
+<td><code>7</code></td>
+<td>Number of days of history to fetch</td>
+</tr>
+<tr>
+<td><code>--start</code></td>
+<td></td>
+<td>—</td>
+<td>Start time (ISO 8601, overrides <code>--days</code>)</td>
+</tr>
+<tr>
+<td><code>--end</code></td>
+<td></td>
+<td>now</td>
+<td>End time (ISO 8601)</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td>✓</td>
+<td>—</td>
+<td>Output CSV file path</td>
+</tr>
+<tr>
+<td><code>--quiet</code>, <code>-q</code></td>
+<td></td>
+<td>off</td>
+<td>Suppress progress messages</td>
+</tr>
+</tbody></table></div>
+
+<h2>Examples</h2>
+
+<h3>Last 7 days (default)</h3>
+
+<code>`</code>bash
+python fetch_ha_data.py --output data/ha_7d.csv
+<code>`</code>
+
+<h3>Specific date range</h3>
+
+<code>`</code>bash
+python fetch_ha_data.py \
+    --start 2026-07-01T00:00:00 \
+    --end 2026-07-07T23:59:59 \
+    --output data/ha_week.csv
+<code>`</code>
+
+<h3>Custom entities</h3>
+
+<code>`</code>bash
+python fetch_ha_data.py \
+    --entities sensor.temp_bedroom sensor.humidity_bedroom \
+    --days 30 \
+    --output data/ha_bedroom.csv
+<code>`</code>
+
+<h3>Quiet mode (for automation)</h3>
+
+<code>`</code>bash
+python fetch_ha_data.py --days 7 --output data/ha.csv --quiet
+<code>`</code>
+
+<h2>HA Config File</h2>
+
+<p>The script expects a JSON config file with:</p>
+
+<code>`</code>json
+{
+  &quot;url&quot;: &quot;http://10.8.0.4:8123&quot;,
+  &quot;token&quot;: &quot;your_long_lived_access_token&quot;
+}
+<code>`</code>
+
+<p>Default location: <code>~/.homeassistant/ha_config.json</code></p>
+
+<p>To create a long-lived access token:<br>
+1. Go to your HA profile → &quot;Long-Lived Access Tokens&quot;<br>
+2. Click &quot;Create Token&quot;<br>
+3. Copy the token and save it in the config file</p>
+
+<h2>Integration with Analysis Pipeline</h2>
+
+<p>Once you have the CSV:</p>
+
+<code>`</code>bash
+<h1>1. Fetch HA data</h1>
+python fetch_ha_data.py --days 7 --output data/ha.csv
+
+<h1>2. Run analysis</h1>
+python run_analysis.py \
+    --ha-csv data/ha.csv \
+    --om-sources data/openmeteo.json \
+    --output analysis_report.json
+<code>`</code>
+
+<h2>Output Format</h2>
+
+The CSV has exactly three columns:
+<ul>
+<li><code>entity_id</code> — Home Assistant entity ID</li>
+<li><code>state</code> — sensor value (numeric or string)</li>
+<li><code>last_changed</code> — ISO 8601 timestamp with timezone</li>
+</ul>
+
+<p>Records are sorted by timestamp (ascending).</p>
+
+<p>Invalid/unavailable states are filtered out automatically.</p>
+
+<h2>Automated Fetching</h2>
+
+<p>For regular analysis runs, fetch fresh data on schedule:</p>
+
+<code>`</code>bash
+#!/bin/bash
+<h1>daily_analysis.sh</h1>
+
+<p>DATE=$(date +%Y-%m-%d)</p>
+
+<h1>Fetch last 7 days of HA data</h1>
+python fetch_ha_data.py \
+    --days 7 \
+    --output &quot;data/ha_${DATE}.csv&quot; \
+    --quiet
+
+<h1>Run analysis</h1>
+python run_analysis.py \
+    --ha-csv &quot;data/ha_${DATE}.csv&quot; \
+    --om-sources data/openmeteo.json \
+    --output &quot;reports/${DATE}.json&quot; \
+    --quiet
+<code>`</code>
+
+<h2>Troubleshooting</h2>
+
+<h3>401 Unauthorized</h3>
+
+<ul>
+<li>Check that your token is valid (not expired)</li>
+<li>Verify the token has the right permissions</li>
+<li>Test with: <code>curl -H &quot;Authorization: Bearer YOUR_TOKEN&quot; http://YOUR_HA/api/</code></li>
+</ul>
+
+<h3>No data returned</h3>
+
+<ul>
+<li>Check that the entity IDs are correct</li>
+<li>Verify the time range covers when the sensors were active</li>
+<li>Look at HA Logbook to see if the sensors reported during that period</li>
+</ul>
+
+<h3>Timeout errors</h3>
+
+<ul>
+<li>Large date ranges (&gt;30 days) can take time</li>
+<li>Consider fetching in smaller chunks</li>
+<li>Increase timeout in the script if needed</li>
+</ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
+    </footer>
+</body>
+</html>

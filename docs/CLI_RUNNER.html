@@ -3,179 +3,233 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLI Analysis Runner — Rain Analysis</title>
+    <title>CLI_RUNNER — Rain Analysis</title>
+    <meta name="description" content="CLI_RUNNER — documentation for the rain-analysis project.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
-    <style>
-        body {
-            max-width: 900px;
-            margin: 0 auto;
-            padding: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-        }
-        h1, h2, h3, h4 {
-            color: #2c3e50;
-            margin-top: 1.5em;
-        }
-        h1 {
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 0.3em;
-        }
-        pre {
-            background: #f6f8fa;
-            border: 1px solid #d1d5da;
-            border-radius: 6px;
-            padding: 16px;
-            overflow-x: auto;
-        }
-        code {
-            background: #f6f8fa;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: 'Monaco', 'Courier New', monospace;
-            font-size: 0.9em;
-        }
-        pre code {
-            background: none;
-            padding: 0;
-        }
-        a {
-            color: #3498db;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .back-link {
-            margin-bottom: 2em;
-            display: block;
-        }
-        ul, ol {
-            margin: 1em 0;
-        }
-        li {
-            margin: 0.5em 0;
-        }
-    </style>
 </head>
 <body>
-    <a href="../index.html" class="back-link">← Back to Home</a>
-    <h1>CLI Analysis Runner</h1>
-<br>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>CLI Analysis Runner</h1>
+
 <p>Automated script for running the rain-prediction analysis pipeline without Jupyter.</p>
-<br>
+
 <h2>Overview</h2>
-<br>
-<p><code>run<em>analysis.py</code> replicates the full analysis flow from <code>rain</em>analysis.ipynb</code>:</p>
-<p>data loading → feature computation → model scoring → threshold sweeps →</p>
-<p>parameter tuning → cross-check — all using the same <code>rainlib.py</code> functions.</p>
-<br>
+
+<code>run_analysis.py</code> replicates the full analysis flow from <code>rain_analysis.ipynb</code>:
+data loading → feature computation → model scoring → threshold sweeps →
+parameter tuning → cross-check — all using the same <code>rainlib.py</code> functions.
+
 <p>The output is a <strong>JSON report</strong> designed to be readable by both humans and LLMs.</p>
-<br>
+
 <h2>Quick Start</h2>
-<br>
-<pre><code class="language-bash">
+
+<code>`</code>bash
 pip install pandas numpy matplotlib   # same deps as the notebook
 
 python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
-| `--meteostat` | | `None` | Meteostat JSON file |
+    --meteostat data/meteostat.json \
     --output analysis_report.json \
     --plots
-</code></pre>
-<br>
+<code>`</code>
+
 <h2>Arguments</h2>
-<br>
-<p>| Flag | Required | Default | Description |</p>
-<p>|------|----------|---------|-------------|</p>
-<p>| <code>--ha-csv</code> | ✓ | — | Path to Home Assistant history CSV export |</p>
-<p>| <code>--om-sources</code> | | <code>[]</code> | One or more open-meteo JSON files |</p>
-<p>| <code>--yandex-dir</code> | | <code>None</code> | Directory with Yandex <code>fact</code> JSON snapshots |</p>
-<p>| <code>--meteostat</code> | | <code>None</code> | Meteostat JSON file |</p>
-<p>| <code>--output</code>, <code>-o</code> | | <code>analysis_report.json</code> | Where to write the JSON report |</p>
-<p>| <code>--plots</code> | | off | Also generate PNG timeline + calibration plots |</p>
-<p>| <code>--threshold</code> | | <code>50.0</code> | Probability threshold for rain/no-rain decision |</p>
-<p>| <code>--rain-threshold</code> | | <code>0.1</code> | Minimum precipitation (mm/h) to label as rain |</p>
-<p>| <code>--quiet</code>, <code>-q</code> | | off | Suppress text summary on stdout |</p>
-<br>
-<p>> <strong>Tip:</strong> Pass multiple open-meteo files with <code>--om-sources data/day1.json data/day2.json</code>.</p>
-<br>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Flag</th>
+<th>Required</th>
+<th>Default</th>
+<th>Description</th>
+</tr></thead><tbody>
+<tr>
+<td><code>--ha-csv</code></td>
+<td>✓</td>
+<td>—</td>
+<td>Path to Home Assistant history CSV export</td>
+</tr>
+<tr>
+<td><code>--om-sources</code></td>
+<td></td>
+<td><code>[]</code></td>
+<td>One or more open-meteo JSON files</td>
+</tr>
+<tr>
+<td><code>--yandex-dir</code></td>
+<td></td>
+<td><code>None</code></td>
+<td>Directory with Yandex <code>fact</code> JSON snapshots</td>
+</tr>
+<tr>
+<td><code>--meteostat</code></td>
+<td></td>
+<td><code>None</code></td>
+<td>Meteostat JSON file</td>
+</tr>
+<tr>
+<td><code>--output</code>, <code>-o</code></td>
+<td></td>
+<td><code>analysis_report.json</code></td>
+<td>Where to write the JSON report</td>
+</tr>
+<tr>
+<td><code>--plots</code></td>
+<td></td>
+<td>off</td>
+<td>Also generate PNG timeline + calibration plots</td>
+</tr>
+<tr>
+<td><code>--threshold</code></td>
+<td></td>
+<td><code>50.0</code></td>
+<td>Probability threshold for rain/no-rain decision</td>
+</tr>
+<tr>
+<td><code>--rain-threshold</code></td>
+<td></td>
+<td><code>0.1</code></td>
+<td>Minimum precipitation (mm/h) to label as rain</td>
+</tr>
+<tr>
+<td><code>--grid-freq</code></td>
+<td></td>
+<td><code>1h</code></td>
+<td>Analysis grid frequency</td>
+</tr>
+<tr>
+<td><code>--window-start</code></td>
+<td></td>
+<td>—</td>
+<td>Clip the grid to start here (ISO 8601, UTC)</td>
+</tr>
+<tr>
+<td><code>--window-end</code></td>
+<td></td>
+<td>—</td>
+<td>Clip the grid to end here (ISO 8601, UTC)</td>
+</tr>
+<tr>
+<td><code>--quiet</code>, <code>-q</code></td>
+<td></td>
+<td>off</td>
+<td>Suppress text summary on stdout</td>
+</tr>
+</tbody></table></div>
+
+<p>&gt; <strong>Tip:</strong> Pass multiple open-meteo files with <code>--om-sources data/day1.json data/day2.json</code>.</p>
+
+<p>&gt; <strong>Always pass <code>--window-start</code> / <code>--window-end</code> for a fixed-length analysis.</strong><br>
+&gt; Without them the grid spans the <em>union</em> of every source&#x27;s timespan, so a<br>
+&gt; long-running source stretches the window: a 43-day Yandex archive turned a<br>
+&gt; 7-day run into a mostly-empty 43-day grid and made every coverage figure<br>
+&gt; meaningless. <code>run_full_analysis.py</code> passes them for you.</p>
+
+<p>&gt; The grid is hourly because the ground truth is hourly. On the previous<br>
+&gt; 10-minute grid only one row in six could ever carry a label, which capped<br>
+&gt; reported ground-truth coverage at 16.7% however complete the data was.</p>
+
 <h2>Output Files</h2>
-<br>
+
 <h3><code>analysis_report.json</code></h3>
-<br>
+
 <p>The main output. Structure:</p>
-<br>
-<pre><code class="language-json">
+
+<code>`</code>json
 {
-  "metadata": {
-    "generated_at": "2026-07-12T19:30:00+00:00",
-    "script_version": "1.0.0",
-    "config": { ... },
-    "data_stats": {
-      "ha_rows": 1111,
-      "grid_shape": [860, 17],
-      "grid_start": "...",
-      "grid_end": "...",
-      "ground_truth": {
-        "total_rain_hours": 47,
-        "rain_hours": [{"time": "...", "precip_mm": 1.9}, ...]
+  &quot;metadata&quot;: {
+    &quot;generated_at&quot;: &quot;2026-07-12T19:30:00+00:00&quot;,
+    &quot;script_version&quot;: &quot;1.0.0&quot;,
+    &quot;config&quot;: { ... },
+    &quot;data_stats&quot;: {
+      &quot;ha_rows&quot;: 1111,
+      &quot;grid_shape&quot;: [860, 17],
+      &quot;grid_start&quot;: &quot;...&quot;,
+      &quot;grid_end&quot;: &quot;...&quot;,
+      &quot;ground_truth&quot;: {
+        &quot;total_rain_hours&quot;: 47,
+        &quot;rain_hours&quot;: [{&quot;time&quot;: &quot;...&quot;, &quot;precip_mm&quot;: 1.9}, ...]
       },
-      "model_summary": {
-        "original": {"mean": 24.1, "std": 20.3, ...},
+      &quot;model_summary&quot;: {
+        &quot;original&quot;: {&quot;mean&quot;: 24.1, &quot;std&quot;: 20.3, ...},
         ...
       }
     }
   },
-  "scoring": {
-    "scores": {
-      "original": {"precision": 0.68, "recall": 0.23, "f1": 0.35, ...},
-      "tuned": { ... },
-      "trend_dominant": { ... },
-      "ha_live": { ... }
+  &quot;scoring&quot;: {
+    &quot;scores&quot;: {
+      &quot;original&quot;: {&quot;precision&quot;: 0.68, &quot;recall&quot;: 0.23, &quot;f1&quot;: 0.35, ...},
+      &quot;tuned&quot;: { ... },
+      &quot;trend_dominant&quot;: { ... },
+      &quot;ha_live&quot;: { ... }
     },
-    "threshold_sweeps": { ... },
-    "fbeta_recommendations": {
-      "tuned": {
-        "beta_0.5": {"best_threshold": 80, "precision": 0.76, ...},
-        "beta_1.0": {"best_threshold": 55, ...},
-        "beta_2.0": {"best_threshold": 5, ...}
+    &quot;threshold_sweeps&quot;: { ... },
+    &quot;fbeta_recommendations&quot;: {
+      &quot;tuned&quot;: {
+        &quot;beta_0.5&quot;: {&quot;best_threshold&quot;: 80, &quot;precision&quot;: 0.76, ...},
+        &quot;beta_1.0&quot;: {&quot;best_threshold&quot;: 55, ...},
+        &quot;beta_2.0&quot;: {&quot;best_threshold&quot;: 5, ...}
       }
     },
-    "best_overall": {"model": "tuned", "threshold": 55, "fbeta": 0.42}
+    &quot;best_overall&quot;: {&quot;model&quot;: &quot;tuned&quot;, &quot;threshold&quot;: 55, &quot;fbeta&quot;: 0.42}
   },
-  "param_tuning": {
-    "total_combinations": 36,
-    "best_params": {"proximity_divisor": 7, "hysteresis_decay": 0.2, ...},
-    "top_15": [ ... ]
+  &quot;param_tuning&quot;: {
+    &quot;total_combinations&quot;: 36,
+    &quot;best_params&quot;: {&quot;proximity_divisor&quot;: 7, &quot;hysteresis_decay&quot;: 0.2, ...},
+    &quot;top_15&quot;: [ ... ]
   },
-  "cross_check": {
-    "data_coverage": { ... },
-    "yandex_vs_truth": {
-      "yandex_rain_hours": 12,
-      "actual_rain_hours": 47,
-      "agreement_hours": 8
+  &quot;cross_check&quot;: {
+    &quot;data_coverage&quot;: { ... },
+    &quot;yandex_vs_truth&quot;: {
+      &quot;yandex_rain_hours&quot;: 12,
+      &quot;actual_rain_hours&quot;: 47,
+      &quot;agreement_hours&quot;: 8
     }
   },
-  "plots": ["timeline.png", "calibration_tuned.png"]
+  &quot;plots&quot;: [&quot;timeline.png&quot;, &quot;calibration_tuned.png&quot;]
 }
-</code></pre>
-<br>
+<code>`</code>
+
 <h3>Plots (when <code>--plots</code> is used)</h3>
-<br>
-<p>| File | What |</p>
-<p>|------|------|</p>
-<p>| <code>timeline.png</code> | 3-panel timeline: temperature, spread+deriv, rain predictions vs truth |</p>
-<p>| <code>calibration_tuned.png</code> | Precision/recall/F-beta vs threshold for the tuned model |</p>
-<br>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>File</th>
+<th>What</th>
+</tr></thead><tbody>
+<tr>
+<td><code>timeline.png</code></td>
+<td>3-panel timeline: temperature, spread+deriv, rain predictions vs truth</td>
+</tr>
+<tr>
+<td><code>calibration_tuned.png</code></td>
+<td>Precision/recall/F-beta vs threshold for the tuned model</td>
+</tr>
+</tbody></table></div>
+
 <h2>Text Summary</h2>
-<br>
+
 <p>Every run prints a human-readable summary to stdout (suppress with <code>--quiet</code>):</p>
-<br>
-<pre><code class="language-">
+
+<code>`</code>
 ======================================================================
 RAIN PREDICTION ANALYSIS REPORT
 ======================================================================
@@ -184,7 +238,7 @@ Data range: 2026-06-30 21:00 → 2026-07-06 20:10
 
 --- MODEL PERFORMANCE (at 50% threshold) ---
   Model                  Prec Recall     F1    TP    FP    FN
-  -------------------------------------------------------------
+<hr>
   original              0.683  0.233  0.348    60    28   198
   tuned                 0.674  0.227  0.340    62    30   208
   trend_dominant        0.614  0.100  0.170    27    17   243
@@ -195,98 +249,130 @@ Data range: 2026-06-30 21:00 → 2026-07-06 20:10
   Best (by F1): 0.385
     proximity_divisor=7, hysteresis_decay=0.2, trend_gain=20
     precision=0.67, recall=0.27
-</code></pre>
-<br>
+<code>`</code>
+
 <h2>Relationship to the Notebook</h2>
-<br>
-<p>| Notebook section | Script |</p>
-<p>|------------------|--------|</p>
-<p>| §1 — Point at data | <code>--ha-csv</code>, <code>--om-sources</code>, <code>--yandex-dir</code> flags |</p>
-<p>| <code>--meteostat</code> | | <code>None</code> | Meteostat JSON file |</p>
-<p>| §2 — Load & align | <code>load<em>data()</code> → <code>rl.build</em>grid()</code> |</p>
-<p>| §3 — Features | <code>compute_features()</code> → same rainlib functions |</p>
-<p>| §4 — Ground truth | <code>label<em>ground</em>truth()</code> → <code>rl.label_rain()</code> |</p>
-<p>| §5 — Run models | <code>run_models()</code> → <code>MODELS[name]()</code> |</p>
-<p>| §6 — Score | <code>score<em>models()</code> → <code>rl.confusion</em>at<em>threshold()</code>, <code>rl.lead</em>time()</code> |</p>
-<p>| §7 — Threshold sweep | <code>score<em>models()</code> → <code>rl.sweep</em>threshold()</code>, <code>rl.recommend_threshold()</code> |</p>
-<p>| §8 — Timeline plot | <code>save_plots()</code> (optional) |</p>
-<p>| §9 — Cross-check | <code>cross_check()</code> |</p>
-<p>| §10 — Parameter tuning | <code>param_tuning()</code> |</p>
-<br>
-<p><strong>No divergence.</strong> The script imports and calls <code>rainlib.py</code> functions directly.</p>
-<p>When you add a new model or feature to <code>rainlib.py</code>, the script picks it up</p>
-<p>without changes (as long as it's in the <code>MODELS</code> registry).</p>
-<br>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Notebook section</th>
+<th>Script</th>
+</tr></thead><tbody>
+<tr>
+<td>§1 — Point at data</td>
+<td><code>--ha-csv</code>, <code>--om-sources</code>, <code>--yandex-dir</code> flags</td>
+</tr>
+<tr>
+<td>§2 — Load &amp; align</td>
+<td><code>load_data()</code> → <code>rl.build_grid()</code></td>
+</tr>
+<tr>
+<td>§3 — Features</td>
+<td><code>compute_features()</code> → same rainlib functions</td>
+</tr>
+<tr>
+<td>§4 — Ground truth</td>
+<td><code>label_ground_truth()</code> → <code>rl.label_rain()</code></td>
+</tr>
+<tr>
+<td>§5 — Run models</td>
+<td><code>run_models()</code> → <code>MODELS[name]()</code></td>
+</tr>
+<tr>
+<td>§6 — Score</td>
+<td><code>score_models()</code> → <code>rl.confusion_at_threshold()</code>, <code>rl.lead_time()</code></td>
+</tr>
+<tr>
+<td>§7 — Threshold sweep</td>
+<td><code>score_models()</code> → <code>rl.sweep_threshold()</code>, <code>rl.recommend_threshold()</code></td>
+</tr>
+<tr>
+<td>§8 — Timeline plot</td>
+<td><code>save_plots()</code> (optional)</td>
+</tr>
+<tr>
+<td>§9 — Cross-check</td>
+<td><code>cross_check()</code></td>
+</tr>
+<tr>
+<td>§10 — Parameter tuning</td>
+<td><code>param_tuning()</code></td>
+</tr>
+</tbody></table></div>
+
+<strong>No divergence.</strong> The script imports and calls <code>rainlib.py</code> functions directly.
+When you add a new model or feature to <code>rainlib.py</code>, the script picks it up
+without changes (as long as it&#x27;s in the <code>MODELS</code> registry).
+
 <h2>LLM-Friendly Design</h2>
-<br>
+
 <p>The JSON report is intentionally structured for AI consumption:</p>
-<br>
+
 <ul>
 <li><strong>No images needed</strong> — all metrics are in numeric/text form</li>
 <li><strong>Flat dicts</strong> — no deeply nested structures, easy to parse</li>
 <li><strong>Complete state</strong> — metadata, config, and all scores in one file</li>
 <li><strong>Consistent naming</strong> — same model/param names as in <code>rainlib.py</code></li>
 </ul>
-<br>
-<p>An LLM reading the report can:</p>
-<ol>
-<li>Check data coverage and quality</li>
-<li>Compare model performance at a glance</li>
-<li>Identify the best threshold for a given trade-off</li>
-<li>See parameter tuning results</li>
-<li>Understand how Yandex predictions compare to reality</li>
-</ul>
-<br>
+
+<p>An LLM reading the report can:<br>
+1. Check data coverage and quality<br>
+2. Compare model performance at a glance<br>
+3. Identify the best threshold for a given trade-off<br>
+4. See parameter tuning results<br>
+5. Understand how Yandex predictions compare to reality</p>
+
 <h2>Adding New Models</h2>
-<br>
-<ol>
-<li>Define the model function in <code>rainlib.py</code> with the <code>ModelContext</code> signature:</li>
-</ul>
-<p>   ```python</p>
-<p>   def model<em>my</em>custom(ctx: ModelContext,</p>
-<p>                       p: ModelParams | None = None) -> pd.Series:</p>
-<p>       """My custom rain prediction model."""</p>
-<p>       # Extract what you need from context</p>
-<p>       spread = ctx.spread</p>
-<p>       spread<em>deriv = ctx.spread</em>deriv</p>
-<p>       # ... your logic here ...</p>
-<p>       return score_series</p>
-<p>   ```</p>
-<br>
-<ol>
-<li>Register it in the <code>MODELS</code> dictionary:</li>
-</ul>
-<p>   ```python</p>
-<p>   MODELS = {</p>
-<p>       "original": model_original,</p>
-<p>       "tuned": model_tuned,</p>
-<p>       "trend<em>dominant": model</em>trend_dominant,</p>
-<p>       "my<em>custom": model</em>my_custom,   # ← add this line</p>
-<p>   }</p>
-<p>   ```</p>
-<br>
-<ol>
-<li>That's it. Re-run <code>run_analysis.py</code> — the new model appears in scores,</li>
-</ul>
-<p>   threshold sweeps, and all outputs automatically.</p>
-<br>
+
+<p>1. Define the model function in <code>rainlib.py</code> with the <code>ModelContext</code> signature:<br>
+   <code>`</code>python<br>
+   def model_my_custom(ctx: ModelContext,<br>
+                       p: ModelParams | None = None) -&gt; pd.Series:<br>
+       &quot;&quot;&quot;My custom rain prediction model.&quot;&quot;&quot;<br>
+       # Extract what you need from context<br>
+       spread = ctx.spread<br>
+       spread_deriv = ctx.spread_deriv<br>
+       # ... your logic here ...<br>
+       return score_series<br>
+   <code>`</code></p>
+
+<p>2. Register it in the <code>MODELS</code> dictionary:<br>
+   <code>`</code>python<br>
+   MODELS = {<br>
+       &quot;original&quot;: model_original,<br>
+       &quot;tuned&quot;: model_tuned,<br>
+       &quot;trend_dominant&quot;: model_trend_dominant,<br>
+       &quot;my_custom&quot;: model_my_custom,   # ← add this line<br>
+   }<br>
+   <code>`</code></p>
+
+<p>3. That&#x27;s it. Re-run <code>run_analysis.py</code> — the new model appears in scores,<br>
+   threshold sweeps, and all outputs automatically.</p>
+
 <h2>Scheduled Runs</h2>
-<br>
+
 <p>This script is designed to be run by an AI assistant (or cron job):</p>
-<br>
-<pre><code class="language-bash">
-# Daily run
+
+<code>`</code>bash
+<h1>Daily run</h1>
 python run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
-| `--meteostat` | | `None` | Meteostat JSON file |
+    --meteostat data/meteostat.json \
     --output reports/$(date +%Y-%m-%d).json \
     --quiet
-</code></pre>
-<br>
-<p>The script exits with code 0 on success, non-zero on error — suitable for</p>
-<p>pipeline integration.</p>
-<br>
+<code>`</code>
+
+<p>The script exits with code 0 on success, non-zero on error — suitable for<br>
+pipeline integration.</p>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
+    </footer>
 </body>
 </html>

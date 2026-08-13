@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2026/08/13 — Rain Analysis</title>
+    <meta name="description" content="Daily rain prediction model analysis report.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
@@ -27,42 +29,47 @@
 <strong>Generated:</strong> 2026-08-13T20:12:13.468704+00:00
 
 <strong>Analysis windows:</strong> 7-day (recent), 14-day (medium-term), 28-day (long-term)
-
-<p>---</p>
-
+<hr>
 <h2>Executive Summary</h2>
 
 <strong>Best overall (F-beta=2):</strong> tuned @ 7d
 
 <strong>Key findings:</strong>
-- ⚠️ Best model varies by window: 7d=tuned, 14d=pressure_absolute, 28d=pressure_aware
-- ⚠️ Large precipitation source discrepancy (7d): OM=14h vs YX=0h
+<ul>
+<li>⚠️ Best model varies by window: 7d=tuned, 14d=pressure_absolute, 28d=pressure_aware</li>
+<li>⚠️ Large precipitation source discrepancy (7d): OM=14h vs YX=0h</li>
+</ul>
 <h2>Data Context</h2>
 
 <strong>Ground truth source:</strong> open-meteo
 
 <strong>Data coverage (7-day window):</strong>
 
-<p>- Home Assistant sensors: 100.0%<br>
-- Open-Meteo precipitation: 100.0%<br>
-- Meteostat: 100.0%</p>
+<ul>
+<li>Home Assistant sensors: 100.0%</li>
+<li>Open-Meteo precipitation: 100.0%</li>
+<li>Meteostat: 100.0%</li>
+</ul>
 
 <strong>Source data ranges:</strong>
 
-<p>- Home Assistant: 1033 rows, 2026-07-01 15:00:00+00:00 → 2026-08-13 18:00:00+00:00<br>
-- Open Meteo: 1056 rows, 2026-07-01 00:00:00+00:00 → 2026-08-13 23:00:00+00:00<br>
-- Yandex: no data<br>
-- Meteostat: 1056 rows, 2026-07-01 00:00:00+00:00 → 2026-08-13 23:00:00+00:00</p>
+<ul>
+<li>Home Assistant: 1033 rows, 2026-07-01 15:00:00+00:00 → 2026-08-13 18:00:00+00:00</li>
+<li>Open Meteo: 1056 rows, 2026-07-01 00:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
+<li>Yandex: no data</li>
+<li>Meteostat: 1056 rows, 2026-07-01 00:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
+</ul>
 
 <strong>Ground truth distribution:</strong>
 
-<p>- Rain hours: 14 of 169 labelled (8.3% base rate)<br>
-- Dry hours: 155</p>
-
-<p>---</p>
-
+<ul>
+<li>Rain hours: 14 of 169 labelled (8.3% base rate)</li>
+<li>Dry hours: 155</li>
+</ul>
+<hr>
 <h2>Model Performance (7-day window)</h2>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -148,16 +155,15 @@
 <td>0.214</td>
 <td>✅</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <strong>Best overall (F-beta=2):</strong> tuned @ 7d
-
-<p>---</p>
-
+<hr>
 <h2>Temporal Metrics (lead=3h, lag=1h)</h2>
 
 <p>Scores with prediction-window tolerance: a model predicting rain up to <strong>3 hours early</strong> or <strong>1 hour late</strong> is still counted as correct. Best threshold selected by F-beta=2 with min_precision=0.5.</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -431,16 +437,15 @@
 <td>50%</td>
 <td>28d</td>
 </tr>
-</tbody></table>
-
-<p>---</p>
-
+</tbody></table></div>
+<hr>
 <h2>Multi-Window Comparison</h2>
 
 <p>Performance across different time windows. F-beta=2 emphasizes recall (catching rain events) while maintaining reasonable precision.</p>
 
 <h3>F-beta=2 Scores</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -526,12 +531,13 @@
 <td>N/A</td>
 <td>— not comparable</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
-<p>_N/A means no threshold reached the precision floor in that window — not a score of zero._</p>
+<em>N/A means no threshold reached the precision floor in that window — not a score of zero.</em>
 
 <h3>Precision by Window</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -605,10 +611,11 @@
 <td>0.263</td>
 <td>0.306</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>Recall by Window</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -682,14 +689,13 @@
 <td>0.208</td>
 <td>0.330</td>
 </tr>
-</tbody></table>
-
-<p>---</p>
-
+</tbody></table></div>
+<hr>
 <h2>Model Rankings</h2>
 
 <h3>By F-beta=2 (7d, min_precision=0.6)</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -739,12 +745,13 @@
 <td>0.214</td>
 <td>✅ passes filter</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>By F-beta=3 (7d, min_precision=0.6)</h3>
 
 <p>Higher recall emphasis (FN≤5% target).</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -794,12 +801,13 @@
 <td>0.214</td>
 <td>✅ passes filter</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>By Precision (7d)</h3>
 
 <p>For use cases where false positives are costly.</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -843,14 +851,13 @@
 <td>0.214</td>
 <td>0.273</td>
 </tr>
-</tbody></table>
-
-<p>---</p>
-
+</tbody></table></div>
+<hr>
 <h2>Precipitation Source Reliability</h2>
 
 <p>Comparison of precipitation sources (7d window):</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Source</th>
@@ -872,10 +879,11 @@
 <td>0</td>
 <td>—</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <strong>Ground truth source agreement (chance-corrected):</strong>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Pair</th>
@@ -891,12 +899,13 @@
 <td>0.474</td>
 <td>moderate</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <p>⚠️ Ground truth sources agree only moderately (κ=0.47). Part of every model&#x27;s error is the yardstick&#x27;s, not the model&#x27;s.</p>
 
 <strong>Model F1 under each ground truth:</strong>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -953,16 +962,15 @@
 <td>0.077</td>
 <td>0.000</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
-<p>⚠️ Ranking changes with the ground truth (Open-Meteo best: <strong>tuned</strong>, Meteostat best: <strong>tuned</strong>). Treat the ordering as unresolved.</p>
-
-<p>---</p>
-
-<h2>Sensor Diagnostics</h2>
+<p>⚠️ Ranking changes with the ground truth (Open-Meteo best: <strong>tuned</strong>, Meteostat best: <strong>tuned</strong>). Treat the ordering as unresolved.<br>
+<hr><br>
+<h2>Sensor Diagnostics</h2></p>
 
 <p>Local sensors against reference sources (7d window):</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Comparison</th>
@@ -1006,12 +1014,10 @@
 <td>+0.99</td>
 <td>1.00</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
-<p>_No overlap with <code>sensor.rain_probability</code>: it has no long-term statistics, so it only exists within the recorder retention window._</p>
-
-<p>---</p>
-
+<em>No overlap with <code>sensor.rain_probability</code>: it has no long-term statistics, so it only exists within the recorder retention window.</em>
+<hr>
 <h2>Key Observations &amp; Recommendations</h2>
 
 <p>⚠️ Best model differs: <strong>tuned</strong> (7d) vs <strong>pressure_aware</strong> (28d). Short-term volatility or model overfitting to recent events?</p>
@@ -1021,16 +1027,14 @@
 <p>⚠️ <strong>Low average recall (0.18)</strong> — models miss many rain events. Consider lower thresholds or better features.</p>
 
 <strong>Next steps:</strong> Review pressure_* model variants for improving precision without sacrificing recall. Target: F-beta=2 &gt;0.5, precision &gt;0.6.
-
-<p>---</p>
-
-<p>_Report generated by daily_analysis.py at 2026-08-13T20:12:13.469344+00:00_</p>
+<hr>
+<em>Report generated by daily_analysis.py at 2026-08-13T20:12:13.469344+00:00</em>
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-13 20:14 UTC</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
     </footer>
 </body>
 </html>

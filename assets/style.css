@@ -12,7 +12,7 @@ body {
 }
 
 header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #4c5fd7 0%, #764ba2 100%);
     color: white;
     padding: 2rem 1rem;
     text-align: center;
@@ -40,7 +40,7 @@ nav {
 }
 
 nav a {
-    color: #667eea;
+    color: #4c5fd7;
     text-decoration: none;
     font-weight: 500;
     padding: 0.5rem 1rem;
@@ -53,7 +53,7 @@ nav a:hover {
 }
 
 nav a.active {
-    background: #667eea;
+    background: #4c5fd7;
     color: white;
 }
 
@@ -72,7 +72,7 @@ section {
 }
 
 h2 {
-    color: #667eea;
+    color: #4c5fd7;
     margin-bottom: 1rem;
     font-size: 1.8rem;
 }
@@ -95,7 +95,7 @@ ul {
 
 .btn {
     display: inline-block;
-    background: #667eea;
+    background: #4c5fd7;
     color: white;
     padding: 0.75rem 1.5rem;
     text-decoration: none;
@@ -121,7 +121,7 @@ ul {
     background: #f8f9fa;
     padding: 1.5rem;
     border-radius: 8px;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #4c5fd7;
     transition: all 0.3s;
 }
 
@@ -131,12 +131,12 @@ ul {
 }
 
 .card h3 {
-    color: #667eea;
+    color: #4c5fd7;
     margin-top: 0;
 }
 
 .card a {
-    color: #667eea;
+    color: #4c5fd7;
     text-decoration: none;
     font-weight: 500;
 }
@@ -156,7 +156,7 @@ th, td {
 th {
     background: #f8f9fa;
     font-weight: 600;
-    color: #667eea;
+    color: #4c5fd7;
 }
 
 tr:hover {
@@ -168,18 +168,6 @@ tr:hover {
     font-weight: bold;
 }
 
-.status-good {
-    color: #28a745;
-}
-
-.status-warning {
-    color: #ffc107;
-}
-
-.status-bad {
-    color: #dc3545;
-}
-
 footer {
     background: #333;
     color: white;
@@ -189,7 +177,7 @@ footer {
 }
 
 footer a {
-    color: #667eea;
+    color: #a5b4fc;
     text-decoration: none;
 }
 
@@ -210,7 +198,7 @@ pre {
     padding: 1rem;
     border-radius: 5px;
     overflow-x: auto;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #4c5fd7;
 }
 
 code {
@@ -233,4 +221,40 @@ code {
     section {
         padding: 1.5rem;
     }
+}
+
+/* Wide tables (Temporal Metrics is 6 columns x 34 rows) used to force the whole
+   page to scroll sideways on a phone; the only overflow rule was on <pre>. */
+.table-wrap {
+    overflow-x: auto;
+    margin-bottom: 1.5rem;
+}
+
+.table-wrap table {
+    margin-bottom: 0;
+}
+
+/* Section wrappers the generators emit; previously unstyled. */
+.report-content,
+.docs-content,
+.intro,
+.latest,
+.quick-links,
+.documentation {
+    margin-bottom: 2rem;
+}
+
+/* Keyboard users need a way past the nav on every page. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    background: #fff;
+    color: #4c5fd7;
+    padding: 0.75rem 1rem;
+    z-index: 100;
+}
+
+.skip-link:focus {
+    left: 0;
 }

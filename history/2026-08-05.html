@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2026/08/05 — Rain Analysis</title>
+    <meta name="description" content="Daily rain prediction model analysis report.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>
@@ -27,62 +29,69 @@
 <strong>Generated:</strong> 2026-08-13T18:53:51.160644+00:00
 
 <strong>Analysis windows:</strong> 7-day (recent), 14-day (medium-term), 28-day (long-term)
-
-<p>---</p>
-
+<hr>
 <h2>⚠️ Data Coverage Warning</h2>
 
 <strong>7d and 14d windows use identical datasets</strong> (shape=(6193, 25)):
-- Range: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00
-- This means metrics for these windows will be identical
-- Likely cause: insufficient historical data available (&lt;28 days)
-- Fix: Wait for more data to accumulate, or check <code>fetch_ha_data.py</code> for date range issues
+<ul>
+<li>Range: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
+<li>This means metrics for these windows will be identical</li>
+<li>Likely cause: insufficient historical data available (&lt;28 days)</li>
+<li>Fix: Wait for more data to accumulate, or check <code>fetch_ha_data.py</code> for date range issues</li>
+</ul>
 
 <strong>14d and 28d windows use identical datasets</strong> (shape=(6193, 25)):
-- Range: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00
-- This means metrics for these windows will be identical
-- Likely cause: insufficient historical data available (&lt;28 days)
-- Fix: Wait for more data to accumulate, or check <code>fetch_ha_data.py</code> for date range issues
+<ul>
+<li>Range: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
+<li>This means metrics for these windows will be identical</li>
+<li>Likely cause: insufficient historical data available (&lt;28 days)</li>
+<li>Fix: Wait for more data to accumulate, or check <code>fetch_ha_data.py</code> for date range issues</li>
+</ul>
 
 <strong>Actual data coverage:</strong>
 
-<p>- <strong>7d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))<br>
-- <strong>14d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))<br>
-- <strong>28d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))</p>
-
-<p>---</p>
-
+<ul>
+<li><strong>7d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))</li>
+<li><strong>14d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))</li>
+<li><strong>28d</strong>: 2026-07-01 23:00:00+00:00 → 2026-08-13 23:00:00+00:00 (shape=(6193, 25))</li>
+</ul>
+<hr>
 <h2>Executive Summary</h2>
 
 <strong>Best overall (F-beta=2):</strong> pressure_aware @ 7d
 
 <strong>Key findings:</strong>
-- ⚠️ <strong>WARNING: Low ground truth coverage (3.1%)</strong> — Model rankings may be unreliable due to insufficient validation data.
-- ⚠️ Best model varies by window: 7d=pressure_aware, 14d=pressure_absolute, 28d=pressure_absolute
-- ⚠️ Large precipitation source discrepancy (7d): YX=180h vs MS=9h
+<ul>
+<li>⚠️ <strong>WARNING: Low ground truth coverage (3.1%)</strong> — Model rankings may be unreliable due to insufficient validation data.</li>
+<li>⚠️ Best model varies by window: 7d=pressure_aware, 14d=pressure_absolute, 28d=pressure_absolute</li>
+<li>⚠️ Large precipitation source discrepancy (7d): YX=180h vs MS=9h</li>
+</ul>
 <h2>Data Context</h2>
 
 <strong>Ground truth source:</strong> open-meteo
 
 <strong>Data coverage (7-day window):</strong>
 
-<p>- Home Assistant sensors: 16.4%<br>
-- Open-Meteo precipitation: 3.1%<br>
-- Yandex Weather: 100.0%<br>
-- Meteostat: 3.1%</p>
+<ul>
+<li>Home Assistant sensors: 16.4%</li>
+<li>Open-Meteo precipitation: 3.1%</li>
+<li>Yandex Weather: 100.0%</li>
+<li>Meteostat: 3.1%</li>
+</ul>
 
 <p>⚠️ <strong>WARNING:</strong> Ground truth coverage below 20% (3.1%). Model rankings may be unreliable. Results should be interpreted with caution.</p>
 
 <strong>Ground truth distribution:</strong>
 
-<p>- Rain hours: 17 (0.3%)<br>
-- Dry hours: 175 (2.8%)<br>
-- Unknown: 6001 (96.9%)</p>
-
-<p>---</p>
-
+<ul>
+<li>Rain hours: 17 (0.3%)</li>
+<li>Dry hours: 175 (2.8%)</li>
+<li>Unknown: 6001 (96.9%)</li>
+</ul>
+<hr>
 <h2>Model Performance (7-day window)</h2>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -168,16 +177,15 @@
 <td>0.214</td>
 <td>📊</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <strong>Best overall (F-beta=2):</strong> pressure_aware @ 7d
-
-<p>---</p>
-
+<hr>
 <h2>Temporal Metrics (lead=3h, lag=1h)</h2>
 
 <p>Scores with prediction-window tolerance: a model predicting rain up to <strong>3 hours early</strong> or <strong>1 hour late</strong> is still counted as correct. Best threshold selected by F-beta=2 with min_precision=0.5.</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -451,16 +459,15 @@
 <td>55%</td>
 <td>28d</td>
 </tr>
-</tbody></table>
-
-<p>---</p>
-
+</tbody></table></div>
+<hr>
 <h2>Multi-Window Comparison</h2>
 
 <p>Performance across different time windows. F-beta=2 emphasizes recall (catching rain events) while maintaining reasonable precision.</p>
 
 <h3>F-beta=2 Scores</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -546,10 +553,11 @@
 <td>0.000</td>
 <td>📉 degrading</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>Precision by Window</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -623,10 +631,11 @@
 <td>0.273</td>
 <td>0.273</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>Recall by Window</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Model</th>
@@ -700,30 +709,33 @@
 <td>0.167</td>
 <td>0.167</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 <h2>Data Context</h2>
 
 <strong>Ground truth source:</strong> open-meteo
 
 <strong>Data coverage (7-day window):</strong>
 
-<p>- Home Assistant sensors: 16.4%<br>
-- Open-Meteo precipitation: 3.1%<br>
-- Yandex Weather: 100.0%<br>
-- Meteostat: 3.1%</p>
+<ul>
+<li>Home Assistant sensors: 16.4%</li>
+<li>Open-Meteo precipitation: 3.1%</li>
+<li>Yandex Weather: 100.0%</li>
+<li>Meteostat: 3.1%</li>
+</ul>
 
 <strong>Ground truth distribution:</strong>
 
-<p>- Rain hours: 17 (0.3%)<br>
-- Dry hours: 175 (2.8%)<br>
-- Unknown: 6001 (96.9%)</p>
-
-<p>---</p>
-
+<ul>
+<li>Rain hours: 17 (0.3%)</li>
+<li>Dry hours: 175 (2.8%)</li>
+<li>Unknown: 6001 (96.9%)</li>
+</ul>
+<hr>
 <h2>Model Rankings</h2>
 
 <h3>By F-beta=2 (7d, min_precision=0.6)</h3>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -773,12 +785,13 @@
 <td>0.214</td>
 <td>✅ passes filter</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>By F-beta=3 (7d, min_precision=0.6)</h3>
 
 <p>Higher recall emphasis (FN≤5% target).</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -828,12 +841,13 @@
 <td>0.214</td>
 <td>✅ passes filter</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <h3>By Precision (7d)</h3>
 
 <p>For use cases where false positives are costly.</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Rank</th>
@@ -877,30 +891,33 @@
 <td>0.214</td>
 <td>0.273</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 <h2>Data Context</h2>
 
 <strong>Ground truth source:</strong> open-meteo
 
 <strong>Data coverage (7-day window):</strong>
 
-<p>- Home Assistant sensors: 16.4%<br>
-- Open-Meteo precipitation: 3.1%<br>
-- Yandex Weather: 100.0%<br>
-- Meteostat: 3.1%</p>
+<ul>
+<li>Home Assistant sensors: 16.4%</li>
+<li>Open-Meteo precipitation: 3.1%</li>
+<li>Yandex Weather: 100.0%</li>
+<li>Meteostat: 3.1%</li>
+</ul>
 
 <strong>Ground truth distribution:</strong>
 
-<p>- Rain hours: 17 (0.3%)<br>
-- Dry hours: 175 (2.8%)<br>
-- Unknown: 6001 (96.9%)</p>
-
-<p>---</p>
-
+<ul>
+<li>Rain hours: 17 (0.3%)</li>
+<li>Dry hours: 175 (2.8%)</li>
+<li>Unknown: 6001 (96.9%)</li>
+</ul>
+<hr>
 <h2>Precipitation Source Reliability</h2>
 
 <p>Comparison of precipitation sources (7d window):</p>
 
+<div class="table-wrap">
 <table>
 <thead><tr>
 <th>Source</th>
@@ -922,33 +939,37 @@
 <td>180</td>
 <td>OM=5h, MS=1h</td>
 </tr>
-</tbody></table>
+</tbody></table></div>
 
 <strong>Yandex vs Ground Truth (HA):</strong>
-- Yandex rain hours: 31
-- Actual rain hours: 17
-- Agreement: 0h
-- Yandex-only: 31h (false positives)
-- Actual-only: 17h (missed events)
+<ul>
+<li>Yandex rain hours: 31</li>
+<li>Actual rain hours: 17</li>
+<li>Agreement: 0h</li>
+<li>Yandex-only: 31h (false positives)</li>
+<li>Actual-only: 17h (missed events)</li>
+</ul>
 <h2>Data Context</h2>
 
 <strong>Ground truth source:</strong> open-meteo
 
 <strong>Data coverage (7-day window):</strong>
 
-<p>- Home Assistant sensors: 16.4%<br>
-- Open-Meteo precipitation: 3.1%<br>
-- Yandex Weather: 100.0%<br>
-- Meteostat: 3.1%</p>
+<ul>
+<li>Home Assistant sensors: 16.4%</li>
+<li>Open-Meteo precipitation: 3.1%</li>
+<li>Yandex Weather: 100.0%</li>
+<li>Meteostat: 3.1%</li>
+</ul>
 
 <strong>Ground truth distribution:</strong>
 
-<p>- Rain hours: 17 (0.3%)<br>
-- Dry hours: 175 (2.8%)<br>
-- Unknown: 6001 (96.9%)</p>
-
-<p>---</p>
-
+<ul>
+<li>Rain hours: 17 (0.3%)</li>
+<li>Dry hours: 175 (2.8%)</li>
+<li>Unknown: 6001 (96.9%)</li>
+</ul>
+<hr>
 <h2>Key Observations &amp; Recommendations</h2>
 
 <p>⚠️ Best model differs: <strong>pressure_aware</strong> (7d) vs <strong>pressure_absolute</strong> (28d). Short-term volatility or model overfitting to recent events?</p>
@@ -962,16 +983,14 @@
 <p>✅ <strong>Open-Meteo closer to ground truth</strong> than Yandex. Prefer OM for precipitation validation.</p>
 
 <strong>Next steps:</strong> Review pressure_* model variants for improving precision without sacrificing recall. Target: F-beta=2 &gt;0.5, precision &gt;0.6.
-
-<p>---</p>
-
-<p>_Report generated by daily_analysis.py at 2026-08-13T18:53:51.161146+00:00_</p>
+<hr>
+<em>Report generated by daily_analysis.py at 2026-08-13T18:53:51.161146+00:00</em>
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-13 20:14 UTC</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
     </footer>
 </body>
 </html>

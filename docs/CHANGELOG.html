@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CHANGELOG — Rain Analysis</title>
+    <meta name="description" content="CHANGELOG — documentation for the rain-analysis project.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>Changelog</h1>
+
+<p>Notable changes to rain-analysis.</p>
+
+<h2>2026-08-13</h2>
+
+Model scoring rested on ~17 labelled rain hours, which made every reported
+ranking statistical noise. The cause was the measurement harness, not the
+models. Benchmarks published before this date are superseded — see
+<a href="MODELS.html">MODELS.md</a>.
+
+<h3>Added</h3>
+
+<ul>
+<li><strong><code>fetch_ha_statistics.py</code></strong> — reads Home Assistant long-term statistics over</li>
+</ul>
+  the WebSocket API. These survive recorder purging, which lifted the usable
+  local history from ~10 days to 43 (1036 hourly points, 247 rain hours).
+<ul>
+<li><strong><code>archive_ha_data.py</code></strong> — append-only merge into <code>data/archive/ha_hourly.csv</code>,</li>
+</ul>
+  now committed to git. Home Assistant history is perishable; anything not
+  archived before it purges is unrecoverable.
+<ul>
+<li><strong>Sensor diagnostics</strong> in the report: bias/MAE/correlation of the local sensors</li>
+</ul>
+  against reference sources, and replica-vs-production agreement.
+<ul>
+<li><strong>Ground-truth agreement</strong>: Cohen&#x27;s kappa between Open-Meteo, Meteostat and</li>
+</ul>
+  Yandex, plus every model re-scored against the Meteostat label. The two
+  sources agree only moderately (κ = 0.495), so part of each model&#x27;s error
+  belongs to the yardstick.
+
+<h3>Fixed</h3>
+
+<ul>
+<li><strong>Analysis window is now clipped</strong> (<code>build_grid(start=, end=)</code>). The grid spanned</li>
+</ul>
+  the union of all source timespans, so a 43-day Yandex archive stretched a 7-day
+  run into a mostly-empty 43-day grid — HA coverage read 16.4%, which is 7/43.
+<ul>
+<li><strong>Hourly grid</strong> (was 10-minute). Ground truth is hourly, so five of every six</li>
+</ul>
+  rows could never carry a label and reported coverage could not exceed 16.7%.
+  The permanent &quot;low ground truth coverage&quot; warning was an artifact of this.
+<ul>
+<li><strong>Forward-fill limit is now measured in time, not rows.</strong> The limit was computed</li>
+</ul>
+  in grid periods but applied to the union of source and grid timestamps, where
+  each sensor is NaN at every other sensor&#x27;s timestamps. On an hourly grid it
+  worked out to 1 row, so a sensor reporting every 12 minutes reached only 28 of
+  235 grid hours.
+<ul>
+<li><strong><code>ha_live</code> replica now reads <code>sensor.outside_dew_point_spread_trend</code></strong>, the</li>
+</ul>
+  input the deployed template actually uses, instead of a Python-recomputed 3h
+  derivative. The two agree only at corr 0.83, which held the replica&#x27;s peak
+  score below the 50% alert threshold: it scored F1 0.000 against a live sensor
+  scoring 0.143. Agreement with production is now corr 0.998, MAE 0.19.
+<ul>
+<li><strong>Base rate is reported over labelled hours</strong>, not the whole grid — 17 rain</li>
+</ul>
+  hours out of 192 labelled (8.9%) was being displayed as 1.5%.
+<ul>
+<li><strong>Meteostat requests are chunked</strong> to the API&#x27;s 30-day limit. Longer ranges</li>
+</ul>
+  returned an error that the pipeline swallowed, silently dropping the source.
+<ul>
+<li><strong>Pressure is compared against Open-Meteo <code>surface_pressure</code></strong>, not Meteostat&#x27;s</li>
+</ul>
+  sea-level-reduced <code>pres</code> — differencing those reported Minsk&#x27;s ~220 m elevation
+  as a ~26 hPa sensor bias.
+<ul>
+<li><strong><code>pressure_variants</code> import no longer depends on <code>sys.path</code></strong>, which had left</li>
+</ul>
+  all five pressure models registered but failing when called.
+<ul>
+<li>Models with no scored samples render as &quot;no data&quot; rather than 0.000.</li>
+<li>The &quot;Data Context&quot; block was emitted four times per report; now once.</li>
+</ul>
+
+<h3>Changed</h3>
+
+<ul>
+<li>Open-Meteo fetches now include <code>surface_pressure</code> and <code>dew_point_2m</code>.</li>
+</ul>
+
+<h2>2026-07-18</h2>
+
+<h3>Fixed</h3>
+
+<ul>
+<li><strong>Precipitation forward-fill removed</strong> (<code>rainlib.py::build_grid()</code>). Previously, precipitation columns were forward-filled during grid construction, inflating rain-hour counts by approximately 80%. The fix restricts forward-fill to temperature/humidity/pressure columns only.</li>
+<li>See <a href="DATA_SOURCES.html">DATA_SOURCES.md</a> for updated forward-fill behavior description.</li>
+</ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
+    </footer>
+</body>
+</html>

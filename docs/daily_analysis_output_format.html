@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>daily_analysis_output_format — Rain Analysis</title>
+    <meta name="description" content="daily_analysis_output_format — documentation for the rain-analysis project.">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <header>
+        <h1>🌧️ Rain Prediction Model Analysis</h1>
+        <p>Documentation & ML Metrics Reference</p>
+    </header>
+
+    <nav>
+        <a href="../index.html">Home</a>
+        <a href="../current/index.html">Latest Report</a>
+        <a href="../history/index.html">History</a>
+        <a href="../metrics/index.html">Metrics Timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+    </nav>
+
+    <main>
+        <section class="docs-content">
+<h1>daily_analysis.py Output Format Contract</h1>
+
+<strong>Version:</strong> 1.0  
+<strong>Last updated:</strong> 2026-07-21
+
+This document specifies the Markdown output format produced by <code>scripts/daily_analysis.py</code>. This format is a <strong>versioned contract</strong> parsed by GitHub Pages generators:
+<ul>
+<li><code>scripts/generate_history_index.py</code></li>
+<li><code>scripts/generate_metrics_page.py</code></li>
+</ul>
+
+Any changes to this format must maintain backward compatibility or update all dependent parsers.
+<hr>
+<h2>Document Structure</h2>
+
+<h3>1. Header</h3>
+
+<code>`</code>markdown
+<h1>Daily Model Analysis — YYYY-MM-DD</h1>
+
+<strong>Generated:</strong> &lt;ISO 8601 timestamp&gt;
+
+<strong>Analysis windows:</strong> 7-day (recent), 14-day (medium-term), 28-day (long-term)
+<code>`</code>
+
+<h3>2. Executive Summary</h3>
+
+<code>`</code>markdown
+<h2>Executive Summary</h2>
+
+<strong>Best overall (F-beta=2):</strong> &lt;model_name&gt; @ 7d
+
+<strong>Key findings:</strong>
+<ul>
+<li>&lt;finding 1&gt;</li>
+<li>&lt;finding 2&gt;</li>
+</ul>
+...
+<code>`</code>
+
+<h3>3. Model Performance Table (7-day window) — <strong>PARSER CONTRACT</strong></h3>
+
+<p>This table is parsed by <code>generate_history_index.py</code> and <code>generate_metrics_page.py</code>.</p>
+
+<strong>Format:</strong>
+<code>`</code>markdown
+<h2>Model Performance (7-day window)</h2>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>F1</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Status</th>
+</tr></thead><tbody>
+<tr>
+<td>model_name_1</td>
+<td>0.456</td>
+<td>0.678</td>
+<td>0.789</td>
+<td>✅</td>
+</tr>
+<tr>
+<td>model_name_2</td>
+<td>0.512</td>
+<td>0.712</td>
+<td>0.823</td>
+<td>📊</td>
+</tr>
+</tbody></table></div>
+...
+
+<strong>Best overall (F-beta=2):</strong> &lt;model_name&gt; @ 7d
+<code>`</code>
+
+<strong>Parser Regex:</strong>
+<code>`</code>python
+r&#x27;\|\s*(\S+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|\s*([\d.]+)\s*\|&#x27;
+<code>`</code>
+
+<strong>Constraints:</strong>
+<ul>
+<li>Model names: no whitespace (use underscores)</li>
+<li>Metrics: 3 decimal places (<code>{:.3f}</code>)</li>
+<li>Column order: <code>Model | F1 | Precision | Recall | Status</code></li>
+<li>Status column: emoji only (✅ for best, 📊 for others)</li>
+</ul>
+
+<strong>Breaking this format will break GitHub Pages history extraction.</strong>
+
+<h3>4. Multi-Window Comparison</h3>
+
+<code>`</code>markdown
+<h2>Multi-Window Comparison</h2>
+
+<p>Performance across different time windows...</p>
+
+<h3>F-beta=2 Scores</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+<th>Trend</th>
+</tr></thead><tbody>
+<tr>
+<td>model_name</td>
+<td>0.623</td>
+<td>0.645</td>
+<td>0.678</td>
+<td>📈 improving</td>
+</tr>
+</tbody></table></div>
+...
+
+<h3>Precision by Window</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+</tr></thead><tbody>
+<tr>
+<td>model_name</td>
+<td>0.678</td>
+<td>0.698</td>
+<td>0.712</td>
+</tr>
+</tbody></table></div>
+...
+
+<h3>Recall by Window</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>7d</th>
+<th>14d</th>
+<th>28d</th>
+</tr></thead><tbody>
+<tr>
+<td>model_name</td>
+<td>0.789</td>
+<td>0.801</td>
+<td>0.823</td>
+</tr>
+</tbody></table></div>
+...
+<code>`</code>
+
+<strong>Trend indicators:</strong>
+<ul>
+<li><code>📈 improving</code>: 28d F-beta &gt; 7d F-beta * 1.1</li>
+<li><code>📉 degrading</code>: 28d F-beta &lt; 7d F-beta * 0.9</li>
+<li><code>➡️ stable</code>: otherwise</li>
+</ul>
+
+<h3>5. Model Rankings</h3>
+
+<code>`</code>markdown
+<h2>Model Rankings</h2>
+
+<h3>By F-beta=2 (7d, min_precision=0.6)</h3>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Rank</th>
+<th>Model</th>
+<th>F-beta=2</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>Notes</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>model_name</td>
+<td>0.734</td>
+<td>0.712</td>
+<td>0.823</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>2</td>
+<td>model_name</td>
+<td>0.623</td>
+<td>0.678</td>
+<td>0.789</td>
+<td>✅ passes filter</td>
+</tr>
+<tr>
+<td>3</td>
+<td>model_name</td>
+<td>0.598</td>
+<td>0.534</td>
+<td>0.856</td>
+<td>❌ low precision</td>
+</tr>
+</tbody></table></div>
+...
+
+<h3>By F-beta=3 (7d, min_precision=0.6)</h3>
+
+<p>Higher recall emphasis (FN≤5% target).</p>
+
+<p>&lt;same structure as F-beta=2&gt;</p>
+
+<h3>By Precision (7d)</h3>
+
+<p>For use cases where false positives are costly.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Rank</th>
+<th>Model</th>
+<th>Precision</th>
+<th>Recall</th>
+<th>F1</th>
+</tr></thead><tbody>
+<tr>
+<td>1</td>
+<td>model_name</td>
+<td>0.856</td>
+<td>0.612</td>
+<td>0.512</td>
+</tr>
+</tbody></table></div>
+...
+<code>`</code>
+
+<strong>Ranking logic:</strong>
+<ul>
+<li>F-beta rankings: sort by (passes_filter DESC, fbeta DESC)</li>
+<li>Precision ranking: sort by (precision DESC)</li>
+<li>Show top 5 only</li>
+</ul>
+
+<h3>6. Precipitation Source Reliability — <strong>PARSER CONTRACT</strong></h3>
+
+<code>`</code>markdown
+<h2>Precipitation Source Reliability</h2>
+
+<p>Comparison of precipitation sources (7d window):</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Source</th>
+<th>Rain Hours</th>
+<th>Agreement with Others</th>
+</tr></thead><tbody>
+<tr>
+<td>OM (Open-Meteo)</td>
+<td>15</td>
+<td>MS=12h, YX=13h</td>
+</tr>
+<tr>
+<td>MS (Meteostat)</td>
+<td>14</td>
+<td>OM=12h, YX=11h</td>
+</tr>
+<tr>
+<td>YX (Yandex)</td>
+<td>18</td>
+<td>OM=13h, MS=11h</td>
+</tr>
+</tbody></table></div>
+
+<strong>Yandex vs Ground Truth (HA):</strong>
+<ul>
+<li>Yandex rain hours: 18</li>
+<li>Actual rain hours: 16</li>
+<li>Agreement: 14h</li>
+<li>Yandex-only: 4h (false positives)</li>
+<li>Actual-only: 2h (missed events)</li>
+</ul>
+<code>`</code>
+
+<strong>Constraints:</strong>
+<ul>
+<li>Source names: <code>OM (Open-Meteo)</code>, <code>MS (Meteostat)</code>, <code>YX (Yandex)</code></li>
+<li>Rain hours: right-aligned integers</li>
+<li>Agreement: comma-separated <code>SOURCE=Xh</code> pairs</li>
+</ul>
+
+<h3>7. Key Observations &amp; Recommendations</h3>
+
+<code>`</code>markdown
+<h2>Key Observations &amp; Recommendations</h2>
+
+<p>&lt;intelligent analytics based on data&gt;</p>
+
+Examples:
+<ul>
+<li>✅ <strong>model_name</strong> maintains top position across 7d and 28d windows — reliable choice for production.</li>
+<li>⚠️ Best model differs: <strong>model_A</strong> (7d) vs <strong>model_B</strong> (28d). Short-term volatility?</li>
+<li>⚠️ <strong>Low average precision (0.38)</strong> — models produce many false positives. Pressure-aware variants may help.</li>
+<li>📈 <strong>ha_live improving</strong> with longer window (7d: 0.623 → 28d: 0.678). Model benefits from more data.</li>
+</ul>
+
+<strong>Next steps:</strong> &lt;specific recommendation&gt;
+<code>`</code>
+
+<h3>8. Footer</h3>
+
+<code>`</code>markdown
+<hr>
+<em>Report generated by daily_analysis.py at &lt;ISO 8601 timestamp&gt;</em>
+<code>`</code>
+<hr>
+<h2>Validation</h2>
+
+Run format validation tests:
+<code>`</code>bash
+python tests/test_daily_analysis_format.py
+<code>`</code>
+
+These tests verify:
+<ul>
+<li>Parser regex compatibility (Model Performance table)</li>
+<li>Required sections presence</li>
+<li>Markdown structure</li>
+<li>Value formatting (3 decimal places, etc.)</li>
+</ul>
+<hr>
+<h2>Changelog</h2>
+
+<h3>v1.0 (2026-07-21)</h3>
+<ul>
+<li>Initial contract documentation</li>
+<li>Formalized parser requirements for Model Performance table</li>
+<li>Documented multi-window comparison structure</li>
+<li>Specified precipitation source format</li>
+</ul>
+        </section>
+    </main>
+
+    <footer>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Generated: 2026-08-13 21:38 UTC</p>
+    </footer>
+</body>
+</html>
