@@ -3,6 +3,7 @@ import pytest
 from datetime import datetime, timedelta, date
 from unittest.mock import AsyncMock, Mock, patch
 import pandas as pd
+from sqlalchemy import select
 
 from app.ml.daily_task import DailyMLTask
 from app.models.ml import MLModel, Prediction, ModelMetric
@@ -28,9 +29,13 @@ async def test_daily_task_no_active_models(db_session):
     mock_df = pd.DataFrame({'temp': [20, 21], 'humidity': [60, 65]})
     
     with patch.object(task, '_fetch_weather_data', return_value=mock_df):
-        # No models in database, should exit gracefully
-        # Pass db_session to avoid creating new session that would fail
-        await task.run(db=db_session)
+        # Mock PredictionService to return empty list of models
+        with patch('app.ml.daily_task.PredictionService') as MockService:
+            mock_service = MockService.return_value
+            mock_service.get_active_models = AsyncMock(return_value=[])
+            
+            # Should exit gracefully when no models found
+            await task.run(db=db_session)
 
 
 @pytest.mark.asyncio
@@ -172,10 +177,12 @@ async def test_daily_task_metrics_storage(db_session):
             
             await task._process_model(db_session, model, mock_df, yesterday)
             
-            # Verify metric was stored in database
+            # Verify metric was stored in database using SQLAlchemy ORM
             result = await db_session.execute(
-                f"SELECT * FROM model_metrics WHERE model_id = {model.id}"
+                select(ModelMetric).where(ModelMetric.model_id == model.id)
             )
-            metrics_records = result.fetchall()
+            metrics_records = result.scalars().all()
             assert len(metrics_records) == 1
-            assert metrics_records[0][2] == yesterday  # date column
+            assert metrics_records[0].date == yesterday
+            assert metrics_records[0].brier_score == 0.25
+            assert metrics_records[0].f2_score == 0.88
