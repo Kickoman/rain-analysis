@@ -68,42 +68,34 @@ def model_prediction(data, current_timestamp=None):
 
 ---
 
-## Архитектура решения
+## Порядок работы (baseline-анализ)
 
-```
-┌─────────────────┐
-│ Home Assistant  │───> SQLite DB (sensor data)
-└─────────────────┘
-         ↓
-   Python scripts
-    (rainlib.py)
-         ↓
-┌─────────────────────────┐
-│   Baseline model v0.1   │──> rain probability score
-└─────────────────────────┘
-```
-
-- Данные хранятся в Home Assistant SQLite (таблица `states`, state записи по временным меткам).
-- Скрипт `analysis/run_analysis.py` извлекает последние данные и вызывает модель.
-- Модель возвращает score [0.0 ... 1.0+], который интерпретируется как вероятность дождя.
+1. **Загрузка данных:** Home Assistant DB → pandas DataFrame с колонками `[timestamp, temperature, humidity]`
+2. **Feature extraction:** функция `compute_features()` в `analysis/feature_extractor.py`
+3. **Model prediction:** `model_prediction()` возвращает score для каждого timestamp
+4. **Report generation:** визуализация в matplotlib + markdown summary
 
 ---
 
-## Запуск
+## Тюнинг коэффициентов (v0.1)
 
-Выполняется через CLI-скрипт:
+Коэффициенты подобраны методом "как глаз ляжет":
 
-```bash
-cd analysis
-python run_analysis.py --db /path/to/home-assistant_v2.db
+```python
+BASELINE_WEIGHTS = {
+    'humidity_trend_1h': 3.0,    # Быстрый рост влажности — сильный сигнал
+    'humidity_trend_3h': 2.0,    # Плавный тренд
+    'humidity_peak_6h': 0.5,     # Исторический максимум
+    'current_humidity': 1.5,     # Абсолютное значение важно (95% = дождь)
+    'temperature_trend_1h': -1.0, # Падение температуры часто связано с дождем
+    ...
+}
 ```
 
-Опции:
-- `--db`: путь к Home Assistant SQLite БД
-- `--output`: вывод результата (stdout или JSON file)
-- `--days`: диапазон ретроспективного анализа (например, `--days 7`)
-
-Для полного анализа с ground truth validation см. `run_full_analysis.py`.
+Эти значения — константы первой версии, дальнейшие улучшения:
+- **Grid search** (перебор коэффициентов)
+- **Gradient descent** (если есть ground truth)
+- Или переход к ML-модели (Приоритет 3)
 
 ---
 

@@ -237,5 +237,5 @@ last_changed: 2026-07-20 12:34:56
 ## См. также
 
 - [MODELS.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/MODELS.md) — документация моделей и их параметры
-- [BASELINE_MODEL.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/BASELINE_MODEL.md) — описание baseline-модели для сравнения
+- [BASELINE_MODEL.md](BASELINE_MODEL.md) — описание baseline-модели для сравнения
 - [daily_analysis_output_format.md](https://github.com/Kickoman/rain-analysis/blob/master/docs/daily_analysis_output_format.md) — формат выходных данных с метриками
