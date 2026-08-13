@@ -121,6 +121,21 @@ def derivative(series: pd.Series, window: str = "3h", min_periods: int = 2,
     y_all = s.values.astype(float)
     win_sec = pd.Timedelta(window).total_seconds()
 
+    # The window is half-open — `x > t_now - win` — so a window equal to the
+    # sample spacing admits exactly one point, falls below `min_periods`, and
+    # yields NaN for every row. Callers then `.fillna(0.0)` it and silently model
+    # "no trend". On the hourly grid a "1h" window does exactly this, so refuse
+    # rather than return a column of zeros dressed as a derivative.
+    if len(s) > 1:
+        spacing = float(np.median(np.diff(x_all)))
+        if spacing > 0 and win_sec <= spacing * (min_periods - 1):
+            raise ValueError(
+                f"derivative(): window {window!r} ({win_sec / 3600:.2f}h) is too short for "
+                f"data sampled every {spacing / 3600:.2f}h — it admits fewer than "
+                f"min_periods={min_periods} samples and would return all-NaN. "
+                f"Use a window longer than {spacing * (min_periods - 1) / 3600:.2f}h."
+            )
+
     out = np.full(len(s), np.nan)
     for i in range(len(s)):
         t_now = x_all[i]
@@ -599,20 +614,7 @@ def _import_pressure_variants():
 
 def _get_pressure_variant(name):
     """Lazy-load pressure variant models on demand (optional import)."""
-    pv = _import_pressure_variants()
-    model_pressure_absolute = pv.model_pressure_absolute
-    model_pressure_long_window = pv.model_pressure_long_window
-    model_pressure_lagged = pv.model_pressure_lagged
-    model_pressure_combined = pv.model_pressure_combined
-    model_combined = pv.model_combined
-    variants = {
-        "pressure_absolute": model_pressure_absolute,
-        "pressure_long_window": model_pressure_long_window,
-        "pressure_lagged": model_pressure_lagged,
-        "pressure_combined": model_pressure_combined,
-        "combined": model_combined,
-    }
-    return variants[name]
+    return getattr(_import_pressure_variants(), f"model_{name}")
 
 
 class _LazyModel:
@@ -635,6 +637,7 @@ MODELS = {
     "pressure_lagged": _LazyModel("pressure_lagged"),
     "pressure_combined": _LazyModel("pressure_combined"),
     "combined": _LazyModel("combined"),
+    "pressure_primary": _LazyModel("pressure_primary"),
 }
 
 
@@ -716,7 +719,8 @@ def load_open_meteo(obj) -> pd.DataFrame:
 
     cols = {}
     for key in ["temperature_2m", "relative_humidity_2m", "dew_point_2m",
-                "precipitation", "rain", "showers", "surface_pressure"]:
+                "precipitation", "rain", "showers", "surface_pressure",
+                "cloud_cover", "wind_speed_10m"]:
         if key in hourly:
             cols[key] = hourly[key]
     out = pd.DataFrame(cols, index=times_utc)
@@ -732,6 +736,8 @@ def load_open_meteo(obj) -> pd.DataFrame:
         # Station-level pressure — comparable with the local barometer, unlike
         # Meteostat's sea-level-reduced `pres`.
         "surface_pressure": "om_pressure",
+        "cloud_cover": "om_cloud",
+        "wind_speed_10m": "om_wind",
     })
     return out
 
@@ -1048,6 +1054,42 @@ def label_rain(grid: pd.DataFrame,
     raise ValueError("No precipitation or condition column to label from.")
 
 
+def label_rain_within(labels: pd.Series, hours: int,
+                      freq: str = "1h") -> pd.Series:
+    """Shift a nowcast label into a warning label: rain in any of the next N hours.
+
+    The product is an alert — "it will rain soon", not "it is raining". Scoring
+    a warning against a same-hour label penalises exactly the behaviour the
+    alert exists for, which is why `rainlib_temporal` had to bolt tolerance
+    windows onto the metric afterwards. This builds the horizon into the label
+    instead, so ordinary precision/recall mean the right thing.
+
+    A row is 1 if any of the next `hours` steps is rain, 0 if all of them are
+    known and dry, and NaN if the horizon runs past the end of the data or over
+    unknown hours — an unknown future must not be scored as "no rain".
+
+    With hours <= 0 the labels are returned unchanged.
+    """
+    if hours <= 0:
+        return labels.copy()
+
+    step = pd.Timedelta(freq)
+    if step <= pd.Timedelta(0):
+        raise ValueError(f"label_rain_within(): freq {freq!r} is not a positive duration")
+
+    # Number of grid steps that covers the horizon, so this stays correct if the
+    # grid is ever finer than hourly again.
+    steps = max(1, int(round(pd.Timedelta(hours=hours) / step)))
+
+    shifted = pd.concat([labels.shift(-k) for k in range(1, steps + 1)], axis=1)
+    result = shifted.max(axis=1)
+    # max() skips NaN, so a known rain hour wins even if later hours are unknown;
+    # but an all-unknown horizon, or one that is dry-so-far with gaps, is unknown.
+    unknown = shifted.isna().any(axis=1) & (result != 1.0)
+    result[unknown] = np.nan
+    return result
+
+
 # ---------------------------------------------------------------------------
 # 7. METRICS
 # ---------------------------------------------------------------------------
@@ -1086,6 +1128,73 @@ def confusion_at_threshold(pred: pd.Series, truth: pd.Series,
         "precision": precision, "recall": recall, "f1": f1,
         "n": len(df),
     }
+
+
+def roc_auc(pred: pd.Series, truth: pd.Series) -> float:
+    """Area under the ROC curve — the probability that a randomly chosen rainy
+    hour is scored above a randomly chosen dry one.
+
+    Threshold-free, so unlike F1 it cannot be rescued by a lucky cutoff. This is
+    the metric that exposes a model which does not rank at all: 0.5 is a coin
+    flip regardless of how the score is thresholded. Reported alongside F1
+    because several models scored a respectable-looking F1 while sitting at
+    AUC 0.49.
+
+    Computed from rank statistics (the Mann-Whitney U identity), with ties
+    receiving averaged ranks. Returns NaN when either class is absent.
+    """
+    df = pd.DataFrame({"pred": pred, "truth": truth}).dropna()
+    if df.empty:
+        return float("nan")
+
+    y = (df["truth"] > 0).astype(int)
+    n_pos = int(y.sum())
+    n_neg = len(y) - n_pos
+    if n_pos == 0 or n_neg == 0:
+        return float("nan")
+
+    ranks = df["pred"].rank(method="average")
+    return float((ranks[y == 1].sum() - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg))
+
+
+def average_precision(pred: pd.Series, truth: pd.Series) -> float:
+    """Area under the precision-recall curve, as a step-wise sum.
+
+    More informative than ROC AUC when positives are rare, because it ignores
+    true negatives — and rain is a minority class here. Its floor is the base
+    rate, not 0.5, so compare it against that rather than against zero.
+    Returns NaN when there are no positives.
+    """
+    df = pd.DataFrame({"pred": pred, "truth": truth}).dropna()
+    if df.empty:
+        return float("nan")
+
+    df = df.sort_values("pred", ascending=False, kind="mergesort")
+    y = (df["truth"] > 0).astype(int).values
+    n_pos = int(y.sum())
+    if n_pos == 0:
+        return float("nan")
+
+    # Sum precision@k over the positives. Tied scores are collapsed into one
+    # block: no threshold can separate rows that share a score, so every tied
+    # row must see the same precision.
+    scores = df["pred"].values
+    total = 0.0
+    tp = 0
+    seen = 0
+    start = 0
+    while start < len(y):
+        end = start
+        while end + 1 < len(y) and scores[end + 1] == scores[start]:
+            end += 1
+        block_positives = int(y[start:end + 1].sum())
+        seen += end - start + 1
+        tp += block_positives
+        if block_positives:
+            total += (tp / seen) * block_positives
+        start = end + 1
+
+    return float(total / n_pos)
 
 
 def cohens_kappa(a: pd.Series, b: pd.Series) -> dict:

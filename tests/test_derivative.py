@@ -240,16 +240,32 @@ class TestDerivativeWindowSizes:
         
         assert std_6h < std_3h < std_2h
     
-    def test_window_too_small(self):
-        """Very small window with min_periods produces sparse output."""
+    def test_window_too_small_is_rejected(self):
+        """A window that cannot admit min_periods samples raises instead of returning NaN.
+
+        This used to return an all-NaN column, which callers then `.fillna(0.0)`
+        into "no trend" — a silent modelling change with no error anywhere. The
+        hourly grid made it reachable with the ordinary-looking window "1h",
+        since the window is half-open and excludes the sample exactly one window
+        back.
+        """
         times = pd.date_range("2024-01-01", periods=10, freq="1h", tz="UTC")
         values = pd.Series(range(10), index=times, dtype=float)
-        
-        # Window smaller than sample spacing
-        deriv = derivative(values, window="30min", min_periods=2)
-        
-        # Most points won't have 2 samples in 30min window
-        assert deriv.notna().sum() < 5
+
+        with pytest.raises(ValueError, match="too short for data sampled"):
+            derivative(values, window="30min", min_periods=2)
+
+        with pytest.raises(ValueError, match="too short for data sampled"):
+            derivative(values, window="1h", min_periods=2)
+
+    def test_window_just_over_the_spacing_is_accepted(self):
+        """The boundary: two hourly samples fit in any window longer than 1h."""
+        times = pd.date_range("2024-01-01", periods=10, freq="1h", tz="UTC")
+        values = pd.Series(range(10), index=times, dtype=float)
+
+        deriv = derivative(values, window="2h", min_periods=2)
+        assert deriv.notna().sum() == 9
+        assert deriv.dropna().iloc[0] == pytest.approx(1.0)
 
 
 class TestDerivativeReindex:

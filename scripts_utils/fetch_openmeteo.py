@@ -30,9 +30,14 @@ USER_AGENT = "rain-analysis/1.0 (+https://github.com/Kickoman/rain-analysis)"
 # surface_pressure is the station-level reading, the like-for-like reference for
 # the local barometer; Meteostat's `pres` is reduced to sea level, so comparing
 # the two shows Minsk's ~220 m elevation as a ~26 hPa "sensor bias".
+# cloud_cover measured as the single most important feature for rain within 3h
+# (+0.061 ROC AUC when permuted, ahead of pressure at +0.038). It is not
+# measurable from the balcony, so no local-sensor model can use it — but it costs
+# nothing to collect, and nothing can be built on it until it is being stored.
 HOURLY_VARIABLES = (
     "temperature_2m,relative_humidity_2m,dew_point_2m,"
-    "precipitation,rain,showers,surface_pressure"
+    "precipitation,rain,showers,surface_pressure,"
+    "cloud_cover,wind_speed_10m"
 )
 
 def generate_mock_data(start_date: str, end_date: str) -> dict:

@@ -52,8 +52,11 @@ from analysis.rainlib import (
     YX_STATE_COLUMNS,
     build_grid,
     label_rain,
-    
+    label_rain_within,
+
     # Metrics
+    roc_auc,
+    average_precision,
     cohens_kappa,
     confusion_at_threshold,
     sweep_threshold,
@@ -104,8 +107,11 @@ __all__ = [
     "YX_STATE_COLUMNS",
     "build_grid",
     "label_rain",
-    
+    "label_rain_within",
+
     # Metrics
+    "roc_auc",
+    "average_precision",
     "cohens_kappa",
     "confusion_at_threshold",
     "sweep_threshold",

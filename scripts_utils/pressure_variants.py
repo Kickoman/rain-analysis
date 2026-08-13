@@ -34,13 +34,28 @@ def _is_invalid(val) -> bool:
     return val is None or (isinstance(val, float) and math.isnan(val))
 
 
+# A spread reading older than this no longer describes current conditions. The
+# fill used to be unbounded, so a dead sensor propagated its last value through
+# the rest of the run — inside the model, and therefore invisible to the
+# coverage figures, which are computed on the grid upstream where the fill *is*
+# bounded.
+SPREAD_FFILL_LIMIT = pd.Timedelta(hours=3)
+
+
 def _setup_dataframe(ctx: ModelContext) -> pd.DataFrame:
     """Create the common aligned DataFrame with spread and derivative."""
     df = pd.DataFrame({
         "spread": ctx.spread,
         "deriv": ctx.spread_deriv,
     }).sort_index()
-    df["spread"] = df["spread"].ffill()
+
+    spread = df["spread"].dropna()
+    if spread.empty:
+        df["deriv"] = df["deriv"].fillna(0.0)
+        return df
+
+    df["spread"] = spread.reindex(df.index, method="ffill",
+                                  tolerance=SPREAD_FFILL_LIMIT)
     df["deriv"] = df["deriv"].fillna(0.0)
     return df
 
@@ -145,15 +160,47 @@ def _pressure_score(pd_val, threshold, gain, ceiling, floor):
     return max(min(-pd_val * gain, ceiling), floor)
 
 
-def _abs_pressure_bonus(p_abs):
-    """Bonus score for low absolute pressure (cyclone indicator)."""
-    if p_abs < 990:
-        return 20.0
-    elif p_abs < 1000:
-        return 10.0
-    elif p_abs < 1005:
-        return 5.0
+# Reference thresholds are expressed as a *departure from the station's own
+# recent normal*, in hPa. Fixed absolute cut-offs cannot work here: they were
+# written for sea-level pressure (990/1000/1005 hPa), but the barometer sits at
+# ~220 m, where station pressure has a median of 989.6 and never exceeds 1001.
+# Against those cut-offs the bonus returned 20 for 51.8% of hours, 10 for 46.6%,
+# and zero never — a constant offset of ~15 points dressed up as a cyclone
+# detector. An anomaly needs no elevation constant and tracks the season.
+PRESSURE_ANOMALY_BONUS = (
+    (-8.0, 20.0),   # deep low relative to the local normal
+    (-4.0, 10.0),
+    (-1.5, 5.0),
+)
+
+# Window for "recent normal". Long enough to span several synoptic systems so a
+# multi-day low still reads as low, short enough to follow the seasonal cycle.
+PRESSURE_BASELINE_WINDOW = "30D"
+
+
+def _abs_pressure_bonus(anomaly):
+    """Bonus for pressure below the station's own recent normal (cyclone indicator).
+
+    Takes an *anomaly* in hPa (current minus rolling median), not a raw reading.
+    """
+    if anomaly is None or (isinstance(anomaly, float) and math.isnan(anomaly)):
+        return 0.0
+    for threshold, bonus in PRESSURE_ANOMALY_BONUS:
+        if anomaly < threshold:
+            return bonus
     return 0.0
+
+
+def pressure_anomaly(pressure: pd.Series,
+                     window: str = PRESSURE_BASELINE_WINDOW) -> pd.Series:
+    """Pressure minus its own trailing median — a station-relative "how low is low".
+
+    Trailing only, so no future data leaks into a past row. Rows before the
+    window has enough history yield NaN, which the scorers read as "no signal"
+    rather than as a reading of zero.
+    """
+    baseline = pressure.rolling(window, min_periods=24).median()
+    return pressure - baseline
 
 
 # ---------------------------------------------------------------------------
@@ -176,22 +223,20 @@ def model_pressure_absolute(ctx: ModelContext,
         if p_aligned is None:
             return
         df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window).fillna(0.0)
-        df["pres_abs"] = p_aligned
+        df["pres_anom"] = pressure_anomaly(p_aligned)
 
     def get_scores(i, df, use_pressure, p):
         if not use_pressure:
             return []
         pd_val = df["pres_deriv"].values[i]
-        p_abs = df["pres_abs"].values[i]
+        anomaly = df["pres_anom"].values[i]
 
         if _is_invalid(pd_val):
             pd_val = 0.0
-        if _is_invalid(p_abs):
-            p_abs = 1013.25
 
         ps = _pressure_score(pd_val, p.pressure_drop_threshold,
                             p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
-        bonus = _abs_pressure_bonus(p_abs)
+        bonus = _abs_pressure_bonus(anomaly)
         return [(ps, p.pressure_weight), (bonus, 0.3)]
 
     return _pressure_variant_base(ctx, p, prepare, get_scores)
@@ -292,22 +337,20 @@ def model_pressure_combined(ctx: ModelContext,
         # Short-term trend (3h window, lagged by 3h)
         p_lagged = p_aligned.shift(freq="3h")
         df["pres_short"] = derivative(p_lagged, window="3h").fillna(0.0)
-        # Absolute pressure
-        df["pres_abs"] = p_aligned
+        # How low the station is sitting relative to its own recent normal
+        df["pres_anom"] = pressure_anomaly(p_aligned)
 
     def get_scores(i, df, use_pressure, p):
         if not use_pressure:
             return []
         p_long = df["pres_long"].values[i]
         p_short = df["pres_short"].values[i]
-        p_abs = df["pres_abs"].values[i]
+        anomaly = df["pres_anom"].values[i]
 
         if _is_invalid(p_long):
             p_long = 0.0
         if _is_invalid(p_short):
             p_short = 0.0
-        if _is_invalid(p_abs):
-            p_abs = 1013.25
 
         # Long-term pressure trend (12h window)
         # Use relaxed threshold for slower changes
@@ -316,8 +359,8 @@ def model_pressure_combined(ctx: ModelContext,
         # Short-term lagged pressure (3h window)
         short_score = _pressure_score(p_short, 0.3,
                                      p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
-        # Absolute pressure bonus
-        abs_bonus = _abs_pressure_bonus(p_abs)
+        # Pressure-anomaly bonus
+        abs_bonus = _abs_pressure_bonus(anomaly)
 
         return [(long_score, 0.25), (short_score, 0.20), (abs_bonus, 0.20)]
 
@@ -367,7 +410,7 @@ def model_combined(ctx: ModelContext,
             df['pres_long'] = derivative(p_aligned, window='12h').fillna(0.0)
             p_lagged = p_aligned.shift(freq='3h')
             df['pres_short'] = derivative(p_lagged, window='3h').fillna(0.0)
-            df['pres_abs'] = p_aligned
+            df['pres_anom'] = pressure_anomaly(p_aligned)
 
     def get_scores(i, df, use_pressure, p):
         scores = []
@@ -395,7 +438,7 @@ def model_combined(ctx: ModelContext,
         if use_pressure:
             p_long = df['pres_long'].values[i]
             p_short = df['pres_short'].values[i]
-            p_abs = df['pres_abs'].values[i]
+            anomaly = df['pres_anom'].values[i]
 
             if not _is_invalid(p_long):
                 long_score = _pressure_score(p_long, 0.1,
@@ -405,14 +448,108 @@ def model_combined(ctx: ModelContext,
                 short_score = _pressure_score(p_short, 0.3,
                                              p.pressure_gain, p.pressure_ceiling, p.pressure_floor)
                 scores.append((short_score, 0.20))
-            if not _is_invalid(p_abs):
-                abs_bonus = _abs_pressure_bonus(p_abs)
-                scores.append((abs_bonus, 0.20))
+            if not _is_invalid(anomaly):
+                scores.append((_abs_pressure_bonus(anomaly), 0.20))
 
         return scores
 
     return _pressure_variant_base(ctx, p, prepare, get_scores)
 
+
+
+# ---------------------------------------------------------------------------
+# Variant F: signals ordered by measured value
+# ---------------------------------------------------------------------------
+
+# Anomaly (hPa below the station's own normal) that maps to a full-strength
+# pressure signal. Chosen from the observed spread of the anomaly rather than
+# tuned against the label.
+PRESSURE_FULL_SCALE = -10.0
+
+# Term weights, set from measured single-feature ROC AUC over 49,200 hours
+# rather than by hand: pressure 0.75, dew-point spread 0.66, spread derivative
+# 0.49. The derivative is at chance, so it contributes only a nudge — the
+# opposite of every other model here, where it is the primary signal.
+W_PRESSURE = 0.60
+W_PROXIMITY = 0.40
+W_TREND = 0.10
+
+# A monotone rescaling of the blend, not fitted to the label. It exists so the
+# documented 50% decision threshold sits inside the model's range: without it
+# the weights above put the 90th percentile at 36, so the model crossed 50 on
+# 4.2% of hours and looked useless at a fixed threshold while ranking best of
+# the physics models on AUC.
+#
+# Being monotone it leaves the ranking itself alone, save for one second-order
+# effect: outputs are rounded to whole numbers, and a wider range rounds fewer
+# distinct scores onto the same value, which slightly reduces ties.
+#
+# That every model needs a different threshold — 45 for `combined`, 20 for
+# `tuned`, 5 for `ha_live` — is the deeper problem here, and is what calibrated
+# probabilities from the learned model are meant to end.
+SCORE_SCALE = 2.0
+
+# Rain within the next 3 hours peaks at 11h UTC (1.32x the base rate) and
+# bottoms out around 20h UTC (0.74x) — afternoon convection. The seasonal cycle
+# is real but not sinusoidal (peaks in both January and July over 5.6 years), so
+# a smooth physics term cannot use it; that is left to the learned model.
+DIURNAL_PEAK_HOUR_UTC = 11
+DIURNAL_AMPLITUDE = 0.15
+
+
+def _diurnal_factor(index) -> np.ndarray:
+    """Multiplier for the time of day, peaking mid-afternoon local time.
+
+    Falls back to a flat 1.0 when the index carries no clock — synthetic
+    fixtures and unit tests often use a plain RangeIndex, and a model in the
+    registry has to survive being called with one.
+    """
+    if not isinstance(index, pd.DatetimeIndex):
+        return np.ones(len(index))
+    phase = 2 * np.pi * (index.hour - DIURNAL_PEAK_HOUR_UTC) / 24.0
+    return 1.0 + DIURNAL_AMPLITUDE * np.cos(phase)
+
+
+def model_pressure_primary(ctx: ModelContext,
+                           p: ModelParams | None = None) -> pd.Series:
+    """Pressure-led model: the signals weighted by how well they actually predict.
+
+    Every other model here is built on the dew-point-spread derivative, which
+    measures at ROC AUC 0.49 — chance — while absolute pressure reaches 0.75 and
+    is used only through a saturated step function. This inverts that ordering:
+    a station-relative pressure anomaly is the primary term, humidity proximity
+    is secondary, the derivative is a nudge, and the whole thing is scaled by
+    time of day.
+
+    Stateless, unlike the other stateful variants: with pressure leading there is
+    no fast-moving derivative to smooth, so hysteresis would only add lag. That
+    also keeps it expressible as a Home Assistant template.
+    """
+    if p is None:
+        p = ModelParams()
+
+    df = _setup_dataframe(ctx)
+    p_aligned, use_pressure = _align_pressure(ctx, df)
+
+    proximity = np.clip(100.0 - (df["spread"] / p.proximity_divisor * 100.0), 0, 100)
+    trend = np.clip(-df["deriv"] * p.trend_gain, p.trend_floor, p.trend_ceiling)
+
+    if use_pressure:
+        anomaly = pressure_anomaly(p_aligned)
+        # Linear, not stepped: the step version threw away most of the signal by
+        # returning the same 20 points for anomalies of -8 and -25 hPa.
+        pressure_score = np.clip(anomaly / PRESSURE_FULL_SCALE * 100.0, 0, 100).fillna(0.0)
+    else:
+        pressure_score = pd.Series(0.0, index=df.index)
+
+    raw = (pressure_score * W_PRESSURE
+           + proximity * W_PROXIMITY
+           + trend * W_TREND) * SCORE_SCALE
+    raw = raw * _diurnal_factor(df.index)
+
+    # Dry air still vetoes: no pressure anomaly makes rain out of desert air.
+    ceiling = np.where(df["spread"] < p.dry_spread_cutoff, 100.0, p.dry_ceiling)
+    return pd.Series(np.clip(raw, 0, ceiling), index=df.index).round(0)
 
 
 # ---------------------------------------------------------------------------
@@ -425,4 +562,5 @@ PRESSURE_VARIANTS = {
     "pressure_lagged": model_pressure_lagged,
     "pressure_combined": model_pressure_combined,
     "combined": model_combined,
+    "pressure_primary": model_pressure_primary,
 }

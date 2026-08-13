@@ -32,6 +32,34 @@ Complete documentation of all rain prediction models in this analysis framework.
 >
 > See the table below for current figures, and [CHANGELOG.md](CHANGELOG.md) for details.
 
+### Ranking quality (2026-08-14)
+
+F1 at a fixed 50% threshold, the table below, turned out to be the wrong lens. It
+cannot tell a model that ranks well from one whose output happens to sit near
+the cutoff. ROC AUC can, and it is unflattering — measured on the 3-hour warning
+target over identical held-out rows:
+
+| Model | ROC AUC | note |
+|-------|:-------:|------|
+| logistic regression (`analysis/learned.py`) | **0.753** | fitted, walk-forward |
+| **pressure_primary** | 0.669 | best hand-tuned |
+| persistence ("it rained last hour") | 0.643 | baseline |
+| Yandex forecast | 0.589 | free external forecast |
+| combined | 0.548 | |
+| tuned / pressure_* | 0.524–0.540 | |
+| original | 0.522 | |
+| **ha_live** (production) | **0.494** | below chance |
+| always-alert | 0.500 | baseline |
+
+The production model does not rank rain above dry hours. Every model built on
+the dew-point-spread derivative sits within a few points of chance, which is
+what that feature measures at (AUC 0.492 over 49,200 hours).
+
+`pressure_primary` is the one model here whose weights come from measurement
+rather than intuition: pressure anomaly leads, humidity is secondary, the
+derivative is a nudge, and the output is scaled by time of day. See
+[ALERT_RULE.md](ALERT_RULE.md) for the deployable rule built on the same finding.
+
 ### Current benchmarks (2026-08-13)
 
 Measured over **2026-07-01 → 2026-08-13** (1036 hourly points, 247 rain hours,
