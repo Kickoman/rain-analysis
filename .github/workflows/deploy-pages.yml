@@ -14,89 +14,167 @@ on:
 permissions:
   contents: write
 
+# One deploy at a time. Every run regenerates the whole site from the same
+# gh-pages commit and pushes without --force, so two overlapping runs race and
+# the loser is rejected non-fast-forward — its output is simply lost. Runs one
+# minute apart have already happened. Queue rather than cancel: a cancelled run
+# leaves the branch fine, but cancelling mid-push does not.
+concurrency:
+  group: deploy-pages
+  cancel-in-progress: false
+
 jobs:
+  # Publishing used to run in parallel with the test suite, so a commit that
+  # broke a generator went live at about the same moment the test job went red.
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest tests/ -q
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout master
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           ref: master
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Checkout gh-pages
         run: |
+          set -euo pipefail
           git fetch origin gh-pages
           git checkout gh-pages
 
       - name: Copy conversion scripts
         run: |
-          git checkout master -- scripts_utils/md_to_html.py
-          git checkout master -- scripts_utils/generate_history_index.py
-          git checkout master -- scripts_utils/generate_landing_page.py
-          git checkout master -- scripts_utils/generate_metrics_page.py
-          git checkout master -- scripts_utils/convert_docs_to_html.py
+          set -euo pipefail
+          # Whole directory: the generators import shared modules from each other
+          # (report_parse, check_site), and a per-file list silently omits any new
+          # one — the import error would surface only at deploy time.
+          git checkout master -- scripts_utils/
 
       - name: Generate HTML from latest reports
         run: |
+          set -euo pipefail
           # Get daily reports (YYYY-MM-DD.md) — exclude pressure_variants
           git checkout master -- reports/20*.md
-          
+
           # Also get pressure_variants reports
           git checkout master -- reports/pressure_variants_*.md || true
-          
-          # Convert all to HTML
-          for report in reports/*.md; do
+
+          # Convert all to HTML, recording what this run produced. Only the two
+          # patterns above are checked out, so glob those rather than reports/*.md
+          # — a stray reports/README.md would otherwise be published as a report.
+          : > /tmp/generated.txt
+          for report in reports/20*.md reports/pressure_variants_*.md; do
             if [ -f "$report" ]; then
               filename=$(basename "$report" .md)
               python3 scripts_utils/md_to_html.py "$report" "history/${filename}.html"
+              echo "${filename}.html" >> /tmp/generated.txt
             fi
           done
-          
+
+          # gh-pages only ever accumulated: a report renamed or removed in master
+          # kept its page and its history card forever. Drop anything this run did
+          # not generate. check_site.py refuses to publish if that loses reports.
+          for existing in history/*.html; do
+            name=$(basename "$existing")
+            [ "$name" = "index.html" ] && continue
+            grep -qxF "$name" /tmp/generated.txt || { echo "pruning stale $name"; rm -f "$existing"; }
+          done
+
           # Latest DAILY report to current/ (exclude pressure_variants)
           latest=$(ls -1 reports/20*.md | sort | tail -1)
           if [ -f "$latest" ]; then
             python3 scripts_utils/md_to_html.py "$latest" "current/index.html"
           fi
-          
+
           # Clean up temporary files
           rm -rf reports/
 
+      - name: Copy static site assets
+        run: |
+          set -euo pipefail
+          # The stylesheet used to exist only on gh-pages, so it was never
+          # reviewable and never tested. It lives in master under site/ now.
+          git checkout master -- site/
+          mkdir -p assets
+          cp -r site/assets/. assets/
+          cp site/404.html 404.html
+          # Without this, GitHub Pages runs the tree through Jekyll, which drops
+          # any path beginning with an underscore.
+          touch .nojekyll
+          rm -rf site/
+
       - name: Convert documentation to HTML
         run: |
-          # Get GLOSSARY.md from docs_site/
-          git checkout master -- docs_site/GLOSSARY.md
-          
-          # Convert to HTML
-          python3 scripts_utils/convert_docs_to_html.py docs_site/GLOSSARY.md docs/GLOSSARY.html
-          
+          set -euo pipefail
+          # Every document, not just the glossary. Publishing one of them left the
+          # other four frozen at whatever was generated by hand months ago —
+          # docs/MODELS.html was still serving benchmarks the changelog calls
+          # superseded, unreachable from the nav but perfectly reachable from search.
+          git checkout master -- docs_site/
+
+          for doc in docs_site/*.md; do
+            [ -f "$doc" ] || continue
+            name=$(basename "$doc" .md)
+            python3 scripts_utils/convert_docs_to_html.py "$doc" "docs/${name}.html"
+          done
+
           # Clean up temporary markdown
-          rm -rf docs_site/*.md
+          rm -rf docs_site/
 
       - name: Update history index
         run: |
+          set -euo pipefail
           python3 scripts_utils/generate_history_index.py
 
       - name: Generate landing page
         run: |
+          set -euo pipefail
           python3 scripts_utils/generate_landing_page.py
 
       - name: Generate metrics timeline
         run: |
+          set -euo pipefail
           mkdir -p metrics
           python3 scripts_utils/generate_metrics_page.py
 
+      - name: Check the site before publishing
+        run: |
+          set -euo pipefail
+          # HEAD is still the currently published gh-pages commit here, so this
+          # compares what is about to go live against what is live now and fails
+          # if the site would lose reports, dates or models.
+          python3 scripts_utils/check_site.py --baseline-ref HEAD
+
       - name: Commit and push
         run: |
+          set -euo pipefail
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           # Don't commit helper scripts to gh-pages
           rm -rf scripts_utils/
           git add .
           git diff --cached --quiet || git commit -m "Update GitHub Pages: $(date -u '+%Y-%m-%d %H:%M UTC')"
+          # Self-heal if another run landed first despite the concurrency group.
+          git pull --rebase origin gh-pages
           git push origin gh-pages

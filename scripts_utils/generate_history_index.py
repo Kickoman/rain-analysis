@@ -10,17 +10,24 @@ from pathlib import Path
 import re
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from report_parse import extract_best_model, leaderboard_f1, strip_tags  # noqa: E402
+from page_head import head_tags  # noqa: E402
+
 
 def _extract_best_model(html_content: str) -> str:
-    """Extract best model name and F1 score from a report HTML file.
+    """Describe the best model of a report as ``name (F1: X.XXX)``.
 
     Handles two report formats:
     1. Pressure variants: 'Best model: name (F1=X.XXX)' or '(F1: X.XXX)'
     2. Daily reports: 'Best overall (F-beta=N): name @ T%'
        + leaderboard table containing F1 column.
+
+    When the leaderboard reports ``N/A`` for that model the card says so. It used
+    to fall through to the Temporal Metrics table and present *that* F1 — a score
+    measured under a ±3h tolerance — as if it were the leaderboard's.
     """
-    # Strip HTML tags for cleaner regex matching
-    text = re.sub(r'<[^>]+>', '', html_content)
+    text = strip_tags(html_content)
 
     # Format 1: Pressure variants report (F1: or F1=)
     m = re.search(r'Best model:\s*([\w_]+)\s+\(F1[:=]\s*([0-9.]+)\)', text)
@@ -28,42 +35,14 @@ def _extract_best_model(html_content: str) -> str:
         return f"{m.group(1)} (F1: {m.group(2)})"
 
     # Format 2: Daily analysis report
-    m = re.search(r'Best overall[^:]*:\s*([\w_]+)', text)
-    if m:
-        model = m.group(1)
-        # Extract F1 from the FIRST table with matching structure (leaderboard)
-        # This reuses the same isolation logic as generate_metrics_page.py
-        f1_value = _extract_f1_from_leaderboard(html_content, model)
+    model = extract_best_model(text)
+    if model:
+        f1_value = leaderboard_f1(html_content, model)
         if f1_value is not None:
             return f"{model} (F1: {f1_value:.3f})"
-        return model
+        return f"{model} (F1: no data)"
 
     return 'N/A'
-
-
-def _extract_f1_from_leaderboard(html_content: str, model_name: str) -> float | None:
-    """Extract F1 score for a specific model from the first matching table.
-    
-    Searches only within the FIRST <table> that contains rows matching the
-    expected structure: <tr><td>model</td><td>F1</td><td>Prec</td><td>Rec</td>
-    
-    This prevents false matches from other tables later in the document.
-    """
-    # Split by </table> and search only the first segment that has valid rows
-    tables = html_content.split('</table>')
-    
-    for table_html in tables:
-        # Pattern matches: <tr><td>model_name</td><td>F1_value</td>...
-        pattern = re.compile(
-            rf'<tr>\s*<td>{re.escape(model_name)}</td>\s*'
-            rf'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>',
-            re.IGNORECASE
-        )
-        match = pattern.search(table_html)
-        if match:
-            return float(match.group(1))
-    
-    return None
 
 
 def _parse_date_from_filename(filename: str) -> tuple:
@@ -88,8 +67,12 @@ def _parse_date_from_filename(filename: str) -> tuple:
 
 def main():
     history_dir = Path('history')
+    if not history_dir.is_dir():
+        print("❌ history/ not found — cannot build the history index", file=sys.stderr)
+        sys.exit(1)
+
     all_reports = list(history_dir.glob('*.html'))
-    
+
     # Separate and sort reports
     dated_reports = []
     other_reports = []
@@ -135,12 +118,21 @@ def main():
                     <a href="{report.name}">View Report →</a>
                 </div>''')
 
+    if not cards:
+        # A well-formed page with zero cards used to be written with exit 0, so a
+        # run where the report checkout produced nothing would quietly replace the
+        # History index with a blank one.
+        print("❌ No reports found in history/ — refusing to write an empty index",
+              file=sys.stderr)
+        sys.exit(1)
+
     html = f'''<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>History — Rain Analysis</title>
+    {head_tags("Every daily rain-model analysis report, newest first.")}
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>

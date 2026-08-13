@@ -45,7 +45,7 @@ class TestWorkflowYAML:
 
         The pattern `f'''...{expr}...'''` inside a YAML heredoc can confuse
         YAML parsers when <a href="..."> and similar HTML tags appear.
-        Use a standalone script instead (scripts/generate_history_index.py).
+        Use a standalone script instead (scripts_utils/generate_history_index.py).
         """
         path = WORKFLOW_DIR / 'deploy-pages.yml'
         if not path.exists():
@@ -73,26 +73,71 @@ class TestWorkflowYAML:
                 assert not has_html_in_fstring, (
                     'deploy-pages.yml: inline Python heredoc contains f-string '
                     'with HTML <a> tags. This breaks YAML parsing. '
-                    'Use scripts/generate_history_index.py instead.'
+                    'Use scripts_utils/generate_history_index.py instead.'
                 )
 
-    def test_deploy_pages_uses_script_not_inline(self):
-        """deploy-pages.yml should use generate_history_index.py, not inline Python."""
-        path = WORKFLOW_DIR / 'deploy-pages.yml'
-        if not path.exists():
-            return
+    def test_deploy_serialises_runs(self):
+        """Two overlapping deploys race on the same gh-pages commit.
 
-        content = path.read_text()
+        Both regenerate everything and push without --force; the loser is
+        rejected non-fast-forward and its output is lost. Runs one minute apart
+        have happened in this repo.
+        """
+        doc = yaml.safe_load((WORKFLOW_DIR / 'deploy-pages.yml').read_text())
+        concurrency = doc.get('concurrency')
 
-        has_heredoc = bool(re.search(r"python3 << 'EOF'", content))
-        has_script_call = bool(
-            re.search(r'python3 scripts/generate_history_index\.py', content)
+        assert concurrency, 'deploy-pages.yml must declare a concurrency group'
+        assert concurrency.get('cancel-in-progress') is False, (
+            'queue deploys rather than cancelling — cancelling mid-push is worse'
         )
 
-        assert not has_heredoc or has_script_call, (
-            'deploy-pages.yml should call scripts/generate_history_index.py '
-            'instead of using inline Python heredoc'
-        )
+    def test_deploy_runs_tests_before_publishing(self):
+        """Publishing must not race the test suite.
+
+        Without this the two run in parallel, so a commit that breaks a
+        generator goes live at roughly the moment the test job turns red.
+        """
+        doc = yaml.safe_load((WORKFLOW_DIR / 'deploy-pages.yml').read_text())
+        jobs = doc['jobs']
+
+        assert 'deploy' in jobs, 'deploy-pages.yml must define a deploy job'
+        needs = jobs['deploy'].get('needs') or []
+        needs = [needs] if isinstance(needs, str) else needs
+        assert needs, 'the deploy job must depend on a job that runs the tests'
+
+        gating = ' '.join(
+            step.get('run', '') for name in needs for step in jobs[name]['steps'])
+        assert 'pytest' in gating, (
+            f'jobs {needs} gate the deploy but none of them runs pytest')
+
+    def test_deploy_checks_the_site_before_pushing(self):
+        """A generator can fail and still leave a publishable-looking tree.
+
+        The unconditional `git add .` then publishes it, which is how a dropped
+        model and a blank history index both reached the live site with a green
+        build. check_site.py compares against what is published and fails on loss.
+        """
+        content = (WORKFLOW_DIR / 'deploy-pages.yml').read_text()
+
+        assert 'check_site.py' in content, (
+            'deploy-pages.yml must run the pre-publish sanity check')
+        assert content.index('check_site.py') < content.index('git push'), (
+            'the site check must run before the push, not after')
+
+    def test_deploy_copies_every_script_it_runs(self):
+        """Scripts were copied one by one, so a new shared module would be missing
+        on gh-pages and fail at import time only during a real deploy."""
+        content = (WORKFLOW_DIR / 'deploy-pages.yml').read_text()
+
+        invoked = set(re.findall(r'python3 (scripts_utils/[\w./]+\.py)', content))
+        assert invoked, 'expected the workflow to invoke scripts from scripts_utils/'
+
+        copies_whole_dir = 'git checkout master -- scripts_utils/' in content
+        for script in sorted(invoked):
+            assert copies_whole_dir or f'git checkout master -- {script}' in content, (
+                f'deploy-pages.yml runs {script} but never checks it out')
+            assert (Path('scripts_utils') / Path(script).name).exists(), (
+                f'deploy-pages.yml runs {script}, which does not exist')
 
     def test_workflow_has_required_keys(self):
         """Each workflow must define 'name', 'on', and 'jobs'."""

@@ -8,6 +8,30 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markdown_lite import apply_inline, convert_horizontal_rules, convert_lists  # noqa: E402
+from page_head import head_tags  # noqa: E402
+
+def _rewrite_link(target: str) -> str:
+    """Point relative links at sibling documents to their generated pages.
+
+    Every file in docs_site/ is published as docs/<name>.html, so a relative
+    `*.md` target resolves on the site once the extension is swapped. External
+    URLs, anchors and paths that leave the directory are left alone.
+    """
+    if re.match(r'^[a-z][a-z0-9+.-]*:', target, re.IGNORECASE) or target.startswith('#'):
+        return target
+    path, _, fragment = target.partition('#')
+    if not path.lower().endswith('.md'):
+        return target
+    # Same-directory targets only. `../README.md` and `docs/other.md` point
+    # outside docs_site/ and have no generated page to link to.
+    bare = path[2:] if path.startswith('./') else path
+    if '/' in bare:
+        return target
+    return f"{path[:-3]}.html" + (f"#{fragment}" if fragment else "")
+
+
 def markdown_to_html(md_content, title="Documentation"):
     """Convert markdown to HTML with doc-specific styling"""
     # Escape HTML entities in raw content first
@@ -21,13 +45,25 @@ def markdown_to_html(md_content, title="Documentation"):
     
     # Bold
     html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
+
+    # Italics — after bold, so ** markers are already consumed
+    html_content = apply_inline(html_content)
     
     # Inline code
     html_content = re.sub(r'`(.+?)`', r'<code>\1</code>', html_content)
     
-    # Links
-    html_content = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', html_content)
+    # Links. Relative *.md targets are siblings in docs_site/ that get published
+    # alongside this page, so point them at the generated .html — on the site a
+    # link to MODELS.md is a 404, however well it works on GitHub.
+    html_content = re.sub(
+        r'\[(.+?)\]\((.+?)\)',
+        lambda m: f'<a href="{_rewrite_link(m.group(2))}">{m.group(1)}</a>',
+        html_content,
+    )
     
+    # Horizontal rules — table separators start with '|' and are untouched
+    html_content = convert_horizontal_rules(html_content)
+
     # Tables
     lines = html_content.split('\n')
     new_lines = []
@@ -36,6 +72,7 @@ def markdown_to_html(md_content, title="Documentation"):
     for i, line in enumerate(lines):
         if '|' in line and line.strip().startswith('|'):
             if not in_table:
+                new_lines.append('<div class="table-wrap">')
                 new_lines.append('<table>')
                 in_table = True
             
@@ -62,15 +99,18 @@ def markdown_to_html(md_content, title="Documentation"):
                 new_lines.append('</tr>')
         else:
             if in_table:
-                new_lines.append('</tbody></table>')
+                new_lines.append('</tbody></table></div>')
                 in_table = False
             new_lines.append(line)
     
     if in_table:
-        new_lines.append('</tbody></table>')
+        new_lines.append('</tbody></table></div>')
     
     html_content = '\n'.join(new_lines)
-    
+
+    # Bullet lists
+    html_content = convert_lists(html_content)
+
     # Code blocks (```...```)
     html_content = re.sub(
         r'```([^\n]*)\n(.*?)```',
@@ -103,6 +143,7 @@ def markdown_to_html(md_content, title="Documentation"):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{html.escape(title)} — Rain Analysis</title>
+    {head_tags(f"{html.escape(title)} — documentation for the rain-analysis project.")}
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>

@@ -16,7 +16,18 @@ Also outputs metrics/data.json for programmatic access.
 from pathlib import Path
 import re
 import json
+import sys
 from datetime import datetime
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from report_parse import (  # noqa: E402
+    extract_best_model,
+    extract_date,
+    extract_leaderboard,
+    find_leaderboard_table,
+    strip_tags,
+)
+from page_head import head_tags  # noqa: E402
 
 
 # ─── Colour palette ───────────────────────────────────────────────────────────
@@ -46,44 +57,12 @@ def _color_for(model: str, fallback_index: int) -> str:
 
 # ─── HTML parsers ─────────────────────────────────────────────────────────────
 
-def _strip_tags(html: str) -> str:
-    return re.sub(r'<[^>]+>', '', html)
-
-
-def _extract_date(text: str) -> str | None:
-    m = re.search(r'Daily Model Analysis[^—]*[—–-]\s*(\d{4}-\d{2}-\d{2})', text)
-    return m.group(1) if m else None
-
-
-def _extract_model_rows(html_content: str) -> list[dict]:
-    """Parse <tr><td>model</td><td>F1</td><td>Prec</td><td>Recall</td> rows from the FIRST matching table only."""
-    pat = re.compile(
-        r'<tr>\s*<td>([\w_]+)</td>\s*'
-        r'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>\s*'
-        r'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>\s*'
-        r'<td>([0-9.]+(?:[eE][+-]?\d+)?)</td>',
-        re.IGNORECASE,
-    )
-    # Only use the FIRST table with matching data rows
-    # Split by </table> and take the first segment that has matches
-    tables = html_content.split('</table>')
-    for table_html in tables:
-        rows = []
-        for m in pat.finditer(table_html):
-            rows.append({
-                "model": m.group(1),
-                "f1": float(m.group(2)),
-                "precision": float(m.group(3)),
-                "recall": float(m.group(4)),
-            })
-        if rows:
-            return rows
-    return []
-
-
-def _extract_best_model(text: str) -> str | None:
-    m = re.search(r'Best overall[^:]*:\s*([\w_]+)', text)
-    return m.group(1) if m else None
+# Parsing lives in report_parse; these aliases keep the call sites below short
+# and preserve the names the tests import.
+_strip_tags = strip_tags
+_extract_date = extract_date
+_extract_model_rows = extract_leaderboard
+_extract_best_model = extract_best_model
 
 
 def _extract_source_rows(html_content: str) -> list[dict]:
@@ -117,12 +96,17 @@ def _extract_source_rows(html_content: str) -> list[dict]:
 def main():
     history_dir = Path("history")
     if not history_dir.exists():
-        print("❌ history/ not found — skipping")
-        return
+        # Non-zero, not "skipping": the workflow's unconditional `git add .` and
+        # push made a skipped generator indistinguishable from a successful one.
+        print("❌ history/ not found — nothing to build metrics from", file=sys.stderr)
+        sys.exit(1)
 
     report_files = sorted(
         [f for f in history_dir.glob("*.html") if f.name != "index.html"]
     )
+    if not report_files:
+        print("❌ history/ contains no reports", file=sys.stderr)
+        sys.exit(1)
 
     dates = []
     # model -> {metric -> [values]}
@@ -131,8 +115,9 @@ def main():
     # date -> list of source rows
     source_data: dict[str, list[dict]] = {}
     
-    # Track skipped files
+    # Files dropped entirely, and files kept but worth calling out
     skipped_files: list[tuple[str, str]] = []
+    flagged_files: list[tuple[str, str]] = []
 
     for rf in report_files:
         html = rf.read_text()
@@ -144,8 +129,17 @@ def main():
 
         rows = _extract_model_rows(html)
         if not rows:
-            skipped_files.append((rf.name, "no valid model rows found"))
+            _, how = find_leaderboard_table(html)
+            skipped_files.append((rf.name, "leaderboard table not found" if how == "missing"
+                                  else "leaderboard contained no model rows"))
             continue
+
+        if all(r["f1"] is None for r in rows):
+            # Kept, not skipped: a gap in the chart is the truthful rendering. But
+            # it is reported, because an all-N/A leaderboard means that day had no
+            # ground truth — not that every model scored zero. Reading the numbers
+            # from a later table instead is what used to publish fabricated data.
+            flagged_files.append((rf.name, "leaderboard has no numeric metrics (all N/A)"))
 
         dates.append(date)
 
@@ -180,17 +174,20 @@ def main():
             source_data[date] = sources
 
     if not dates:
-        print("❌ No report data — skipping")
-        if skipped_files:
-            print(f"\n⚠️  Skipped {len(skipped_files)} file(s):")
-            for fname, reason in skipped_files:
-                print(f"   • {fname}: {reason}")
-        return
+        print("❌ No report data — every report failed to parse", file=sys.stderr)
+        for fname, reason in skipped_files:
+            print(f"   • {fname}: {reason}", file=sys.stderr)
+        sys.exit(1)
 
     # Print summary of skipped files
     if skipped_files:
         print(f"\n⚠️  Parsed {len(dates)}/{len(report_files)} reports; {len(skipped_files)} skipped:")
         for fname, reason in skipped_files:
+            print(f"   • {fname}: {reason}")
+
+    if flagged_files:
+        print(f"\n⚠️  {len(flagged_files)} report(s) kept but incomplete:")
+        for fname, reason in flagged_files:
             print(f"   • {fname}: {reason}")
 
     # ── Build chart JSON ──────────────────────────────────────────────────
@@ -313,8 +310,8 @@ def main():
 
     # Static table rows
     table_rows = []
-    for d in reversed(dates):
-        idx = dates.index(d)
+    for idx in reversed(range(len(dates))):
+        d = dates[idx]
         bm = best_per_day[idx] or "—"
         # Get best model's metrics
         bf1, bpr, brc = "—", "—", "—"
@@ -335,7 +332,7 @@ def main():
         )
 
     last_updated = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
-    chart_config_json = json.dumps(chart_config, indent=2)
+    chart_config_json = json.dumps(chart_config, separators=(',', ':'))
 
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -343,8 +340,15 @@ def main():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Metrics Timeline — Rain Analysis</title>
+    {head_tags("Model performance over time: F1, precision and recall for every rain prediction model.")}
     <link rel="stylesheet" href="../assets/style.css">
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <!-- Pinned by hash: without integrity, a changed or compromised CDN file
+         executes unchallenged, and renderChart() calls Plotly.newPlot directly,
+         so a failed load throws ReferenceError and every chart stays blank. The
+         data table below the charts is the fallback either way. -->
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"
+            integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7"
+            crossorigin="anonymous"></script>
     <style>
         .chart-container {{
             background: #fff;
@@ -376,7 +380,8 @@ def main():
         <p style="font-size:0.85em;opacity:0.85;max-width:70ch;margin:0.6em auto 0">
             ⚠️ Points before <strong>2026-08-13</strong> come from the pre-fix
             harness, which scored models on roughly 17 labelled rain hours.
-            They are not comparable with later points — see the changelog.
+            They are not comparable with later points — see the
+            <a href="../docs/CHANGELOG.html">changelog</a>.
         </p>
     </header>
 
@@ -451,6 +456,15 @@ def main():
 
         function renderChart(id, traces, extraLayout) {{
             const layout = Object.assign({{}}, layoutBase, extraLayout);
+            // A blocked or failed CDN leaves Plotly undefined; without this the
+            // first newPlot throws and every chart stays an empty box with no
+            // explanation. The data table below the charts still has the numbers.
+            if (typeof Plotly === "undefined") {{
+                document.getElementById(id).innerHTML =
+                    '<p style="padding:2em;text-align:center;color:#666">' +
+                    'Charts could not load. The full data is in the table below.</p>';
+                return;
+            }}
             if (traces && traces.length > 0) {{
                 Plotly.newPlot(id, traces, layout, {{
                     responsive: true,
@@ -460,7 +474,7 @@ def main():
                 }});
             }} else {{
                 document.getElementById(id).innerHTML =
-                    '<p style="padding:2em;text-align:center;color:#999">No data available yet.</p>';
+                    '<p style="padding:2em;text-align:center;color:#666">No data available yet.</p>';
             }}
         }}
 
@@ -526,7 +540,7 @@ def main():
                 }});
             }} else {{
                 document.getElementById("chart-sources").innerHTML =
-                    '<p style="padding:2em;text-align:center;color:#999">Precipitation source data will appear as more reports accumulate.</p>';
+                    '<p style="padding:2em;text-align:center;color:#666">Precipitation source data will appear as more reports accumulate.</p>';
             }}
         }});
     </script>

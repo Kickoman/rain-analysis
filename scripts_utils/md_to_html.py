@@ -8,6 +8,11 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from markdown_lite import apply_inline, convert_horizontal_rules, convert_lists  # noqa: E402
+from page_head import head_tags  # noqa: E402
+
+
 def markdown_to_html(md_content, title="Report"):
     """Convert simple markdown to HTML"""
     # Escape HTML entities in raw content first
@@ -20,13 +25,19 @@ def markdown_to_html(md_content, title="Report"):
     
     # Bold
     html_content = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html_content)
-    
+
+    # Italics — after bold, so ** markers are already consumed
+    html_content = apply_inline(html_content)
+
     # Code blocks
     html_content = re.sub(r'`(.+?)`', r'<code>\1</code>', html_content)
-    
+
     # Links
     html_content = re.sub(r'\[(.+?)\]\((.+?)\)', r'<a href="\2">\1</a>', html_content)
-    
+
+    # Horizontal rules — table separators start with '|' and are untouched
+    html_content = convert_horizontal_rules(html_content)
+
     # Tables - basic conversion
     lines = html_content.split('\n')
     new_lines = []
@@ -35,6 +46,7 @@ def markdown_to_html(md_content, title="Report"):
     for i, line in enumerate(lines):
         if '|' in line and line.strip().startswith('|'):
             if not in_table:
+                new_lines.append('<div class="table-wrap">')
                 new_lines.append('<table>')
                 in_table = True
             
@@ -57,15 +69,20 @@ def markdown_to_html(md_content, title="Report"):
                 new_lines.append('</tr>')
         else:
             if in_table:
-                new_lines.append('</tbody></table>')
+                new_lines.append('</tbody></table></div>')
                 in_table = False
             new_lines.append(line)
     
     if in_table:
-        new_lines.append('</tbody></table>')
+        new_lines.append('</tbody></table></div>')
     
     html_content = '\n'.join(new_lines)
-    
+
+    # Bullet lists — after the table pass rebuilds the lines, before paragraphs
+    # wrap them. Reports are full of these ("Source data ranges", "Ground truth
+    # distribution"); without this they rendered as literal "- text".
+    html_content = convert_lists(html_content)
+
     # Paragraphs - split by double newlines, but preserve single newlines as <br>
     paragraphs = html_content.split('\n\n')
     processed = []
@@ -87,6 +104,7 @@ def markdown_to_html(md_content, title="Report"):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{html.escape(title)} — Rain Analysis</title>
+    {head_tags("Daily rain prediction model analysis report.")}
     <link rel="stylesheet" href="../assets/style.css">
 </head>
 <body>

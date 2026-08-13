@@ -3,8 +3,8 @@
 Tests for daily_analysis.py output format.
 
 Validates that generated Markdown tables match the format expected by:
-- scripts/generate_history_index.py
-- scripts/generate_metrics_page.py
+- scripts_utils/generate_history_index.py
+- scripts_utils/generate_metrics_page.py
 
 These parsers use regex patterns to extract model performance data.
 """
@@ -12,9 +12,6 @@ These parsers use regex patterns to extract model performance data.
 import re
 import sys
 from pathlib import Path
-
-# Add scripts directory to path for importing
-sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from daily_analysis import generate_report
 

@@ -165,8 +165,9 @@ test_venv_temp/
 # Rope project settings
 .ropeproject
 
-# mkdocs documentation
-/site
+# mkdocs documentation (this project has no mkdocs; site/ holds the static
+# assets the Pages deploy copies to gh-pages, so it must stay tracked)
+# /site
 
 # mypy
 .mypy_cache/
@@ -210,3 +211,13 @@ pyrightconfig.json
 
 # Python bytecode (explicit)
 *.pyc
+
+# Generated site output. These are built by .github/workflows/deploy-pages.yml
+# and live on the gh-pages branch; committing them to master left stale copies
+# that disagreed with what was published, and running a generator from the repo
+# root silently rewrote them.
+/history/
+/metrics/
+/index.html
+/current/
+/docs_site/*.html
