@@ -11,7 +11,8 @@ from pathlib import Path
 # Add scripts directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
-from daily_analysis_fixed import check_data_overlap
+from daily_analysis import check_data_overlap
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts_utils"))
 
 
 def test_identical_7d_14d_windows():
