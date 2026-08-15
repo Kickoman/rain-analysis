@@ -28,6 +28,11 @@ DEFAULT_ENTITIES = [
     "sensor.datchik_klimata_vlazhnost",
     "sensor.rain_probability",
     "sensor.filtered_pressure",
+    # The two sensors the deployed ha_live template actually reads. Without
+    # them the exported CSV silently degrades: model_ha_live falls back to the
+    # recomputed derivative and the spread-vs-sensor diagnostics never run.
+    "sensor.outside_dew_point_spread",
+    "sensor.outside_dew_point_spread_trend",
 ]
 
 
