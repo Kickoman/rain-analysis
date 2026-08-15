@@ -2,11 +2,13 @@
 
 ## Overview
 
-The Rain Analysis API provides endpoints for weather prediction, model management, and system administration. All endpoints require authentication via API keys.
+The Rain Analysis API provides endpoints for weather prediction, model management, and system administration.
+
+Most endpoints require authentication via API keys. The health-check endpoints (`/health`, `/health/live`, `/health/ready`) and the interactive docs (`/docs`, `/openapi.json`, `/redoc`) are public and require no API key.
 
 ## Authentication
 
-All API requests require an `X-API-Key` header:
+Authenticated requests require an `X-API-Key` header:
 
 ```bash
 curl -H "X-API-Key: your-api-key-here" https://api.example.com/models
@@ -24,13 +26,11 @@ curl -H "X-API-Key: your-api-key-here" https://api.example.com/models
 http://localhost:8000
 ```
 
-## Endpoints
+## Health Endpoints
 
-### Health Check
+### GET /health
 
-#### GET /health
-
-Check API health status.
+Check API health status, including database connectivity.
 
 **Authentication:** Not required
 
@@ -38,7 +38,96 @@ Check API health status.
 ```json
 {
   "status": "healthy",
-  "timestamp": "2026-08-13T18:00:00Z"
+  "checks": {
+    "api": "ok",
+    "database": "ok",
+    "version": "1.0.0",
+    "uptime_seconds": 12345,
+    "database_latency_ms": 2
+  }
+}
+```
+
+If the database check fails, the response is `503 Service Unavailable`:
+```json
+{
+  "status": "unhealthy",
+  "checks": {
+    "api": "ok",
+    "database": "error",
+    "version": "1.0.0",
+    "uptime_seconds": 12345,
+    "database_error": "connection refused"
+  }
+}
+```
+
+---
+
+### GET /health/live
+
+Liveness probe. Returns 200 if the process is running.
+
+**Authentication:** Not required
+
+**Response:**
+```json
+{
+  "status": "alive"
+}
+```
+
+---
+
+### GET /health/ready
+
+Readiness probe. Verifies database connectivity and returns 503 if not ready.
+
+**Authentication:** Not required
+
+**Response:**
+```json
+{
+  "status": "ready"
+}
+```
+
+If the database is unavailable, the response is `503 Service Unavailable`:
+```json
+{
+  "status": "not_ready",
+  "reason": "database_unavailable"
+}
+```
+
+---
+
+## Authentication Endpoint
+
+### GET /auth/check
+
+Check the validity of the provided API key and return its scope and rate-limit status.
+
+**Authentication:** Valid API key required
+
+**Response:**
+```json
+{
+  "valid": true,
+  "key_id": 1,
+  "owner": "test_user",
+  "scope": "read",
+  "rate_limits": {
+    "rpm": 100,
+    "rph": 1000,
+    "rpd": 10000
+  },
+  "remaining": {
+    "rpm": 99,
+    "rph": 999,
+    "rpd": 9999
+  },
+  "expires_at": null
 }
 ```
 
@@ -77,7 +166,7 @@ Get latest predictions from all active models.
 
 **Status Codes:**
 - `200 OK`: Predictions retrieved successfully
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 - `404 Not Found`: No predictions available
 
 ---
@@ -120,7 +209,7 @@ curl -H "X-API-Key: $READ_KEY" \
 
 **Status Codes:**
 - `200 OK`: History retrieved successfully
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 - `404 Not Found`: Model not found
 
 ---
@@ -171,7 +260,8 @@ Evaluate model on provided data without storing predictions.
 **Status Codes:**
 - `200 OK`: Evaluation successful
 - `400 Bad Request`: Invalid data or empty data array
-- `403 Forbidden`: Invalid API key or insufficient permissions
+- `401 Unauthorized`: Missing or invalid API key
+- `403 Forbidden`: Insufficient permissions (read key used on a write endpoint)
 - `404 Not Found`: Model not found
 - `500 Internal Server Error`: Prediction failed
 
@@ -239,7 +329,7 @@ curl -H "X-API-Key: $READ_KEY" http://localhost:8000/models?active_only=false
 
 **Status Codes:**
 - `200 OK`: Models retrieved successfully
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 
 ---
 
@@ -276,7 +366,7 @@ curl -H "X-API-Key: $READ_KEY" http://localhost:8000/models/1
 
 **Status Codes:**
 - `200 OK`: Model retrieved successfully
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 - `404 Not Found`: Model not found
 
 ---
@@ -309,10 +399,10 @@ curl -H "X-API-Key: $READ_KEY" http://localhost:8000/models/1/metrics
     "calibration_slope": 0.95,
     "threshold": 0.5,
     "confusion_matrix": {
-      "true_positive": 45,
-      "false_positive": 10,
-      "true_negative": 85,
-      "false_negative": 8
+      "TP": 45,
+      "FP": 10,
+      "TN": 85,
+      "FN": 8
     }
   }
 }
@@ -325,11 +415,11 @@ curl -H "X-API-Key: $READ_KEY" http://localhost:8000/models/1/metrics
 - **Precision**: Proportion of positive predictions that are correct
 - **Recall**: Proportion of actual positives that are detected
 - **Calibration Slope**: How well probabilities match observed frequencies (1.0 is perfect)
-- **Confusion Matrix**: Breakdown of prediction outcomes
+- **Confusion Matrix**: Breakdown of prediction outcomes (`TP`, `FP`, `TN`, `FN`)
 
 **Status Codes:**
 - `200 OK`: Metrics retrieved successfully
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 - `404 Not Found`: Model not found or no metrics available
 
 ---
@@ -366,10 +456,10 @@ curl -H "X-API-Key: $READ_KEY" \
       "calibration_slope": 0.93,
       "threshold": 0.5,
       "confusion_matrix": {
-        "true_positive": 42,
-        "false_positive": 12,
-        "true_negative": 82,
-        "false_negative": 10
+        "TP": 42,
+        "FP": 12,
+        "TN": 82,
+        "FN": 10
       }
     },
     {
@@ -382,10 +472,10 @@ curl -H "X-API-Key: $READ_KEY" \
       "calibration_slope": 0.95,
       "threshold": 0.5,
       "confusion_matrix": {
-        "true_positive": 45,
-        "false_positive": 10,
-        "true_negative": 85,
-        "false_negative": 8
+        "TP": 45,
+        "FP": 10,
+        "TN": 85,
+        "FN": 8
       }
     }
   ]
@@ -395,7 +485,7 @@ curl -H "X-API-Key: $READ_KEY" \
 **Status Codes:**
 - `200 OK`: History retrieved successfully
 - `400 Bad Request`: Invalid date range (start > end)
-- `403 Forbidden`: Invalid or missing API key
+- `401 Unauthorized`: Missing or invalid API key
 - `404 Not Found`: Model not found
 
 ---
@@ -413,27 +503,35 @@ Create a new API key.
 **Request Body:**
 ```json
 {
-  "name": "production-read-key",
-  "scopes": ["read"],
+  "owner": "production-read",
+  "description": "Production read key",
+  "scope": "read",
   "rate_limit_rpm": 100,
   "rate_limit_rph": 1000,
-  "rate_limit_rpd": 10000
+  "rate_limit_rpd": 10000,
+  "environment": "live",
+  "expires_at": null
 }
 ```
 
 **Response:**
 ```json
 {
-  "id": 5,
-  "name": "production-read-key",
   "key": "ra_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6",
-  "key_prefix": "ra_live_a1b2c3",
-  "scopes": ["read"],
-  "rate_limit_rpm": 100,
-  "rate_limit_rph": 1000,
-  "rate_limit_rpd": 10000,
-  "is_active": true,
-  "created_at": "2026-08-13T18:00:00Z"
+  "key_info": {
+    "id": 5,
+    "key_prefix": "ra_live_a1b2c3",
+    "owner": "production-read",
+    "description": "Production read key",
+    "scope": "read",
+    "rate_limit_rpm": 100,
+    "rate_limit_rph": 1000,
+    "rate_limit_rpd": 10000,
+    "is_active": true,
+    "created_at": "2026-08-13T18:00:00Z",
+    "expires_at": null,
+    "last_used_at": null
+  }
 }
 ```
 
@@ -449,33 +547,71 @@ List all API keys.
 
 **Response:**
 ```json
+[
+  {
+    "id": 1,
+    "key_prefix": "ra_live_abc123",
+    "owner": "admin",
+    "description": "Admin key",
+    "scope": "admin",
+    "rate_limit_rpm": 1000,
+    "rate_limit_rph": 10000,
+    "rate_limit_rpd": 100000,
+    "is_active": true,
+    "created_at": "2026-07-20T10:00:00Z",
+    "expires_at": null,
+    "last_used_at": "2026-08-13T17:45:00Z"
+  }
+]
+```
+
+---
+
+#### GET /admin/keys/{key_id}
+
+Get details of a specific API key.
+
+**Authentication:** Admin API key required
+
+**Parameters:**
+- `key_id` (path, required): API key ID
+
+**Response:**
+```json
 {
-  "keys": [
-    {
-      "id": 1,
-      "name": "admin-key",
-      "key_prefix": "ra_live_abc123",
-      "scopes": ["admin", "write", "read"],
-      "rate_limit_rpm": 1000,
-      "is_active": true,
-      "created_at": "2026-07-20T10:00:00Z",
-      "last_used": "2026-08-13T17:45:00Z"
-    }
-  ]
+  "id": 1,
+  "key_prefix": "ra_live_abc123",
+  "owner": "admin",
+  "description": "Admin key",
+  "scope": "admin",
+  "rate_limit_rpm": 1000,
+  "rate_limit_rph": 10000,
+  "rate_limit_rpd": 100000,
+  "is_active": true,
+  "created_at": "2026-07-20T10:00:00Z",
+  "expires_at": null,
+  "last_used_at": "2026-08-13T17:45:00Z"
 }
 ```
+
+**Status Codes:**
+- `200 OK`: API key retrieved successfully
+- `401 Unauthorized`: Missing or invalid API key
+- `403 Forbidden`: Non-admin key
+- `404 Not Found`: API key not found
 
 ---
 
 #### PATCH /admin/keys/{key_id}
 
-Update an API key.
+Update API key rate limits or active status.
 
 **Authentication:** Admin API key required
 
 **Request Body:**
 ```json
 {
+  "rate_limit_rpm": 200,
   "is_active": false
 }
 ```
@@ -484,9 +620,11 @@ Update an API key.
 
 #### DELETE /admin/keys/{key_id}
 
-Delete an API key.
+Deactivate an API key (sets `is_active=False`). The record is not deleted.
 
 **Authentication:** Admin API key required
+
+**Response:** `204 No Content`
 
 ---
 
@@ -508,8 +646,8 @@ curl -X POST \
 **Response:**
 ```json
 {
-  "status": "started",
-  "message": "Daily ML task triggered successfully"
+  "message": "Daily ML task triggered successfully",
+  "status": "running_in_background"
 }
 ```
 
@@ -529,7 +667,8 @@ All errors follow a consistent format:
 
 - `200 OK`: Request successful
 - `400 Bad Request`: Invalid request parameters or body
-- `403 Forbidden`: Authentication failed or insufficient permissions
+- `401 Unauthorized`: Missing or invalid API key
+- `403 Forbidden`: Insufficient permissions (valid key, but scope too low)
 - `404 Not Found`: Resource not found
 - `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Server error
@@ -540,7 +679,7 @@ When rate limit is exceeded:
 
 ```json
 {
-  "detail": "Rate limit exceeded: 100 requests per minute allowed"
+  "detail": "Rate limit exceeded"
 }
 ```
 

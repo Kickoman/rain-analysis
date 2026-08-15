@@ -121,10 +121,10 @@ from app.ml.model_loader import get_model_cache
 
 cache = get_model_cache()
 
-# First load: reads from disk (~100ms)
+# First load: reads from disk and deserializes the pickle
 model = cache.load_model("baseline", Path("models/baseline.pkl"))
 
-# Subsequent loads: returns cached object (~0.1ms, >1000x faster)
+# Subsequent loads: returns the cached object without disk I/O
 model = cache.load_model("baseline", Path("models/baseline.pkl"))
 
 # Clear cache when model is updated
@@ -132,9 +132,9 @@ cache.clear_cache("baseline")
 ```
 
 **Performance:**
-- First load: ~100ms (disk I/O + pickle deserialization)
-- Cached load: ~0.1ms (memory lookup)
-- Speedup: >1000x for typical models
+- First load: disk I/O + pickle deserialization
+- Cached load: in-memory lookup, no disk access
+- Speedup: ~20-50x for repeated loads (measured on the `test_cache_hit_performance`-style benchmark)
 
 ### 5. Background Task
 
@@ -329,19 +329,19 @@ pytest backend/tests/test_ml/test_model_cache.py::TestModelCache::test_cache_hit
 ## Troubleshooting
 
 ### Model not found
-- Verify model is registered in database: `SELECT * FROM ml_models;`
+- Verify model is registered in database: `SELECT * FROM models;`
 - Check `file_path` in model config points to existing file
 - Ensure `active=True` for production models
 
 ### Predictions fail
 - Check model file is readable and valid pickle
 - Verify input features match model's expected features
-- Review logs: `tail -f backend/logs/app.log`
+- Review logs: the application logs to stderr (`logging.basicConfig` in `app/main.py`); there is no file logger
 
 ### Cache not working
 - Verify singleton: `get_model_cache()` returns same instance
 - Check cache isn't being cleared unexpectedly
-- Review performance tests for expected speedup
+- Review the cache tests for expected behavior
 
 ### Background task not running
 - Verify scheduler is started: check logs at startup
@@ -365,7 +365,7 @@ pytest backend/tests/test_ml/test_model_cache.py::TestModelCache::test_cache_hit
 
 ## Performance
 
-- **Model caching**: >1000x speedup for repeated loads
+- **Model caching**: ~20-50x speedup for repeated loads (no disk I/O on cache hits)
 - **Database indexing**: Optimized queries on timestamp + model_id
 - **Async I/O**: All database operations use async/await
 - **Connection pooling**: Efficient database connection reuse

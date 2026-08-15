@@ -79,3 +79,49 @@ async def client(app, db_session: AsyncSession, monkeypatch):
         yield ac
     
     app.dependency_overrides.clear()
+
+
+@pytest.fixture
+async def admin_api_key(db_session: AsyncSession):
+    """Create an admin-scope API key; returns the raw key value."""
+    from app.auth.crypto import generate_api_key
+    from app.models.api_key import APIKey
+
+    key_value, key_hash, key_prefix = generate_api_key()
+    api_key = APIKey(
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        owner="test-admin",
+        description="Test admin key",
+        scope="admin",
+        rate_limit_rpm=1000,
+        rate_limit_rph=10000,
+        rate_limit_rpd=100000,
+        is_active=True,
+    )
+    db_session.add(api_key)
+    await db_session.commit()
+    return key_value
+
+
+@pytest.fixture
+async def read_api_key(db_session: AsyncSession):
+    """Create a read-scope API key; returns the raw key value."""
+    from app.auth.crypto import generate_api_key
+    from app.models.api_key import APIKey
+
+    key_value, key_hash, key_prefix = generate_api_key()
+    api_key = APIKey(
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        owner="test-read",
+        description="Test read key",
+        scope="read",
+        rate_limit_rpm=1000,
+        rate_limit_rph=10000,
+        rate_limit_rpd=100000,
+        is_active=True,
+    )
+    db_session.add(api_key)
+    await db_session.commit()
+    return key_value
