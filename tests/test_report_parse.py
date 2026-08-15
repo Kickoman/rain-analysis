@@ -173,17 +173,47 @@ def test_extract_date_absent():
 # Against the real report
 # ---------------------------------------------------------------------------
 
+def _leaderboard_from_markdown(md: str) -> dict:
+    """The 7d leaderboard as {model: f1-or-None}, read from the markdown source.
+
+    The parser under test reads the *HTML*; reading the markdown directly gives
+    an independent expectation, so the test tracks regenerated reports instead
+    of pinning one snapshot (the 2026-08-15 backfill changed both the model
+    set and the numbers, which a hardcoded row count could not survive)."""
+    section = md.split("## Model Performance (7-day window)", 1)[1]
+    table_lines = []
+    for line in section.splitlines():
+        if line.startswith("|"):
+            table_lines.append(line)
+        elif table_lines:
+            break
+    expected = {}
+    for line in table_lines[2:]:  # drop header and separator rows
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        expected[cells[0]] = None if cells[1] == "N/A" else float(cells[1])
+    return expected
+
+
 @pytest.mark.skipif(not (REPO / "reports" / "2026-08-13.md").exists(), reason="report absent")
 def test_real_report_keeps_the_no_data_model():
-    """`ha_live_actual` reports N/A because sensor.rain_probability has no
-    long-term statistics. It must survive parsing rather than disappear."""
+    """A model whose F1 reads N/A (`ha_live_actual`: sensor.rain_probability
+    has no long-term statistics) must survive parsing rather than disappear —
+    and every parsed row must match the leaderboard table, not the temporal
+    table further down."""
     from md_to_html import markdown_to_html
 
     md = (REPO / "reports" / "2026-08-13.md").read_text()
-    rows = extract_leaderboard(markdown_to_html(md, "2026-08-13"))
+    expected = _leaderboard_from_markdown(md)
 
+    rows = extract_leaderboard(markdown_to_html(md, "2026-08-13"))
     by_name = {r["model"]: r for r in rows}
-    assert "ha_live_actual" in by_name
-    assert by_name["ha_live_actual"]["f1"] is None
-    assert by_name["combined"]["f1"] == pytest.approx(0.273)
-    assert len(rows) == 11
+
+    assert len(rows) == len(expected)
+    na_models = [m for m, f1 in expected.items() if f1 is None]
+    assert na_models, "fixture premise gone: no N/A model left in the report"
+    for name in na_models:
+        assert name in by_name
+        assert by_name[name]["f1"] is None
+    for name, f1 in expected.items():
+        if f1 is not None:
+            assert by_name[name]["f1"] == pytest.approx(f1)
