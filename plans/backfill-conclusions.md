@@ -1,8 +1,9 @@
 # Recomputed history — what the corrected record says
 
-**Written 2026-08-15**, after regenerating every daily report from 2026-07-13 to
-2026-08-13 with the fixed measurement harness (`scripts_utils/backfill_reports.py`),
-plus one evaluation over the whole archived period, 2026-07-01 → 2026-08-14
+**Written 2026-08-15, extended 2026-08-16 with the front (onset-only) target**,
+after regenerating every daily report from 2026-07-13 to 2026-08-13 with the
+fixed measurement harness (`scripts_utils/backfill_reports.py`), plus one
+evaluation over the whole archived period, 2026-07-01 → 2026-08-14
 (1,041 scored hours, ~245 rain hours;
 `reports/full-period-2026-07-01-2026-08-13/analysis_report.json`).
 
@@ -50,6 +51,46 @@ order. Ranking policy should follow: the daily report may *display* 7-day
 numbers, but any "best model" statement belongs to the 28-day window at
 minimum, and decisions to the full archive.
 
+## Conclusions about the target: score the front, not the rain
+
+Everything above (and every previous report) credits hours *during* rain.
+That is the wrong question for an alert, and it distorts the ranking. The
+harness now carries an onset-only target (`front_truth`,
+`scoring.front_target`, the "Rain-Front Prediction" report section): from a
+known-dry hour, does rain *begin* within 3 hours? An onset is a rain hour
+after ≥3 known-dry hours — 41 of them in the full period, base rate 15.3%
+from a dry hour.
+
+**8. Persistence's dominance was an artifact of the target.**
+On fronts persistence scores AUC **0.485** — chance — catching 8 of 41 onsets
+at precision 0.110, *below* the base rate. Its warning-target AUC of 0.712
+was earned entirely on hours where rain was already falling. Conclusion 1
+therefore reads correctly as: persistence wins the question nobody asked.
+
+**9. The learned model stays on top on the question that matters.**
+Trained and scored walk-forward directly on the front target: AUC **0.685**
+on held-out dry hours, against 0.621 for the best heuristic and 0.503 for
+persistence on the same rows.
+
+**10. The hand-tuned models keep only a thin edge on fronts** — the pressure
+family sits at AUC 0.57–0.59, catching ~30/41 onsets at precision ~0.19
+(base 0.15, so a lift of ~1.25×) and ~2.5 alert episodes per dry day.
+`trend_dominant` is *anti-predictive* on fronts (AUC 0.385).
+
+**11. The replacement alert rule barely sees fronts.** The
+pressure-anomaly rule from `docs_site/ALERT_RULE.md` catches **2 of 41**
+onsets (precision 0.36–0.39, ~2.5× lift, one alert every 5 days). Its strong
+warning-target numbers come mostly from hours when the rain regime was
+already established. As deployed it is an "it is turning rainy" signal, not
+an "it will start soon" one — fine, but it should be sold as such, and the
+onset-recall number belongs next to it.
+
+**12. Front prediction from these sensors is genuinely hard.** At recall
+70–85% no candidate exceeds precision ~0.19 against a 0.15 base. This is
+the strongest argument yet for cloud cover / radar-style inputs
+(`plans/model-improvements.md`, stage 5): 0–3 h onset detection is exactly
+what those exist for.
+
 ## Conclusions about thresholds
 
 **6. At min_precision 0.6, most models have no usable threshold at all.**
@@ -79,20 +120,31 @@ has full history from ~2026-08-11, so the rule should be re-swept after a
 month of clean data. Recommendation: deploy with RH > 70 now, revisit in
 September.
 
-## Where to go next (ordered)
+## Where to go next (ordered, revised 2026-08-16)
 
-1. **Deploy the replacement alert** (`docs_site/ALERT_RULE.md`) with the
-   humidity gate at 70, keeping anomaly < −3. `delay_on`/`delay_off` are
-   YAML-only — the UI helper does not expose them.
-2. **Collapse the pressure family to `pressure_primary`** in `MODELS` and the
-   daily report. Seven near-identical rows hide the real comparisons.
+1. **Adopt the front target as the model-selection criterion.** It is in the
+   harness and the report now; the remaining step is habit: best-model
+   statements and tuning decisions read from `front_target`, with the
+   warning/nowcast tables kept for continuity.
+2. **Deploy the replacement alert** (`docs_site/ALERT_RULE.md`) with the
+   humidity gate at 70, keeping anomaly < −3 — but framed honestly: measured
+   onset recall is 2/41, so it flags a rain *regime*, not an approaching
+   front. `delay_on`/`delay_off` are YAML-only — the UI helper does not
+   expose them.
 3. **Promote the logistic model** along Stage 4 of
-   `plans/model-improvements.md` — it is the only rank-capable predictor that
-   beats persistence, and its calibrated output is what makes a threshold
-   meaningful. Needs the backend to serve it (roadmap Phase 3).
-4. **Change the report's ranking policy**: best-model statements from 28-day
-   windows or longer; 7-day tables shown but flagged as unstable.
-5. **Keep the archive growing** (`archive_ha_data.py` daily) — every ceiling
+   `plans/model-improvements.md` — the only predictor that leads on the front
+   target (AUC 0.685 vs 0.621 best heuristic), with calibrated output that
+   makes a threshold meaningful. Needs the backend to serve it (Phase 3).
+4. **Collapse the pressure family to one model** in `MODELS` and the daily
+   report. Seven near-identical rows hide the real comparisons. On fronts the
+   family is indistinguishable (0.57–0.59); `pressure_primary` trades recall
+   for precision within the same noise band.
+5. **Change the report's ranking policy**: best-model statements from 28-day
+   windows or longer; 7-day tables shown but flagged as unstable (a 7-day
+   window holds single-digit onsets).
+6. **Keep the archive growing** (`archive_ha_data.py` daily) — every ceiling
    here is 43 days of local history. Cloud cover (+0.061 AUC, the largest
    single missing feature) and a local rain sensor (ground truth; κ between
-   OM and Meteostat is only ~0.5) are the two data acquisitions that matter.
+   OM and Meteostat is only ~0.5) are the two data acquisitions that matter,
+   and finding 12 makes cloud cover the priority: onsets are where the local
+   sensors run out of signal.
