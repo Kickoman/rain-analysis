@@ -26,18 +26,21 @@
         <section class="report-content">
 <h1>Daily Model Analysis — 2026-08-03</h1>
 
-<strong>Generated:</strong> 2026-08-03T05:01:24.106125+00:00
+<strong>Generated:</strong> 2026-08-16T00:39:59.422145+00:00
+
+<p>&gt; <strong>Recomputed 2026-08-16 with the fixed measurement harness</strong> (docs_site/CHANGELOG.md, 2026-08-13). This supersedes the report originally generated on this date, whose numbers were artifacts of the old harness. Windows are anchored at 00:00 UTC of the following day; Yandex data was not reachable at recompute time and is absent.</p>
 
 <strong>Analysis windows:</strong> 7-day (recent), 14-day (medium-term), 28-day (long-term)
 <hr>
 <h2>Executive Summary</h2>
 
-<strong>Best overall (F-beta=2):</strong> ha_live_replica @ 7d
+<strong>Best overall (F-beta=2):</strong> None @ 7d
 
 <strong>Key findings:</strong>
 <ul>
-<li>⚠️ Best model varies by window: 7d=ha_live_replica, 14d=original, 28d=original</li>
-<li>⚠️ Large precipitation source discrepancy (7d): YX=168h vs MS=14h</li>
+<li>⚠️ Best model varies by window: 7d=None, 14d=pressure_primary, 28d=ha_live_replica</li>
+<li>🌧️ Best front (onset) predictor: <strong>tuned</strong> @ 28d (25 onsets)</li>
+<li>⚠️ Large precipitation source discrepancy (7d): OM=12h vs YX=0h</li>
 </ul>
 <h2>Data Context</h2>
 
@@ -46,18 +49,25 @@
 <strong>Data coverage (7-day window):</strong>
 
 <ul>
-<li>Home Assistant sensors: 21.4%</li>
-<li>Open-Meteo precipitation: 4.0%</li>
-<li>Yandex Weather: 98.3%</li>
-<li>Meteostat: 4.0%</li>
+<li>Home Assistant sensors: 100.0%</li>
+<li>Open-Meteo precipitation: 100.0%</li>
+<li>Meteostat: 100.0%</li>
+</ul>
+
+<strong>Source data ranges:</strong>
+
+<ul>
+<li>Home Assistant: 1034 rows, 2026-07-01 15:00:00+00:00 → 2026-08-13 19:00:00+00:00</li>
+<li>Open Meteo: 1440 rows, 2026-06-15 00:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
+<li>Yandex: no data</li>
+<li>Meteostat: 1440 rows, 2026-06-15 00:00:00+00:00 → 2026-08-13 23:00:00+00:00</li>
 </ul>
 
 <strong>Ground truth distribution:</strong>
 
 <ul>
-<li>Rain hours: 23 (0.5%)</li>
-<li>Dry hours: 169 (3.6%)</li>
-<li>Unknown: 4561 (96.0%)</li>
+<li>Rain hours: 12 of 169 labelled (7.1% base rate)</li>
+<li>Dry hours: 157</li>
 </ul>
 <hr>
 <h2>Model Performance (7-day window)</h2>
@@ -73,84 +83,91 @@
 </tr></thead><tbody>
 <tr>
 <td>combined</td>
-<td>0.192</td>
-<td>0.172</td>
-<td>0.217</td>
+<td>0.121</td>
+<td>0.095</td>
+<td>0.167</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.154</td>
-<td>0.125</td>
-<td>0.200</td>
-<td>📊</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>⚪ no data</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.118</td>
-<td>0.125</td>
-<td>0.111</td>
-<td>✅</td>
+<td>0.050</td>
+<td>0.036</td>
+<td>0.083</td>
+<td>📊</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.154</td>
-<td>0.250</td>
-<td>0.111</td>
+<td>0.062</td>
+<td>0.050</td>
+<td>0.083</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.154</td>
-<td>0.138</td>
-<td>0.174</td>
+<td>0.118</td>
+<td>0.091</td>
+<td>0.167</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.146</td>
+<td>0.118</td>
+<td>0.091</td>
 <td>0.167</td>
-<td>0.130</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.130</td>
-<td>0.130</td>
-<td>0.130</td>
+<td>0.125</td>
+<td>0.100</td>
+<td>0.167</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.146</td>
+<td>0.118</td>
+<td>0.091</td>
 <td>0.167</td>
-<td>0.130</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>pressure_long_window</td>
-<td>0.108</td>
-<td>0.143</td>
-<td>0.087</td>
+<td>0.125</td>
+<td>0.100</td>
+<td>0.167</td>
+<td>📊</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.111</td>
+<td>0.167</td>
+<td>0.083</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>trend_dominant</td>
-<td>0.143</td>
-<td>0.400</td>
-<td>0.087</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
 <td>📊</td>
 </tr>
 <tr>
 <td>tuned</td>
-<td>0.140</td>
-<td>0.150</td>
-<td>0.130</td>
+<td>0.114</td>
+<td>0.087</td>
+<td>0.167</td>
 <td>📊</td>
 </tr>
 </tbody></table></div>
 
-<strong>Best overall (F-beta=2):</strong> ha_live_replica @ 7d
+<strong>Best overall (F-beta=2):</strong> None @ 7d
 <hr>
 <h2>Temporal Metrics (lead=3h, lag=1h)</h2>
 
@@ -168,246 +185,246 @@
 </tr></thead><tbody>
 <tr>
 <td>combined</td>
-<td>0.353</td>
-<td>0.545</td>
-<td>0.261</td>
-<td>55%</td>
-<td>7d</td>
-</tr>
-<tr>
-<td>combined</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>75%</td>
-<td>14d</td>
-</tr>
-<tr>
-<td>combined</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>75%</td>
-<td>28d</td>
-</tr>
-<tr>
-<td>ha_live_actual</td>
 <td>0.400</td>
-<td>0.600</td>
-<td>0.300</td>
+<td>1.000</td>
+<td>0.250</td>
+<td>65%</td>
+<td>7d</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.585</td>
+<td>0.643</td>
+<td>0.537</td>
 <td>60%</td>
+<td>14d</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.606</td>
+<td>0.500</td>
+<td>0.771</td>
+<td>35%</td>
+<td>28d</td>
+</tr>
+<tr>
+<td>ha_live_actual</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.357</td>
-<td>0.556</td>
-<td>0.263</td>
-<td>60%</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.357</td>
-<td>0.556</td>
-<td>0.263</td>
-<td>60%</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.200</td>
+<td>0.286</td>
 <td>1.000</td>
-<td>0.111</td>
-<td>60%</td>
+<td>0.167</td>
+<td>65%</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.385</td>
-<td>0.625</td>
-<td>0.278</td>
-<td>60%</td>
+<td>0.565</td>
+<td>0.549</td>
+<td>0.582</td>
+<td>55%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.385</td>
-<td>0.625</td>
-<td>0.278</td>
-<td>60%</td>
+<td>0.606</td>
+<td>0.512</td>
+<td>0.741</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>original</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
+<td>0.286</td>
+<td>1.000</td>
+<td>0.167</td>
+<td>65%</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.320</td>
-<td>0.571</td>
-<td>0.222</td>
+<td>0.511</td>
+<td>0.500</td>
+<td>0.522</td>
 <td>55%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.320</td>
-<td>0.571</td>
-<td>0.222</td>
-<td>55%</td>
+<td>0.603</td>
+<td>0.506</td>
+<td>0.747</td>
+<td>25%</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.214</td>
+<td>0.353</td>
 <td>0.600</td>
-<td>0.130</td>
+<td>0.250</td>
 <td>60%</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>80%</td>
+<td>0.522</td>
+<td>0.625</td>
+<td>0.448</td>
+<td>60%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>80%</td>
+<td>0.602</td>
+<td>0.504</td>
+<td>0.747</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
+<td>0.353</td>
+<td>0.600</td>
+<td>0.250</td>
+<td>60%</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.522</td>
+<td>0.625</td>
+<td>0.448</td>
+<td>60%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.595</td>
+<td>0.500</td>
+<td>0.735</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.312</td>
-<td>0.556</td>
-<td>0.217</td>
+<td>0.353</td>
+<td>0.600</td>
+<td>0.250</td>
+<td>60%</td>
+<td>7d</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.507</td>
+<td>0.507</td>
+<td>0.507</td>
 <td>55%</td>
-<td>7d</td>
-</tr>
-<tr>
-<td>pressure_combined</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>75%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.604</td>
+<td>0.510</td>
+<td>0.741</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
+<td>0.353</td>
+<td>0.600</td>
+<td>0.250</td>
+<td>60%</td>
 <td>7d</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.522</td>
+<td>0.625</td>
+<td>0.448</td>
+<td>60%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
-<td>28d</td>
-</tr>
-<tr>
-<td>pressure_long_window</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>N/A</td>
-<td>7d</td>
-</tr>
-<tr>
-<td>pressure_long_window</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>70%</td>
-<td>14d</td>
-</tr>
-<tr>
-<td>pressure_long_window</td>
-<td>0.213</td>
-<td>0.714</td>
-<td>0.125</td>
-<td>70%</td>
-<td>28d</td>
-</tr>
-<tr>
-<td>trend_dominant</td>
-<td>0.579</td>
-<td>0.733</td>
-<td>0.478</td>
-<td>40%</td>
-<td>7d</td>
-</tr>
-<tr>
-<td>trend_dominant</td>
-<td>0.580</td>
-<td>0.690</td>
+<td>0.597</td>
 <td>0.500</td>
-<td>40%</td>
-<td>14d</td>
-</tr>
-<tr>
-<td>trend_dominant</td>
-<td>0.580</td>
-<td>0.690</td>
-<td>0.500</td>
-<td>40%</td>
+<td>0.741</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 <tr>
-<td>tuned</td>
+<td>pressure_long_window</td>
+<td>0.375</td>
+<td>0.750</td>
+<td>0.250</td>
+<td>60%</td>
+<td>7d</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.504</td>
+<td>0.500</td>
+<td>0.507</td>
+<td>55%</td>
+<td>14d</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.601</td>
+<td>0.506</td>
+<td>0.741</td>
+<td>35%</td>
+<td>28d</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.444</td>
+<td>0.667</td>
+<td>0.333</td>
+<td>50%</td>
+<td>7d</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.628</td>
+<td>0.614</td>
+<td>0.642</td>
+<td>50%</td>
+<td>14d</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.606</td>
+<td>0.553</td>
+<td>0.671</td>
+<td>45%</td>
+<td>28d</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
 <td>N/A</td>
 <td>N/A</td>
 <td>N/A</td>
@@ -415,19 +432,43 @@
 <td>7d</td>
 </tr>
 <tr>
+<td>trend_dominant</td>
+<td>0.594</td>
+<td>0.623</td>
+<td>0.567</td>
+<td>40%</td>
+<td>14d</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.473</td>
+<td>0.566</td>
+<td>0.406</td>
+<td>35%</td>
+<td>28d</td>
+</tr>
+<tr>
 <td>tuned</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.353</td>
+<td>0.600</td>
+<td>0.250</td>
+<td>60%</td>
+<td>7d</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.522</td>
+<td>0.625</td>
+<td>0.448</td>
+<td>60%</td>
 <td>14d</td>
 </tr>
 <tr>
 <td>tuned</td>
-<td>0.222</td>
-<td>1.000</td>
-<td>0.125</td>
-<td>75%</td>
+<td>0.597</td>
+<td>0.500</td>
+<td>0.741</td>
+<td>35%</td>
 <td>28d</td>
 </tr>
 </tbody></table></div>
@@ -449,82 +490,91 @@
 </tr></thead><tbody>
 <tr>
 <td>combined</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.135</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>📉 degrading</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>0.193</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.000</td>
-<td>0.133</td>
-<td>0.133</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.000</td>
-<td>0.062</td>
-<td>0.062</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>0.120</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.000</td>
-<td>0.062</td>
-<td>0.062</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>0.065</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.000</td>
-<td>0.062</td>
-<td>0.062</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>pressure_long_window</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>0.000</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>0.065</td>
+<td>— not comparable</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>N/A</td>
+<td>0.260</td>
+<td>N/A</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>trend_dominant</td>
-<td>0.054</td>
-<td>0.091</td>
-<td>0.091</td>
-<td>📈 improving</td>
+<td>N/A</td>
+<td>0.225</td>
+<td>0.106</td>
+<td>— not comparable</td>
 </tr>
 <tr>
 <td>tuned</td>
-<td>0.000</td>
-<td>0.062</td>
-<td>0.062</td>
-<td>➡️ stable</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>0.065</td>
+<td>— not comparable</td>
 </tr>
 </tbody></table></div>
+
+<em>N/A means no threshold reached the precision floor in that window — not a score of zero.</em>
 
 <h3>Precision by Window</h3>
 
@@ -538,69 +588,75 @@
 </tr></thead><tbody>
 <tr>
 <td>combined</td>
-<td>0.172</td>
-<td>0.167</td>
-<td>0.167</td>
+<td>0.095</td>
+<td>0.289</td>
+<td>0.373</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.125</td>
-<td>0.160</td>
-<td>0.160</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.125</td>
-<td>0.235</td>
-<td>0.235</td>
+<td>0.036</td>
+<td>0.247</td>
+<td>0.341</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.250</td>
-<td>0.250</td>
-<td>0.250</td>
+<td>0.050</td>
+<td>0.259</td>
+<td>0.331</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.138</td>
-<td>0.151</td>
-<td>0.151</td>
+<td>0.091</td>
+<td>0.266</td>
+<td>0.352</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.167</td>
-<td>0.150</td>
-<td>0.150</td>
+<td>0.091</td>
+<td>0.266</td>
+<td>0.345</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.130</td>
-<td>0.149</td>
-<td>0.149</td>
+<td>0.100</td>
+<td>0.283</td>
+<td>0.367</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.167</td>
-<td>0.150</td>
-<td>0.150</td>
+<td>0.091</td>
+<td>0.266</td>
+<td>0.349</td>
 </tr>
 <tr>
 <td>pressure_long_window</td>
-<td>0.143</td>
-<td>0.139</td>
-<td>0.139</td>
+<td>0.100</td>
+<td>0.272</td>
+<td>0.354</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.167</td>
+<td>0.387</td>
+<td>0.425</td>
 </tr>
 <tr>
 <td>trend_dominant</td>
-<td>0.400</td>
-<td>0.364</td>
-<td>0.364</td>
+<td>0.000</td>
+<td>0.567</td>
+<td>0.587</td>
 </tr>
 <tr>
 <td>tuned</td>
-<td>0.150</td>
-<td>0.143</td>
-<td>0.143</td>
+<td>0.087</td>
+<td>0.263</td>
+<td>0.344</td>
 </tr>
 </tbody></table></div>
 
@@ -616,91 +672,77 @@
 </tr></thead><tbody>
 <tr>
 <td>combined</td>
-<td>0.217</td>
-<td>0.225</td>
-<td>0.225</td>
+<td>0.167</td>
+<td>0.418</td>
+<td>0.459</td>
 </tr>
 <tr>
 <td>ha_live_actual</td>
-<td>0.200</td>
-<td>0.211</td>
-<td>0.211</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
 </tr>
 <tr>
 <td>ha_live_replica</td>
-<td>0.111</td>
-<td>0.222</td>
-<td>0.222</td>
+<td>0.083</td>
+<td>0.358</td>
+<td>0.371</td>
 </tr>
 <tr>
 <td>original</td>
-<td>0.111</td>
-<td>0.167</td>
-<td>0.167</td>
+<td>0.083</td>
+<td>0.328</td>
+<td>0.324</td>
 </tr>
 <tr>
 <td>pressure_absolute</td>
-<td>0.174</td>
-<td>0.200</td>
-<td>0.200</td>
+<td>0.167</td>
+<td>0.373</td>
+<td>0.406</td>
 </tr>
 <tr>
 <td>pressure_aware</td>
-<td>0.130</td>
-<td>0.150</td>
-<td>0.150</td>
+<td>0.167</td>
+<td>0.373</td>
+<td>0.394</td>
 </tr>
 <tr>
 <td>pressure_combined</td>
-<td>0.130</td>
-<td>0.175</td>
-<td>0.175</td>
+<td>0.167</td>
+<td>0.388</td>
+<td>0.424</td>
 </tr>
 <tr>
 <td>pressure_lagged</td>
-<td>0.130</td>
-<td>0.150</td>
-<td>0.150</td>
+<td>0.167</td>
+<td>0.373</td>
+<td>0.400</td>
 </tr>
 <tr>
 <td>pressure_long_window</td>
-<td>0.087</td>
-<td>0.125</td>
-<td>0.125</td>
+<td>0.167</td>
+<td>0.373</td>
+<td>0.394</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.083</td>
+<td>0.433</td>
+<td>0.482</td>
 </tr>
 <tr>
 <td>trend_dominant</td>
-<td>0.087</td>
-<td>0.100</td>
-<td>0.100</td>
+<td>0.000</td>
+<td>0.254</td>
+<td>0.159</td>
 </tr>
 <tr>
 <td>tuned</td>
-<td>0.130</td>
-<td>0.150</td>
-<td>0.150</td>
+<td>0.167</td>
+<td>0.373</td>
+<td>0.394</td>
 </tr>
 </tbody></table></div>
-<h2>Data Context</h2>
-
-<strong>Ground truth source:</strong> open-meteo
-
-<strong>Data coverage (7-day window):</strong>
-
-<ul>
-<li>Home Assistant sensors: 21.4%</li>
-<li>Open-Meteo precipitation: 4.0%</li>
-<li>Yandex Weather: 98.3%</li>
-<li>Meteostat: 4.0%</li>
-</ul>
-
-<strong>Ground truth distribution:</strong>
-
-<ul>
-<li>Rain hours: 23 (0.5%)</li>
-<li>Dry hours: 169 (3.6%)</li>
-<li>Unknown: 4561 (96.0%)</li>
-</ul>
 <hr>
 <h2>Model Rankings</h2>
 
@@ -718,22 +760,6 @@
 </tr></thead><tbody>
 <tr>
 <td>1</td>
-<td>ha_live_replica</td>
-<td>0.135</td>
-<td>1.000</td>
-<td>0.111</td>
-<td>✅ passes filter</td>
-</tr>
-<tr>
-<td>2</td>
-<td>trend_dominant</td>
-<td>0.054</td>
-<td>1.000</td>
-<td>0.043</td>
-<td>✅ passes filter</td>
-</tr>
-<tr>
-<td>3</td>
 <td>combined</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -741,7 +767,7 @@
 <td>❌ low precision</td>
 </tr>
 <tr>
-<td>4</td>
+<td>2</td>
 <td>ha_live_actual</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -749,8 +775,24 @@
 <td>❌ low precision</td>
 </tr>
 <tr>
-<td>5</td>
+<td>3</td>
+<td>ha_live_replica</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>4</td>
 <td>original</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pressure_absolute</td>
 <td>0.000</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -774,22 +816,6 @@
 </tr></thead><tbody>
 <tr>
 <td>1</td>
-<td>ha_live_replica</td>
-<td>0.122</td>
-<td>1.000</td>
-<td>0.111</td>
-<td>✅ passes filter</td>
-</tr>
-<tr>
-<td>2</td>
-<td>trend_dominant</td>
-<td>0.048</td>
-<td>1.000</td>
-<td>0.043</td>
-<td>✅ passes filter</td>
-</tr>
-<tr>
-<td>3</td>
 <td>combined</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -797,7 +823,7 @@
 <td>❌ low precision</td>
 </tr>
 <tr>
-<td>4</td>
+<td>2</td>
 <td>ha_live_actual</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -805,8 +831,24 @@
 <td>❌ low precision</td>
 </tr>
 <tr>
-<td>5</td>
+<td>3</td>
+<td>ha_live_replica</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>4</td>
 <td>original</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>❌ low precision</td>
+</tr>
+<tr>
+<td>5</td>
+<td>pressure_absolute</td>
 <td>0.000</td>
 <td>0.000</td>
 <td>0.000</td>
@@ -829,60 +871,40 @@
 </tr></thead><tbody>
 <tr>
 <td>1</td>
-<td>trend_dominant</td>
-<td>0.400</td>
-<td>0.087</td>
-<td>0.143</td>
+<td>pressure_primary</td>
+<td>0.167</td>
+<td>0.083</td>
+<td>0.111</td>
 </tr>
 <tr>
 <td>2</td>
-<td>original</td>
-<td>0.250</td>
-<td>0.111</td>
-<td>0.154</td>
+<td>pressure_combined</td>
+<td>0.100</td>
+<td>0.167</td>
+<td>0.125</td>
 </tr>
 <tr>
 <td>3</td>
-<td>combined</td>
-<td>0.172</td>
-<td>0.217</td>
-<td>0.192</td>
+<td>pressure_long_window</td>
+<td>0.100</td>
+<td>0.167</td>
+<td>0.125</td>
 </tr>
 <tr>
 <td>4</td>
-<td>pressure_aware</td>
+<td>combined</td>
+<td>0.095</td>
 <td>0.167</td>
-<td>0.130</td>
-<td>0.146</td>
+<td>0.121</td>
 </tr>
 <tr>
 <td>5</td>
-<td>pressure_lagged</td>
+<td>pressure_absolute</td>
+<td>0.091</td>
 <td>0.167</td>
-<td>0.130</td>
-<td>0.146</td>
+<td>0.118</td>
 </tr>
 </tbody></table></div>
-<h2>Data Context</h2>
-
-<strong>Ground truth source:</strong> open-meteo
-
-<strong>Data coverage (7-day window):</strong>
-
-<ul>
-<li>Home Assistant sensors: 21.4%</li>
-<li>Open-Meteo precipitation: 4.0%</li>
-<li>Yandex Weather: 98.3%</li>
-<li>Meteostat: 4.0%</li>
-</ul>
-
-<strong>Ground truth distribution:</strong>
-
-<ul>
-<li>Rain hours: 23 (0.5%)</li>
-<li>Dry hours: 169 (3.6%)</li>
-<li>Unknown: 4561 (96.0%)</li>
-</ul>
 <hr>
 <h2>Precipitation Source Reliability</h2>
 
@@ -897,71 +919,524 @@
 </tr></thead><tbody>
 <tr>
 <td>OM (Open-Meteo)</td>
-<td>23</td>
-<td>MS=11h, YX=10h</td>
+<td>12</td>
+<td>MS=2h</td>
 </tr>
 <tr>
 <td>MS (Meteostat)</td>
-<td>14</td>
-<td>OM=11h, YX=8h</td>
+<td>3</td>
+<td>OM=2h</td>
 </tr>
 <tr>
 <td>YX (Yandex)</td>
-<td>168</td>
-<td>OM=10h, MS=8h</td>
+<td>0</td>
+<td>—</td>
 </tr>
 </tbody></table></div>
 
-<strong>Yandex vs Ground Truth (HA):</strong>
-<ul>
-<li>Yandex rain hours: 29</li>
-<li>Actual rain hours: 23</li>
-<li>Agreement: 5h</li>
-<li>Yandex-only: 24h (false positives)</li>
-<li>Actual-only: 18h (missed events)</li>
-</ul>
-<h2>Data Context</h2>
+<strong>Ground truth source agreement (chance-corrected):</strong>
 
-<strong>Ground truth source:</strong> open-meteo
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Pair</th>
+<th>n</th>
+<th>Raw agreement</th>
+<th>Cohen&#x27;s κ</th>
+<th>Interpretation</th>
+</tr></thead><tbody>
+<tr>
+<td>MS VS OM</td>
+<td>169</td>
+<td>93.5%</td>
+<td>0.245</td>
+<td>fair</td>
+</tr>
+</tbody></table></div>
 
-<strong>Data coverage (7-day window):</strong>
+<p>⚠️ Ground truth sources agree only moderately (κ=0.25). Part of every model&#x27;s error is the yardstick&#x27;s, not the model&#x27;s.</p>
 
-<ul>
-<li>Home Assistant sensors: 21.4%</li>
-<li>Open-Meteo precipitation: 4.0%</li>
-<li>Yandex Weather: 98.3%</li>
-<li>Meteostat: 4.0%</li>
-</ul>
+<strong>Model F1 under each ground truth:</strong>
 
-<strong>Ground truth distribution:</strong>
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>Open-Meteo</th>
+<th>Meteostat</th>
+</tr></thead><tbody>
+<tr>
+<td>pressure_long_window</td>
+<td>0.125</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.125</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.121</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.118</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.118</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.118</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.114</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.111</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.062</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>ha_live_replica</td>
+<td>0.050</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.000</td>
+<td>0.000</td>
+</tr>
+</tbody></table></div>
 
-<ul>
-<li>Rain hours: 23 (0.5%)</li>
-<li>Dry hours: 169 (3.6%)</li>
-<li>Unknown: 4561 (96.0%)</li>
-</ul>
+<p>⚠️ Ranking changes with the ground truth (Open-Meteo best: <strong>pressure_long_window</strong>, Meteostat best: <strong>original</strong>). Treat the ordering as unresolved.<br>
+<hr><br>
+<h2>Warning Target (3h)</h2></p>
+
+<p>Scored against <em>rain within the next 3 hours</em> — what an alert actually needs to predict — rather than &quot;is it raining now&quot;. Ranked by ROC AUC, because the 50% decision threshold is not calibrated across models.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Model</th>
+<th>ROC AUC</th>
+<th>Avg precision</th>
+<th>F1</th>
+<th>Precision</th>
+<th>Recall</th>
+</tr></thead><tbody>
+<tr>
+<td>pressure_primary ✅</td>
+<td>0.659</td>
+<td>0.335</td>
+<td>0.200</td>
+<td>0.500</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td>tuned</td>
+<td>0.612</td>
+<td>0.252</td>
+<td>0.213</td>
+<td>0.217</td>
+<td>0.208</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.611</td>
+<td>0.263</td>
+<td>0.217</td>
+<td>0.227</td>
+<td>0.208</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.606</td>
+<td>0.246</td>
+<td>0.217</td>
+<td>0.227</td>
+<td>0.208</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.603</td>
+<td>0.245</td>
+<td>0.174</td>
+<td>0.182</td>
+<td>0.167</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.598</td>
+<td>0.265</td>
+<td>0.222</td>
+<td>0.238</td>
+<td>0.208</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.589</td>
+<td>0.237</td>
+<td>0.182</td>
+<td>0.200</td>
+<td>0.167</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.589</td>
+<td>0.241</td>
+<td>0.182</td>
+<td>0.200</td>
+<td>0.167</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.583</td>
+<td>0.212</td>
+<td>0.136</td>
+<td>0.150</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td>ha_live_replica</td>
+<td>0.529</td>
+<td>0.226</td>
+<td>0.115</td>
+<td>0.107</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.386</td>
+<td>0.135</td>
+<td>0.000</td>
+<td>0.000</td>
+<td>0.000</td>
+</tr>
+<tr>
+<td>ha_live_actual</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+</tbody></table></div>
+
+<em>ROC AUC 0.5 is chance. A model at 0.5 is not predicting, whatever its F1.</em>
+
+<h3>Baselines</h3>
+
+<p>What any model has to beat. <strong>persistence</strong> = it rained last hour; <strong>always_alert</strong> = alert unconditionally, so its precision <em>is</em> the base rate; <strong>yandex_forecast</strong> = a free external forecast.</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Baseline</th>
+<th>Target</th>
+<th>ROC AUC</th>
+<th>F1</th>
+<th>Precision</th>
+<th>Recall</th>
+</tr></thead><tbody>
+<tr>
+<td>persistence</td>
+<td>nowcast</td>
+<td>0.686</td>
+<td>0.417</td>
+<td>0.417</td>
+<td>0.417</td>
+</tr>
+<tr>
+<td>persistence</td>
+<td>within_3h</td>
+<td>0.579</td>
+<td>0.278</td>
+<td>0.417</td>
+<td>0.208</td>
+</tr>
+<tr>
+<td>always_alert</td>
+<td>nowcast</td>
+<td>0.500</td>
+<td>0.133</td>
+<td>0.071</td>
+<td>1.000</td>
+</tr>
+<tr>
+<td>always_alert</td>
+<td>within_3h</td>
+<td>0.500</td>
+<td>0.253</td>
+<td>0.145</td>
+<td>1.000</td>
+</tr>
+</tbody></table></div>
+
+<p>⚠️ No model beats persistence (best AUC 0.587 vs 0.686). Predicting &quot;the same as last hour&quot; is currently the strongest thing available.</p>
+
+<h3>Fitted model</h3>
+
+<code>logistic_regression</code>, validated walk-forward — trained only on hours before the ones it is scored on.
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Target</th>
+<th>ROC AUC</th>
+<th>Avg precision</th>
+<th>Held-out rows</th>
+<th>Base rate</th>
+</tr></thead><tbody>
+<tr>
+<td>nowcast</td>
+<td>0.595</td>
+<td>0.330</td>
+<td>87</td>
+<td>0.069</td>
+</tr>
+<tr>
+<td>within_3h</td>
+<td>0.607</td>
+<td>0.507</td>
+<td>86</td>
+<td>0.140</td>
+</tr>
+<tr>
+<td>front</td>
+<td>0.578</td>
+<td>0.230</td>
+<td>81</td>
+<td>0.074</td>
+</tr>
+</tbody></table></div>
+
+<strong>Same held-out rows, nowcast:</strong> combined 0.848, pressure_absolute 0.841, pressure_aware 0.835, pressure_combined 0.828, tuned 0.827 — fitted model 0.595
+
+<strong>Same held-out rows, within_3h:</strong> pressure_primary 0.848, original 0.711, combined 0.707, trend_dominant 0.685, pressure_absolute 0.684 — fitted model 0.607
+
+<strong>Same held-out rows, front:</strong> pressure_primary 0.888, ha_live_replica 0.662, original 0.576, combined 0.534, trend_dominant 0.522 — fitted model 0.578
+<hr>
+<h2>Rain-Front Prediction (28-day window)</h2>
+
+<p>Scored only on the dry→rain transition: from a known-dry hour, does rain <em>begin</em> within the next 3 hours? Hours during rain are excluded, so recognising ongoing rain earns nothing here. An onset is a rain hour after ≥3 known-dry hours.</p>
+
+<strong>Onsets in window:</strong> 25 · <strong>base rate from a dry hour:</strong> 0.150
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Candidate</th>
+<th>ROC AUC</th>
+<th>Onsets caught</th>
+<th>Precision</th>
+<th>Episodes/day</th>
+<th>@thr</th>
+</tr></thead><tbody>
+<tr>
+<td>tuned</td>
+<td>0.601</td>
+<td>21/25</td>
+<td>0.198</td>
+<td>2.77</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_absolute</td>
+<td>0.599</td>
+<td>21/25</td>
+<td>0.198</td>
+<td>2.77</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_aware</td>
+<td>0.599</td>
+<td>21/25</td>
+<td>0.195</td>
+<td>2.77</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_lagged</td>
+<td>0.597</td>
+<td>20/25</td>
+<td>0.193</td>
+<td>2.77</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_long_window</td>
+<td>0.595</td>
+<td>19/25</td>
+<td>0.188</td>
+<td>2.82</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_combined</td>
+<td>0.593</td>
+<td>20/25</td>
+<td>0.188</td>
+<td>2.96</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>combined</td>
+<td>0.587</td>
+<td>20/25</td>
+<td>0.182</td>
+<td>2.96</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>pressure_primary</td>
+<td>0.555</td>
+<td>13/25</td>
+<td>0.208</td>
+<td>1.77</td>
+<td>45%</td>
+</tr>
+<tr>
+<td>original</td>
+<td>0.532</td>
+<td>16/25</td>
+<td>0.193</td>
+<td>2.43</td>
+<td>15%</td>
+</tr>
+<tr>
+<td>ha_live_replica</td>
+<td>0.525</td>
+<td>17/25</td>
+<td>0.175</td>
+<td>2.82</td>
+<td>25%</td>
+</tr>
+<tr>
+<td>always_alert</td>
+<td>0.500</td>
+<td>25/25</td>
+<td>0.149</td>
+<td>2.29</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>persistence</td>
+<td>0.476</td>
+<td>4/25</td>
+<td>0.085</td>
+<td>2.24</td>
+<td>5%</td>
+</tr>
+<tr>
+<td>trend_dominant</td>
+<td>0.356</td>
+<td>4/25</td>
+<td>0.267</td>
+<td>0.72</td>
+<td>45%</td>
+</tr>
+<tr>
+<td>ha_live_actual</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+<td>N/A</td>
+</tr>
+</tbody></table></div>
+
+<strong>Best front predictor:</strong> tuned (by ROC AUC on dry hours)
+
+<p>Fitted model on the same target, walk-forward held-out rows: ROC AUC 0.653 (251 rows).</p>
+
+<em>The 7-day window holds 5 onsets — too few to rank; front conclusions here use the 28-day window.</em>
+
+<em>A predictor that only recognises ongoing rain scores ~0.5 here regardless of its warning-target rank; persistence is included as that control.</em>
+<hr>
+<h2>Sensor Diagnostics</h2>
+
+<p>Local sensors against reference sources (7d window):</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Comparison</th>
+<th>n</th>
+<th>Corr</th>
+<th>Bias</th>
+<th>MAE</th>
+</tr></thead><tbody>
+<tr>
+<td>temp vs open meteo</td>
+<td>169</td>
+<td>+0.909</td>
+<td>+1.49</td>
+<td>1.71</td>
+</tr>
+<tr>
+<td>temp vs meteostat</td>
+<td>169</td>
+<td>+0.895</td>
+<td>+2.65</td>
+<td>2.76</td>
+</tr>
+<tr>
+<td>rh vs open meteo</td>
+<td>169</td>
+<td>+0.848</td>
+<td>-5.69</td>
+<td>8.14</td>
+</tr>
+<tr>
+<td>rh vs meteostat</td>
+<td>169</td>
+<td>+0.830</td>
+<td>-11.88</td>
+<td>12.71</td>
+</tr>
+<tr>
+<td>pressure vs open meteo</td>
+<td>169</td>
+<td>+0.993</td>
+<td>+1.08</td>
+<td>1.08</td>
+</tr>
+</tbody></table></div>
+
+<em>No overlap with <code>sensor.rain_probability</code>: it has no long-term statistics, so it only exists within the recorder retention window.</em>
 <hr>
 <h2>Key Observations &amp; Recommendations</h2>
 
-<p>⚠️ Best model differs: <strong>ha_live_replica</strong> (7d) vs <strong>original</strong> (28d). Short-term volatility or model overfitting to recent events?</p>
+<p>⚠️ Best model differs: <strong>None</strong> (7d) vs <strong>ha_live_replica</strong> (28d). Short-term volatility or model overfitting to recent events?</p>
 
-<p>⚠️ <strong>Low average precision (0.18)</strong> — models produce many false positives. Pressure-aware variants may help.</p>
+<p>⚠️ <strong>Low average precision (0.08)</strong> — models produce many false positives. Pressure-aware variants may help.</p>
 
-<p>⚠️ <strong>Low average recall (0.14)</strong> — models miss many rain events. Consider lower thresholds or better features.</p>
-
-<p>⚠️ <strong>Yandex over-reports rain</strong> (168h vs 23h actual). Use OM (23h) or MS as ground truth instead.</p>
-
-<p>✅ <strong>Open-Meteo closer to ground truth</strong> than Yandex. Prefer OM for precipitation validation.</p>
+<p>⚠️ <strong>Low average recall (0.12)</strong> — models miss many rain events. Consider lower thresholds or better features.</p>
 
 <strong>Next steps:</strong> Review pressure_* model variants for improving precision without sacrificing recall. Target: F-beta=2 &gt;0.5, precision &gt;0.6.
 <hr>
-<em>Report generated by daily_analysis.py at 2026-08-03T05:01:24.106594+00:00</em>
+<em>Report generated by daily_analysis.py at 2026-08-16T00:39:59.423330+00:00</em>
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-15 05:04 UTC</p>
+        <p>Generated: 2026-08-16 09:55 UTC</p>
     </footer>
 </body>
 </html>
