@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-08-15T13:27:23.899468+00:00",
+    "generated_at": "2026-08-16T00:37:40.318862+00:00",
     "script_version": "1.0.0",
     "config": {
       "rain_threshold_mm": 0.1,
@@ -99,6 +99,11 @@
         "grid_rows": 169
       },
       "ground_truth": {
+        "front_distribution": {
+          "onsets": 6,
+          "labelled_dry_hours": 144,
+          "front_base_rate_pct": 12.5
+        },
         "warning_horizon_hours": 3,
         "warning_distribution": {
           "rain_hours": 37,
@@ -2777,6 +2782,191 @@
       "best_model": "original",
       "ranked_by": "roc_auc"
     },
+    "front_target": {
+      "horizon_hours": 3,
+      "dry_hours_before_onset": 3,
+      "n_onsets": 6,
+      "base_rate": 0.125,
+      "scores": {
+        "original": {
+          "roc_auc": 0.5137777777777778,
+          "average_precision": 0.18899727456788426,
+          "n_samples": 143,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "tuned": {
+          "roc_auc": 0.5125661375661376,
+          "average_precision": 0.19436922524610384,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "trend_dominant": {
+          "roc_auc": 0.2671957671957672,
+          "average_precision": 0.09401639886088294,
+          "n_samples": 144,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 5,
+            "event_recall": 0.8333333333333334,
+            "precision": 0.0782608695652174,
+            "alert_hours": 115,
+            "episodes_per_day": 2.2857142857142856
+          }
+        },
+        "ha_live_replica": {
+          "roc_auc": 0.5207231040564374,
+          "average_precision": 0.22737340837043518,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "pressure_aware": {
+          "roc_auc": 0.5048500881834215,
+          "average_precision": 0.1913819154423172,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "pressure_absolute": {
+          "roc_auc": 0.5055114638447972,
+          "average_precision": 0.19133911593690814,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "pressure_long_window": {
+          "roc_auc": 0.49757495590828926,
+          "average_precision": 0.1886746634363116,
+          "n_samples": 144,
+          "events": {
+            "threshold": 60.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 0.5,
+            "alert_hours": 2,
+            "episodes_per_day": 0.32653061224489793
+          }
+        },
+        "pressure_lagged": {
+          "roc_auc": 0.4991181657848324,
+          "average_precision": 0.1867092049086525,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "pressure_combined": {
+          "roc_auc": 0.4898589065255732,
+          "average_precision": 0.18978441803211493,
+          "n_samples": 144,
+          "events": {
+            "threshold": 20.0,
+            "onsets_caught": 3,
+            "event_recall": 0.5,
+            "precision": 0.15789473684210525,
+            "alert_hours": 57,
+            "episodes_per_day": 1.469387755102041
+          }
+        },
+        "combined": {
+          "roc_auc": 0.48743386243386244,
+          "average_precision": 0.18882548229469154,
+          "n_samples": 144,
+          "events": {
+            "threshold": 65.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 1.0,
+            "alert_hours": 1,
+            "episodes_per_day": 0.16326530612244897
+          }
+        },
+        "pressure_primary": {
+          "roc_auc": 0.5670194003527337,
+          "average_precision": 0.21915106108308877,
+          "n_samples": 144,
+          "events": {
+            "threshold": 45.0,
+            "onsets_caught": 2,
+            "event_recall": 0.3333333333333333,
+            "precision": 0.25,
+            "alert_hours": 12,
+            "episodes_per_day": 0.6530612244897959
+          }
+        },
+        "ha_live_actual": {
+          "roc_auc": null,
+          "average_precision": null,
+          "n_samples": 0,
+          "events": null
+        },
+        "persistence": {
+          "roc_auc": 0.49577777777777776,
+          "average_precision": 0.12505395838729172,
+          "n_samples": 143,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 1,
+            "event_recall": 0.16666666666666666,
+            "precision": 0.1111111111111111,
+            "alert_hours": 9,
+            "episodes_per_day": 1.469387755102041
+          }
+        },
+        "always_alert": {
+          "roc_auc": 0.5,
+          "average_precision": 0.125,
+          "n_samples": 144,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 6,
+            "event_recall": 1.0,
+            "precision": 0.12244897959183673,
+            "alert_hours": 147,
+            "episodes_per_day": 1.6326530612244898
+          }
+        }
+      },
+      "best_model": "pressure_primary",
+      "ranked_by": "roc_auc"
+    },
     "baselines": {
       "persistence": {
         "nowcast": {
@@ -2899,6 +3089,50 @@
           "pressure_long_window": 0.6621621621621622,
           "persistence": 0.6531531531531531,
           "always_alert": 0.5
+        }
+      },
+      "front": {
+        "roc_auc": 0.6620370370370371,
+        "average_precision": 0.20332817337461298,
+        "base_rate": 0.07692307692307693,
+        "n_scored": 78,
+        "folds": 5,
+        "features": [
+          "pressure",
+          "pressure_anomaly",
+          "pressure_d3h",
+          "pressure_d6h",
+          "pressure_d12h",
+          "pressure_d24h",
+          "spread",
+          "spread_min6",
+          "spread_d3h",
+          "spread_d6h",
+          "rh",
+          "rh_mean6",
+          "abs_hum",
+          "abs_hum_d3h",
+          "temp",
+          "temp_d3h",
+          "hour_sin",
+          "hour_cos",
+          "doy_sin",
+          "doy_cos"
+        ],
+        "comparison_on_same_rows": {
+          "pressure_primary": 0.8043981481481481,
+          "ha_live_replica": 0.6504629629629629,
+          "original": 0.5706018518518519,
+          "combined": 0.5196759259259259,
+          "always_alert": 0.5,
+          "trend_dominant": 0.4976851851851852,
+          "pressure_combined": 0.49421296296296297,
+          "pressure_lagged": 0.4930555555555556,
+          "tuned": 0.49189814814814814,
+          "pressure_long_window": 0.49074074074074076,
+          "pressure_absolute": 0.48148148148148145,
+          "pressure_aware": 0.4756944444444444,
+          "persistence": 0.4722222222222222
         }
       }
     }

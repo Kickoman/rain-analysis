@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-08-15T13:06:19.478931+00:00",
+    "generated_at": "2026-08-16T00:15:44.307180+00:00",
     "script_version": "1.0.0",
     "config": {
       "rain_threshold_mm": 0.1,
@@ -99,6 +99,11 @@
         "grid_rows": 673
       },
       "ground_truth": {
+        "front_distribution": {
+          "onsets": 29,
+          "labelled_dry_hours": 498,
+          "front_base_rate_pct": 17.46987951807229
+        },
         "warning_horizon_hours": 3,
         "warning_distribution": {
           "rain_hours": 255,
@@ -3377,6 +3382,191 @@
       "best_model": "pressure_combined",
       "ranked_by": "roc_auc"
     },
+    "front_target": {
+      "horizon_hours": 3,
+      "dry_hours_before_onset": 3,
+      "n_onsets": 29,
+      "base_rate": 0.1746987951807229,
+      "scores": {
+        "original": {
+          "roc_auc": 0.45595268059400956,
+          "average_precision": 0.31412567264438096,
+          "n_samples": 195,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 16,
+            "event_recall": 0.5517241379310345,
+            "precision": 0.2733333333333333,
+            "alert_hours": 150,
+            "episodes_per_day": 1.532934131736527
+          }
+        },
+        "tuned": {
+          "roc_auc": 0.473957688976865,
+          "average_precision": 0.3112048670155266,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "trend_dominant": {
+          "roc_auc": 0.46257577632067304,
+          "average_precision": 0.3680635276533654,
+          "n_samples": 196,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 15,
+            "event_recall": 0.5172413793103449,
+            "precision": 0.2565789473684211,
+            "alert_hours": 152,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "ha_live_replica": {
+          "roc_auc": 0.44657689403473444,
+          "average_precision": 0.3055253269562308,
+          "n_samples": 195,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 17,
+            "event_recall": 0.5862068965517241,
+            "precision": 0.26282051282051283,
+            "alert_hours": 156,
+            "episodes_per_day": 1.7724550898203593
+          }
+        },
+        "pressure_aware": {
+          "roc_auc": 0.47439069652356797,
+          "average_precision": 0.31130673290089617,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "pressure_absolute": {
+          "roc_auc": 0.47439069652356797,
+          "average_precision": 0.31130673290089617,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "pressure_long_window": {
+          "roc_auc": 0.47500927873314364,
+          "average_precision": 0.3117207612588697,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "pressure_lagged": {
+          "roc_auc": 0.4746999876283558,
+          "average_precision": 0.3117464170359496,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "pressure_combined": {
+          "roc_auc": 0.47513299517505875,
+          "average_precision": 0.3129786134936259,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 19,
+            "event_recall": 0.6551724137931034,
+            "precision": 0.31547619047619047,
+            "alert_hours": 168,
+            "episodes_per_day": 1.4850299401197604
+          }
+        },
+        "combined": {
+          "roc_auc": 0.4712359272547322,
+          "average_precision": 0.3109034134415151,
+          "n_samples": 196,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 20,
+            "event_recall": 0.6896551724137931,
+            "precision": 0.3036649214659686,
+            "alert_hours": 191,
+            "episodes_per_day": 1.5808383233532934
+          }
+        },
+        "pressure_primary": {
+          "roc_auc": 0.44525547445255476,
+          "average_precision": 0.2945831013609988,
+          "n_samples": 196,
+          "events": {
+            "threshold": 10.0,
+            "onsets_caught": 14,
+            "event_recall": 0.4827586206896552,
+            "precision": 0.29508196721311475,
+            "alert_hours": 122,
+            "episodes_per_day": 1.3892215568862276
+          }
+        },
+        "ha_live_actual": {
+          "roc_auc": null,
+          "average_precision": null,
+          "n_samples": 0,
+          "events": null
+        },
+        "persistence": {
+          "roc_auc": 0.49144939725259323,
+          "average_precision": 0.17294916478573077,
+          "n_samples": 497,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 7,
+            "event_recall": 0.2413793103448276,
+            "precision": 0.14893617021276595,
+            "alert_hours": 47,
+            "episodes_per_day": 2.251497005988024
+          }
+        },
+        "always_alert": {
+          "roc_auc": 0.5,
+          "average_precision": 0.1746987951807229,
+          "n_samples": 498,
+          "events": {
+            "threshold": 5.0,
+            "onsets_caught": 29,
+            "event_recall": 1.0,
+            "precision": 0.17365269461077845,
+            "alert_hours": 501,
+            "episodes_per_day": 2.2994011976047903
+          }
+        }
+      },
+      "best_model": "always_alert",
+      "ranked_by": "roc_auc"
+    },
     "baselines": {
       "persistence": {
         "nowcast": {
@@ -3499,6 +3689,50 @@
           "original": 0.16025641025641027,
           "pressure_primary": 0.1346153846153846,
           "trend_dominant": 0.038461538461538464
+        }
+      },
+      "front": {
+        "roc_auc": 0.927536231884058,
+        "average_precision": 0.5333333333333333,
+        "base_rate": 0.11538461538461539,
+        "n_scored": 26,
+        "folds": 5,
+        "features": [
+          "pressure",
+          "pressure_anomaly",
+          "pressure_d3h",
+          "pressure_d6h",
+          "pressure_d12h",
+          "pressure_d24h",
+          "spread",
+          "spread_min6",
+          "spread_d3h",
+          "spread_d6h",
+          "rh",
+          "rh_mean6",
+          "abs_hum",
+          "abs_hum_d3h",
+          "temp",
+          "temp_d3h",
+          "hour_sin",
+          "hour_cos",
+          "doy_sin",
+          "doy_cos"
+        ],
+        "comparison_on_same_rows": {
+          "always_alert": 0.5,
+          "persistence": 0.4782608695652174,
+          "tuned": 0.3188405797101449,
+          "pressure_aware": 0.3188405797101449,
+          "pressure_absolute": 0.3188405797101449,
+          "pressure_lagged": 0.3188405797101449,
+          "pressure_combined": 0.3188405797101449,
+          "pressure_long_window": 0.2971014492753623,
+          "combined": 0.2536231884057971,
+          "ha_live_replica": 0.21014492753623187,
+          "original": 0.13043478260869565,
+          "pressure_primary": 0.13043478260869565,
+          "trend_dominant": 0.0
         }
       }
     }

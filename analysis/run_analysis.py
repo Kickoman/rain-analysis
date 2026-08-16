@@ -97,6 +97,13 @@ class AnalysisConfig:
     # reported, and remains what the published metric series tracks.
     rain_within_hours: int = 3
 
+    # Dry hours required before a rain hour counts as a new *onset* (front).
+    # The front target scores only the dry→rain transition: the warning target
+    # above still counts every in-rain hour as a positive, which is what let
+    # persistence outrank every model while being unable to predict a single
+    # rain start from a dry hour.
+    front_dry_hours: int = 3
+
     # Evaluate the fitted model alongside the hand-tuned ones. Off makes the run
     # independent of scikit-learn.
     learned_model: bool = True
@@ -308,6 +315,9 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     grid["rain_truth"] = labels
     grid["rain_truth_window"] = rl.label_rain_within(labels, config.rain_within_hours,
                                                     freq=config.grid_freq)
+    grid["front_truth"] = rl.label_front_within(labels, config.rain_within_hours,
+                                                config.front_dry_hours,
+                                                freq=config.grid_freq)
 
     rain_hours = (
         grid[grid["rain_truth"] == 1]
@@ -336,7 +346,16 @@ def label_ground_truth(grid: pd.DataFrame, config: AnalysisConfig) -> tuple:
     w_rain = int((window == 1).sum())
     w_labelled = int(window.notna().sum())
 
+    front = grid["front_truth"]
+    n_onsets = int(rl.detect_onsets(labels, config.front_dry_hours,
+                                    freq=config.grid_freq).sum())
+
     stats = {
+        "front_distribution": {
+            "onsets": n_onsets,
+            "labelled_dry_hours": int(front.notna().sum()),
+            "front_base_rate_pct": float(front.mean() * 100) if front.notna().any() else None,
+        },
         "warning_horizon_hours": config.rain_within_hours,
         "warning_distribution": {
             "rain_hours": w_rain,
@@ -525,6 +544,7 @@ def score_models(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         "temporal_scoring": temporal_scores,
         "scores_vs_meteostat": score_against_alternative_truth(grid, config),
         "warning_target": score_warning_target(grid, config),
+        "front_target": score_front_target(grid, config),
         "baselines": score_baselines(grid, config),
         "learned": score_learned_model(grid, config),
     }
@@ -554,6 +574,10 @@ def score_learned_model(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     targets = {"nowcast": grid.get("rain_truth")}
     if config.rain_within_hours > 0 and "rain_truth_window" in grid.columns:
         targets[f"within_{config.rain_within_hours}h"] = grid["rain_truth_window"]
+    if "front_truth" in grid.columns and grid["front_truth"].notna().sum() > 0:
+        # Onset-only view; NaN on in-rain hours already restricts walk_forward
+        # to dry rows, so no extra masking is needed here.
+        targets["front"] = grid["front_truth"]
 
     out = {"model": "logistic_regression"}
     for name, truth in targets.items():
@@ -701,6 +725,106 @@ def score_warning_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
         "horizon_hours": config.rain_within_hours,
         "scores": out,
         "best_model": best,
+        "ranked_by": "roc_auc",
+    }
+
+
+def score_front_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
+    """Score every model and baseline on rain *fronts* only.
+
+    The warning target counts every in-rain hour as a positive, so a predictor
+    that recognises ongoing rain — persistence above all — outranks models that
+    actually anticipate. Measured over 2026-07-01→08-14 that inversion is
+    total: persistence sits at warning AUC 0.712 but front AUC 0.485 (chance),
+    catching 8 of 41 onsets at below-base-rate precision.
+
+    Two views per candidate, both restricted to known-dry hours:
+
+    - ranking: ROC AUC / AP against `front_truth` (onset within the horizon);
+    - events: at the F1-best threshold, the share of onsets with an alert in
+      the `horizon` dry hours before them, the share of alert-hours that were
+      followed by an onset, and alert episodes per day — the notification-
+      fatigue number an automation actually pays.
+    """
+    if "front_truth" not in grid.columns:
+        return {}
+
+    front = grid["front_truth"]
+    if front.notna().sum() == 0 or front.dropna().nunique() < 2:
+        return {}
+
+    labels = grid["rain_truth"]
+    dry = labels == 0
+    onsets = grid.index[rl.detect_onsets(labels, config.front_dry_hours,
+                                         freq=config.grid_freq) == 1]
+    step = pd.Timedelta(config.grid_freq)
+    horizon_steps = max(1, int(round(pd.Timedelta(hours=config.rain_within_hours) / step)))
+    dry_days = float(dry.sum()) * (step / pd.Timedelta(days=1))
+
+    candidates = {}
+    for name in MODELS:
+        col = f"model_{name}"
+        if col in grid.columns:
+            # Display names, so `model_ha_live` reads as ha_live_replica here
+            # exactly as it does in every other scoring table.
+            candidates[display_name_for(col)] = grid[col]
+    if "ha_rain_prob" in grid.columns:
+        candidates[display_name_for("ha_rain_prob")] = grid["ha_rain_prob"]
+    candidates.update(build_baselines(grid))
+
+    def event_metrics(score: pd.Series, threshold: float) -> dict | None:
+        alert = (score >= threshold) & dry & score.notna()
+        n_alert = int(alert.sum())
+        if n_alert == 0:
+            return None
+        hits = 0
+        for t in onsets:
+            lookback = [t - step * k for k in range(1, horizon_steps + 1)]
+            if any(w in alert.index and bool(alert.loc[w]) for w in lookback):
+                hits += 1
+        followed = front[alert] == 1.0
+        alert_times = alert[alert].index.to_series()
+        episodes = int((alert_times.diff() > step).sum()) + 1
+        return {
+            "threshold": float(threshold),
+            "onsets_caught": hits,
+            "event_recall": hits / len(onsets) if len(onsets) else None,
+            "precision": _or_none(float(followed.mean())),
+            "alert_hours": n_alert,
+            "episodes_per_day": episodes / dry_days if dry_days else None,
+        }
+
+    out = {}
+    for name, score in candidates.items():
+        sc = score.where(dry)
+        mask = sc.notna() & front.notna()
+        entry = {
+            "roc_auc": _or_none(rl.roc_auc(sc[mask], front[mask])) if mask.sum() else None,
+            "average_precision": _or_none(rl.average_precision(sc[mask], front[mask])) if mask.sum() else None,
+            "n_samples": int(mask.sum()),
+        }
+        best = None
+        for threshold in range(5, 96, 5):
+            m = event_metrics(score, threshold)
+            if not m or not m["precision"] or not m["event_recall"]:
+                continue
+            f1 = 2 * m["precision"] * m["event_recall"] / (m["precision"] + m["event_recall"])
+            if best is None or f1 > best[0]:
+                best = (f1, m)
+        entry["events"] = best[1] if best else None
+        out[name] = entry
+
+    ranked = [(name, s["roc_auc"]) for name, s in out.items()
+              if s["roc_auc"] is not None]
+    best_model = max(ranked, key=lambda r: r[1])[0] if ranked else None
+
+    return {
+        "horizon_hours": config.rain_within_hours,
+        "dry_hours_before_onset": config.front_dry_hours,
+        "n_onsets": len(onsets),
+        "base_rate": _or_none(float(front.mean())),
+        "scores": out,
+        "best_model": best_model,
         "ranked_by": "roc_auc",
     }
 

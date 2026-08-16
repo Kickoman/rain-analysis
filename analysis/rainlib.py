@@ -1090,6 +1090,68 @@ def label_rain_within(labels: pd.Series, hours: int,
     return result
 
 
+def detect_onsets(labels: pd.Series, dry_hours: int = 3,
+                  freq: str = "1h") -> pd.Series:
+    """Mark the hours where rain *begins*: rain preceded by known-dry hours.
+
+    An hour is an onset when its label is rain and the previous `dry_hours`
+    steps are all known-dry. An unknown hour anywhere in that lookback
+    disqualifies the candidate — a gap must not manufacture a "new" rain
+    event out of one the sensors merely stopped seeing.
+
+    Returns a 0/1 series with no NaN: an onset either provably happened or it
+    is not counted.
+    """
+    if dry_hours <= 0:
+        return (labels == 1).astype(int)
+
+    step = pd.Timedelta(freq)
+    if step <= pd.Timedelta(0):
+        raise ValueError(f"detect_onsets(): freq {freq!r} is not a positive duration")
+    steps = max(1, int(round(pd.Timedelta(hours=dry_hours) / step)))
+
+    prev_dry = pd.concat(
+        [labels.shift(k) == 0 for k in range(1, steps + 1)], axis=1
+    ).all(axis=1)
+    return ((labels == 1) & prev_dry).astype(int)
+
+
+def label_front_within(labels: pd.Series, hours: int, dry_hours: int = 3,
+                       freq: str = "1h") -> pd.Series:
+    """The front target: from a dry hour, does rain *begin* within N hours?
+
+    `label_rain_within` still counts every in-rain hour as a positive, so a
+    predictor that merely recognises ongoing rain — persistence above all —
+    scores well on it while being blind to the one transition an alert exists
+    for. This label scores only that transition:
+
+    - defined (0/1) on known-dry hours only;
+    - 1 when an onset (see `detect_onsets`) occurs within the next `hours`;
+    - NaN during rain, on unknown hours, and where the horizon runs past the
+      end of the data or over unknown hours without finding an onset.
+    """
+    if hours <= 0:
+        raise ValueError("label_front_within(): hours must be positive")
+
+    step = pd.Timedelta(freq)
+    if step <= pd.Timedelta(0):
+        raise ValueError(f"label_front_within(): freq {freq!r} is not a positive duration")
+    steps = max(1, int(round(pd.Timedelta(hours=hours) / step)))
+
+    onsets = detect_onsets(labels, dry_hours, freq=freq)
+    shifted_onsets = pd.concat([onsets.shift(-k) for k in range(1, steps + 1)], axis=1)
+    result = shifted_onsets.max(axis=1)
+
+    # A found onset is a certain 1 even if the horizon also crosses gaps; a
+    # horizon that ends or has unknown hours without an onset is unknown, not 0.
+    shifted_labels = pd.concat([labels.shift(-k) for k in range(1, steps + 1)], axis=1)
+    unknown_future = shifted_labels.isna().any(axis=1) & (result != 1.0)
+    result[unknown_future] = np.nan
+
+    result[labels != 0] = np.nan  # rain or unknown now: not a "front" question
+    return result
+
+
 # ---------------------------------------------------------------------------
 # 7. METRICS
 # ---------------------------------------------------------------------------

@@ -481,6 +481,72 @@ def generate_model_quality(results_7d) -> str:
     return out
 
 
+def generate_front_section(results_28d, results_7d) -> str:
+    """Rain-front scoring: only the dry→rain transition counts.
+
+    Every other target in the report credits hours *during* rain, which is
+    what lets persistence outrank the models while being unable to predict a
+    single onset from a dry hour. This section is the alert's-eye view.
+
+    Rendered from the 28-day window: onsets are roughly an order of magnitude
+    rarer than rain hours, so a 7-day window rarely holds enough of them to
+    rank anything — its onset count is stated instead.
+    """
+    ft = (results_28d.get('scoring', {}) or {}).get('front_target', {})
+    scores = ft.get('scores') or {}
+    if not scores:
+        return ""
+
+    horizon = ft.get('horizon_hours', 3)
+    out = "## Rain-Front Prediction (28-day window)\n\n"
+    out += (
+        f"Scored only on the dry→rain transition: from a known-dry hour, does rain "
+        f"*begin* within the next {horizon} hours? Hours during rain are excluded, "
+        f"so recognising ongoing rain earns nothing here. An onset is a rain hour "
+        f"after ≥{ft.get('dry_hours_before_onset', 3)} known-dry hours.\n\n"
+    )
+    out += (f"**Onsets in window:** {ft.get('n_onsets')} · "
+            f"**base rate from a dry hour:** {_fmt(ft.get('base_rate'))}\n\n")
+
+    out += ("| Candidate | ROC AUC | Onsets caught | Precision | Episodes/day | @thr |\n"
+            "|-----------|:-------:|:-------------:|:---------:|:------------:|:----:|\n")
+    ranked = sorted(scores.items(),
+                    key=lambda kv: -(kv[1].get('roc_auc') if kv[1].get('roc_auc') is not None else -1))
+    n_onsets = ft.get('n_onsets')
+    for name, s in ranked:
+        ev = s.get('events')
+        if ev:
+            caught = f"{ev.get('onsets_caught')}/{n_onsets}"
+            prec = _fmt(ev.get('precision'))
+            epd = _fmt(ev.get('episodes_per_day'), 2)
+            thr = f"{ev.get('threshold'):.0f}%"
+        else:
+            caught = prec = epd = thr = "N/A"
+        out += (f"| {name:<20} | {_fmt(s.get('roc_auc'))} | {caught} "
+                f"| {prec} | {epd} | {thr} |\n")
+
+    best = ft.get('best_model')
+    if best:
+        out += f"\n**Best front predictor:** {best} (by ROC AUC on dry hours)\n"
+
+    learned_front = ((results_28d.get('scoring', {}) or {})
+                     .get('learned', {}) or {}).get('front')
+    if isinstance(learned_front, dict) and learned_front.get('roc_auc') is not None:
+        out += (f"\nFitted model on the same target, walk-forward held-out rows: "
+                f"ROC AUC {_fmt(learned_front.get('roc_auc'))} "
+                f"({learned_front.get('n_scored')} rows).\n")
+
+    ft7 = (results_7d.get('scoring', {}) or {}).get('front_target', {})
+    if ft7.get('n_onsets') is not None:
+        out += (f"\n_The 7-day window holds {ft7['n_onsets']} onsets — too few to rank; "
+                f"front conclusions here use the 28-day window._\n")
+
+    out += ("\n_A predictor that only recognises ongoing rain scores ~0.5 here "
+            "regardless of its warning-target rank; persistence is included as "
+            "that control._\n\n")
+    return out
+
+
 def generate_report(date: str, results_7d, results_14d, results_28d):
     """Generate rich markdown report from multi-window results."""
     
@@ -558,7 +624,14 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
         findings.append(f"✅ **{best_overall_model}** is best across all windows — strong consistency")
     else:
         findings.append(f"⚠️ Best model varies by window: 7d={best_models['7d'][0]}, 14d={best_models['14d'][0]}, 28d={best_models['28d'][0]}")
-    
+
+    # Front (onset-only) view — the target the alert exists for
+    front_28d = results_28d.get('scoring', {}).get('front_target', {})
+    if front_28d.get('best_model'):
+        findings.append(
+            f"🌧️ Best front (onset) predictor: **{front_28d['best_model']}** @ 28d "
+            f"({front_28d.get('n_onsets')} onsets)")
+
     # Precipitation source analysis
     for window_name, res in [('7d', results_7d)]:
         precip = res.get('cross_check', {}).get('precip_comparison', {})
@@ -790,6 +863,12 @@ def generate_report(date: str, results_7d, results_14d, results_28d):
     quality = generate_model_quality(results_7d)
     if quality:
         report += quality
+        report += "\n---\n\n"
+
+    # ===== RAIN-FRONT PREDICTION: onset-only scoring =====
+    front = generate_front_section(results_28d, results_7d)
+    if front:
+        report += front
         report += "\n---\n\n"
 
     # ===== SENSOR DIAGNOSTICS =====

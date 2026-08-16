@@ -164,7 +164,12 @@ jobs:
           # HEAD is still the currently published gh-pages commit here, so this
           # compares what is about to go live against what is live now and fails
           # if the site would lose reports, dates or models.
-          python3 scripts_utils/check_site.py --baseline-ref HEAD
+          #
+          # --allow-drop ha_live: the 2026-08-15 backfill superseded every
+          # report that carried the pre-rename `ha_live` series (it is
+          # ha_live_replica in the regenerated ones), so its disappearance is
+          # intentional. Remove the flag once gh-pages no longer has it.
+          python3 scripts_utils/check_site.py --baseline-ref HEAD --allow-drop ha_live
 
       - name: Commit and push
         run: |
