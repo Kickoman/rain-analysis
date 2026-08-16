@@ -765,9 +765,11 @@ def score_front_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
     for name in MODELS:
         col = f"model_{name}"
         if col in grid.columns:
-            candidates[name] = grid[col]
+            # Display names, so `model_ha_live` reads as ha_live_replica here
+            # exactly as it does in every other scoring table.
+            candidates[display_name_for(col)] = grid[col]
     if "ha_rain_prob" in grid.columns:
-        candidates["ha_live_actual"] = grid["ha_rain_prob"]
+        candidates[display_name_for("ha_rain_prob")] = grid["ha_rain_prob"]
     candidates.update(build_baselines(grid))
 
     def event_metrics(score: pd.Series, threshold: float) -> dict | None:

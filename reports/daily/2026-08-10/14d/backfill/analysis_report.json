@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "generated_at": "2026-08-16T00:00:13.340647+00:00",
+    "generated_at": "2026-08-16T00:46:23.971265+00:00",
     "script_version": "1.0.0",
     "config": {
       "rain_threshold_mm": 0.1,
@@ -2823,7 +2823,7 @@
             "episodes_per_day": 0.1518987341772152
           }
         },
-        "ha_live": {
+        "ha_live_replica": {
           "roc_auc": 0.5284900284900285,
           "average_precision": 0.22827539737861036,
           "n_samples": 313,

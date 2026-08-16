@@ -87,7 +87,8 @@ def check_history(root: Path, baseline: str | None) -> list[str]:
     return []
 
 
-def check_metrics(root: Path, baseline: str | None) -> list[str]:
+def check_metrics(root: Path, baseline: str | None,
+                  allowed_drops: set[str] | None = None) -> list[str]:
     raw = (root / "metrics/data.json").read_text(encoding="utf-8")
     try:
         data = json.loads(raw)
@@ -120,7 +121,15 @@ def check_metrics(root: Path, baseline: str | None) -> list[str]:
     # A model disappearing entirely is the ha_live_actual failure mode: its rows
     # became N/A, three parsers read that as "no match", and it silently left the
     # site. A model present with null values is fine and is not flagged here.
+    # A drop can be legitimate — the 2026-08-15 backfill superseded the reports
+    # that carried the pre-rename `ha_live` series — but only when named
+    # explicitly via --allow-drop, so intent is recorded in the workflow diff.
     lost_models = set(before.get("models") or {}) - set(models)
+    acknowledged = lost_models & (allowed_drops or set())
+    for name in sorted(acknowledged):
+        print(f"   ⚠ metrics/data.json: model dropped as allowed: {name}",
+              file=sys.stderr)
+    lost_models -= acknowledged
     if lost_models:
         problems.append(
             f"metrics/data.json: model(s) dropped: {', '.join(sorted(lost_models))}")
@@ -135,6 +144,10 @@ def main() -> int:
                         help="Git ref holding the currently published site (default: HEAD)")
     parser.add_argument("--no-baseline", action="store_true",
                         help="Skip comparisons — only check the tree is complete")
+    parser.add_argument("--allow-drop", action="append", default=[],
+                        metavar="MODEL",
+                        help="Model name whose disappearance from "
+                             "metrics/data.json is intentional (repeatable)")
     args = parser.parse_args()
 
     root = Path(args.root)
@@ -150,7 +163,8 @@ def main() -> int:
         return None if args.no_baseline else read_baseline(args.baseline_ref, path)
 
     problems += check_history(root, baseline_for("history/index.html"))
-    problems += check_metrics(root, baseline_for("metrics/data.json"))
+    problems += check_metrics(root, baseline_for("metrics/data.json"),
+                              allowed_drops=set(args.allow_drop))
 
     if problems:
         for p in problems:

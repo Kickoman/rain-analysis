@@ -119,6 +119,26 @@ def test_dropped_model_is_blocked(tmp_path):
     assert any("ha_live_actual" in p for p in problems)
 
 
+def test_allowed_drop_passes_but_unlisted_drop_still_blocks(tmp_path):
+    """A rename is a legitimate drop, but only the named model gets a pass:
+    the 2026-08-15 backfill removed the pre-rename `ha_live` series on
+    purpose, and the guard must not go soft on anything else in the process."""
+    build_site(tmp_path, models=["combined"])
+    baseline = data_json(["2026-08-11", "2026-08-12", "2026-08-13"],
+                         ["combined", "ha_live", "tuned"])
+
+    problems = check_site.check_metrics(tmp_path, baseline,
+                                        allowed_drops={"ha_live"})
+    assert not any("ha_live'" in p or "ha_live," in p or p.endswith("ha_live")
+                   for p in problems)
+    assert any("tuned" in p for p in problems)
+
+    assert check_site.check_metrics(
+        tmp_path, data_json(["2026-08-11", "2026-08-12", "2026-08-13"],
+                            ["combined", "ha_live"]),
+        allowed_drops={"ha_live"}) == []
+
+
 def test_model_present_with_null_metrics_is_fine(tmp_path):
     """No-data is an honest state; only disappearing is a failure."""
     build_site(tmp_path)
