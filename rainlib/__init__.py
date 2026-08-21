@@ -53,6 +53,8 @@ from analysis.rainlib import (
     build_grid,
     label_rain,
     label_rain_within,
+    label_front_within,
+    detect_onsets,
 
     # Metrics
     roc_auc,
@@ -108,6 +110,8 @@ __all__ = [
     "build_grid",
     "label_rain",
     "label_rain_within",
+    "label_front_within",
+    "detect_onsets",
 
     # Metrics
     "roc_auc",

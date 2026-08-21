@@ -2,6 +2,44 @@
 
 Notable changes to rain-analysis.
 
+## 2026-08-21 (evening)
+
+The daily report for 2026-08-21 was regenerated after verification found its
+multi-window and front sections resting on starved data, and a new model was
+added for the project's actual question.
+
+### Fixed
+
+- **The daily pipeline now feeds on the durable archive.** `run_full_analysis.py`
+  fetched Home Assistant history from the recorder alone, which purges after
+  ~10 days — so the "14d" and "28d" windows of every daily report were the same
+  ~9-day window twice (the 2026-08-21 report shipped with those columns
+  byte-identical), and in the front section models were scored on ~190 of 581
+  dry hours while the baselines saw all 581. The pipeline now fetches long-term
+  statistics, folds them into `data/archive/ha_hourly.csv`, and merges archive +
+  statistics + recorder before analysis. Verified effect: front AUCs claimed as
+  0.64–0.77 on the starved window measure 0.48–0.62 with full coverage.
+- **The front table shows per-candidate coverage** ("dry hours seen", with a ⚠️
+  when a candidate saw well under the window's dry hours), so a starved model
+  can no longer outrank a fully-scored one unnoticed.
+- **`load_ha_csv` accepts mixed timestamp formats** (hourly statistics carry no
+  microseconds, recorder rows do; pandas' single-format inference refused the
+  merge).
+- **`rainlib` package re-exports `label_front_within` / `detect_onsets`** —
+  the front API existed only on the inner module.
+
+### Added
+
+- **`onset_gate`** (`pressure_variants.py::model_onset_gate`) — the first model
+  aimed at the project's stated goal: from a dry hour, will rain *begin* within
+  3 hours? A frozen four-term logistic (pressure anomaly, fall-from-24h-peak,
+  RH, 3-hour temperature trend — deliberately no spread terms, which are
+  anti-correlated with onsets) fitted once on 2021–2025 reanalysis. Held-out
+  front-3h ROC AUC: 0.706 on 2025–26 reanalysis, 0.739 on local sensors, versus
+  0.48–0.61 for every other registered model. On the regenerated 2026-08-21
+  report it leads the front section, catching 15 of 18 onsets.
+
+
 ## 2026-08-14
 
 Implements `plans/model-improvements.md`. With the harness fixed the day before,

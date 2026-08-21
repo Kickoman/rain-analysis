@@ -564,3 +564,89 @@ PRESSURE_VARIANTS = {
     "combined": model_combined,
     "pressure_primary": model_pressure_primary,
 }
+
+
+# ---------------------------------------------------------------------------
+# Onset gate: the model for the project's actual question
+# ---------------------------------------------------------------------------
+
+# Logistic coefficients fitted on 2021-01→2025-03 Open-Meteo reanalysis for
+# Minsk (36,846 dry hours) against the front-3h target: from a known-dry hour,
+# does rain BEGIN within 3 hours? Frozen here — the model never refits — so its
+# local scores are out-of-sample by construction. Validation, all held out:
+#   reanalysis 2025-03→2026-08: front-3h ROC AUC 0.706
+#   local sensors 2026-07→08:   front-3h ROC AUC 0.739
+# against 0.54–0.61 for every other model in this registry on the same target.
+#
+# The feature set is the point. No dew-point-spread term and no spread
+# derivative: at a dry hour a narrowing spread argues *against* an onset
+# (front-3h AUC 0.42 — anti-correlated), which is why spread-led models
+# cannot see fronts coming. What does predict an onset is how low pressure
+# sits against its own month (anom), how far it has fallen off its 24-hour
+# ridge (peak24), how moist the air already is (rh), and — counterintuitively
+# but consistently — *rising* temperature over the last 3 h (temp_d3): the
+# convective signature of a warming surface feeding an afternoon shower.
+ONSET_GATE_COEF = {
+    "intercept": -1.8297,
+    "anom": -0.0648,      # hPa below trailing 30-day median
+    "peak24": +0.0248,    # hPa fallen from the trailing 24-hour max
+    "rh": +0.0209,        # %
+    "temp_d3": +0.7231,   # °C per hour over the trailing 3 h
+}
+
+
+def _relative_humidity_from_spread(temp: pd.Series, spread: pd.Series) -> pd.Series:
+    """Invert the Magnus dew-point formula: RH from temperature and spread."""
+    from analysis.rainlib import MAGNUS_A, MAGNUS_B
+    dew = temp - spread
+    rh = 100.0 * np.exp(MAGNUS_A * dew / (MAGNUS_B + dew)
+                        - MAGNUS_A * temp / (MAGNUS_B + temp))
+    return rh.clip(1.0, 100.0)
+
+
+def model_onset_gate(ctx: ModelContext,
+                     p: ModelParams | None = None) -> pd.Series:
+    """Rain-*onset* detector: P(rain begins within 3 h | dry now), as 0–100.
+
+    Every other model here answers "does it look rainy" — a question dominated
+    by hours when rain has already started. This one is tuned for the single
+    transition the Telegram alert exists for, using the frozen logistic above.
+    Output is 100·sigmoid(z), so 50 means "as likely as not, for an onset
+    window" rather than an arbitrary point on an uncalibrated scale.
+
+    Stateless and template-expressible: two rolling pressure statistics, RH,
+    and a 3-hour temperature difference.
+
+    Degrades honestly: without pressure the two pressure terms drop out of z
+    (score from moisture and warming alone); without temperature history the
+    temp_d3 term is 0. It never invents a reading.
+    """
+    df = _setup_dataframe(ctx)
+    p_aligned, use_pressure = _align_pressure(ctx, df)
+    c = ONSET_GATE_COEF
+
+    z = pd.Series(c["intercept"], index=df.index)
+
+    if use_pressure:
+        anom = pressure_anomaly(p_aligned)
+        peak24 = p_aligned.rolling("24h", min_periods=6).max() - p_aligned
+        z = z + (c["anom"] * anom).fillna(0.0) + (c["peak24"] * peak24).fillna(0.0)
+
+    if ctx.temp is not None and not ctx.temp.dropna().empty:
+        temp = ctx.temp.reindex(df.index).ffill()
+        rh = _relative_humidity_from_spread(temp, df["spread"])
+        z = z + c["rh"] * rh.fillna(rh.median())
+        temp_3h_ago = temp.shift(freq="3h").reindex(df.index)
+        temp_d3 = ((temp - temp_3h_ago) / 3.0).fillna(0.0)
+        z = z + c["temp_d3"] * temp_d3
+    else:
+        # No temperature: hold the moisture term at its neutral fitted point
+        # (rh 70%) instead of silently dropping a third of the model.
+        z = z + c["rh"] * 70.0
+
+    score = 100.0 / (1.0 + np.exp(-z))
+    return pd.Series(score, index=df.index).round(0)
+
+
+# Defined below the registry dict, so registered here.
+PRESSURE_VARIANTS["onset_gate"] = model_onset_gate

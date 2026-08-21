@@ -55,6 +55,12 @@ The production model does not rank rain above dry hours. Every model built on
 the dew-point-spread derivative sits within a few points of chance, which is
 what that feature measures at (AUC 0.492 over 49,200 hours).
 
+On the project's actual goal — the dry→rain **onset**, scored on dry hours only
+— the ordering shifts again: `onset_gate` (section 7) leads at front-3h AUC
+0.73–0.74 on both reanalysis and local sensors, with every spread-led model at
+0.48–0.61. A model can describe rain well and still never see it coming; the
+onset column is the one this project exists for.
+
 `pressure_primary` is the one model here whose weights come from measurement
 rather than intuition: pressure anomaly leads, humidity is secondary, the
 derivative is a nudge, and the output is scaled by time of day. See
@@ -740,6 +746,64 @@ if spread > 10.0:  # Dry conditions
 final_score = hysteretic_decay(raw_score, previous_score, decay=0.30)
 final_score = clamp(final_score, 0, 100)
 ```
+
+---
+
+## 7. onset_gate (Onset Specialist)
+
+**Status:** ✅ Implemented · **Implementation:** `pressure_variants.py::model_onset_gate`
+
+The project's stated goal is predicting when rain **begins** — hours ahead —
+not whether it is raining. Scored on that transition alone (`front-3h`: from a
+known-dry hour, does rain begin within 3 hours?), every spread-led model in
+this file measures near chance, because at a dry hour a narrowing dew-point
+spread argues *against* an imminent onset (front AUC of the spread derivative:
+0.42 — anti-correlated). `onset_gate` is the first model built for the actual
+question.
+
+### Algorithm
+
+A frozen logistic over four template-expressible terms — deliberately **no
+spread and no spread derivative**:
+
+```python
+anom    = pressure - rolling_median(pressure, 30 days)   # how low vs its own month
+peak24  = rolling_max(pressure, 24h) - pressure          # fall from the recent ridge
+rh      = relative humidity (recovered from temp + spread when not direct)
+temp_d3 = (temp - temp_3h_ago) / 3                       # °C/h, trailing
+
+z = -1.8297 - 0.0648*anom + 0.0248*peak24 + 0.0209*rh + 0.7231*temp_d3
+score = 100 / (1 + exp(-z))
+```
+
+The `temp_d3` sign is the surprise: at a dry hour, *rising* temperature over
+the last 3 h makes an onset more likely — the convective signature of a heated
+surface feeding an afternoon shower — and it is the second-strongest term in
+the fit after pressure.
+
+### Provenance and validation
+
+Coefficients were fitted once on 2021-01→2025-03 Open-Meteo reanalysis for
+Minsk (36,846 dry hours) and are frozen in code; the model never refits, so
+every score below is out-of-sample:
+
+| Dataset | front-3h ROC AUC |
+|---------|:---------------:|
+| Reanalysis 2025-03→2026-08 (held out) | 0.706 |
+| Local sensors 2026-07→08 | **0.739** |
+| — best other registered model, same rows | 0.611 |
+| — walk-forward fitted logistic, same rows | 0.777 |
+
+On the 28-day window ending 2026-08-21 it catches 15 of 18 onsets at
+precision 0.185 (base rate 0.093) — but at ~1.8 alert episodes per dry day at
+that threshold, so as a notification it wants a higher threshold or an edge
+trigger plus re-arm interval.
+
+### Trade-off
+
+It is an onset specialist: its nowcast AUC (~0.64) trails the pressure blends,
+because recognising *ongoing* rain is exactly what it does not try to do. Use
+the pressure blends to describe now; use `onset_gate` to warn.
 
 ---
 

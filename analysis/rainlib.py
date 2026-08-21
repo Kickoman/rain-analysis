@@ -638,6 +638,7 @@ MODELS = {
     "pressure_combined": _LazyModel("pressure_combined"),
     "combined": _LazyModel("combined"),
     "pressure_primary": _LazyModel("pressure_primary"),
+    "onset_gate": _LazyModel("onset_gate"),
 }
 
 
@@ -660,7 +661,7 @@ def load_ha_csv(path: str) -> pd.DataFrame:
     df = df[~df["state"].isin(["unknown", "unavailable", ""])].copy()
     df["value"] = pd.to_numeric(df["state"], errors="coerce")
     df = df.dropna(subset=["value"])
-    df["time"] = pd.to_datetime(df["last_changed"], utc=True)
+    df["time"] = pd.to_datetime(df["last_changed"], utc=True, format="ISO8601")
     return df[["time", "entity_id", "value"]].sort_values("time")
 
 

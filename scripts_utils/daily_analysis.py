@@ -508,13 +508,21 @@ def generate_front_section(results_28d, results_7d) -> str:
     out += (f"**Onsets in window:** {ft.get('n_onsets')} · "
             f"**base rate from a dry hour:** {_fmt(ft.get('base_rate'))}\n\n")
 
-    out += ("| Candidate | ROC AUC | Onsets caught | Precision | Episodes/day | @thr |\n"
-            "|-----------|:-------:|:-------------:|:---------:|:------------:|:----:|\n")
+    out += ("| Candidate | ROC AUC | Dry hours seen | Onsets caught | Precision | Episodes/day | @thr |\n"
+            "|-----------|:-------:|:--------------:|:-------------:|:---------:|:------------:|:----:|\n")
     ranked = sorted(scores.items(),
                     key=lambda kv: -(kv[1].get('roc_auc') if kv[1].get('roc_auc') is not None else -1))
     n_onsets = ft.get('n_onsets')
+    # Candidates are scored on the dry hours where they had data. When one saw
+    # far fewer than the window offers (sensor outage, retention boundary), its
+    # AUC is measured on a different — usually easier — subset, and "onsets
+    # caught / total" silently blames it for onsets it never saw. The 2026-08-21
+    # report ranked models on ~190 of 581 dry hours this way.
+    max_n = max((s.get('n_samples') or 0) for s in scores.values()) or 1
+    starved = False
     for name, s in ranked:
         ev = s.get('events')
+        n_seen = s.get('n_samples')
         if ev:
             caught = f"{ev.get('onsets_caught')}/{n_onsets}"
             prec = _fmt(ev.get('precision'))
@@ -522,8 +530,16 @@ def generate_front_section(results_28d, results_7d) -> str:
             thr = f"{ev.get('threshold'):.0f}%"
         else:
             caught = prec = epd = thr = "N/A"
-        out += (f"| {name:<20} | {_fmt(s.get('roc_auc'))} | {caught} "
+        seen = str(n_seen) if n_seen is not None else "N/A"
+        if n_seen is not None and n_seen < 0.8 * max_n:
+            seen += " ⚠️"
+            starved = True
+        out += (f"| {name:<20} | {_fmt(s.get('roc_auc'))} | {seen} | {caught} "
                 f"| {prec} | {epd} | {thr} |\n")
+    if starved:
+        out += ("\n⚠️ _Candidates marked ⚠️ had data for well under the window\'s dry hours; "
+                "their AUC is measured on a different subset and their \"caught\" count "
+                "includes onsets they never saw. Compare them with care._\n")
 
     best = ft.get('best_model')
     if best:

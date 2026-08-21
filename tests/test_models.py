@@ -253,7 +253,8 @@ class TestModelComparison:
         assert "pressure_combined" in MODELS
         assert "combined" in MODELS
         assert "pressure_primary" in MODELS
-        assert len(MODELS) == 11
+        assert "onset_gate" in MODELS
+        assert len(MODELS) == 12
     
     def test_all_models_callable(self):
         """All registered models can be called."""
