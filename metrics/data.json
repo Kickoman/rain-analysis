@@ -1088,8 +1088,8 @@
         0.4,
         0.364,
         0.438,
-        0.4,
-        0.435,
+        0.385,
+        0.5,
         0.439
       ],
       "precision": [
@@ -1126,7 +1126,7 @@
         0.375,
         0.389,
         0.357,
-        0.357,
+        0.4,
         0.305
       ],
       "recall": [
@@ -1162,8 +1162,8 @@
         0.353,
         0.353,
         0.5,
-        0.455,
-        0.556,
+        0.417,
+        0.667,
         0.781
       ]
     },
@@ -1201,8 +1201,8 @@
         0.222,
         0.222,
         0.25,
-        0.091,
-        0.105,
+        0.2,
+        0.235,
         0.293
       ],
       "precision": [
@@ -1238,8 +1238,8 @@
         0.3,
         0.3,
         0.3,
-        0.091,
-        0.1,
+        0.25,
+        0.25,
         0.75
       ],
       "recall": [
@@ -1275,8 +1275,8 @@
         0.176,
         0.176,
         0.214,
-        0.091,
-        0.111,
+        0.167,
+        0.222,
         0.182
       ]
     },
@@ -1427,8 +1427,8 @@
         null,
         null,
         null,
-        null,
-        null,
+        0.15,
+        0.15,
         0.451
       ],
       "precision": [
@@ -1464,8 +1464,8 @@
         null,
         null,
         null,
-        null,
-        null,
+        0.107,
+        0.097,
         0.333
       ],
       "recall": [
@@ -1501,8 +1501,8 @@
         null,
         null,
         null,
-        null,
-        null,
+        0.25,
+        0.333,
         0.697
       ]
     }
@@ -2093,34 +2093,34 @@
       {
         "source": "OM",
         "rain_hours": 12,
-        "agreement": "MS=4h, YX=2h"
+        "agreement": "MS=4h"
       },
       {
         "source": "MS",
         "rain_hours": 5,
-        "agreement": "OM=4h, YX=0h"
+        "agreement": "OM=4h"
       },
       {
         "source": "YX",
-        "rain_hours": 8,
-        "agreement": "OM=2h, MS=0h"
+        "rain_hours": 0,
+        "agreement": "\u2014"
       }
     ],
     "2026-08-15": [
       {
         "source": "OM",
         "rain_hours": 9,
-        "agreement": "MS=3h, YX=1h"
+        "agreement": "MS=3h"
       },
       {
         "source": "MS",
         "rain_hours": 3,
-        "agreement": "OM=3h, YX=0h"
+        "agreement": "OM=3h"
       },
       {
         "source": "YX",
-        "rain_hours": 4,
-        "agreement": "OM=1h, MS=0h"
+        "rain_hours": 0,
+        "agreement": "\u2014"
       }
     ],
     "2026-08-21": [
