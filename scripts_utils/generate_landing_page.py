@@ -39,6 +39,7 @@ MODEL_DESCRIPTIONS = {
     "pressure_long_window": "12h pressure window",
     "pressure_lagged":    "Pressure lagged by 6h",
     "pressure_combined":  "Combined pressure signals",
+    "pressure_primary":   "✅ Best hand-tuned — pressure anomaly leads, humidity secondary",
     "combined":           "✅ Fully combined — temp + humidity + pressure signals",
 }
 
