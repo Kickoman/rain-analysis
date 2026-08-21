@@ -202,6 +202,12 @@ target over identical held-out rows:</p>
 the dew-point-spread derivative sits within a few points of chance, which is<br>
 what that feature measures at (AUC 0.492 over 49,200 hours).</p>
 
+<p>On the project&#x27;s actual goal — the dry→rain <strong>onset</strong>, scored on dry hours only<br>
+— the ordering shifts again: <code>onset_gate</code> (section 7) leads at front-3h AUC<br>
+0.73–0.74 on both reanalysis and local sensors, with every spread-led model at<br>
+0.48–0.61. A model can describe rain well and still never see it coming; the<br>
+onset column is the one this project exists for.</p>
+
 <code>pressure_primary</code> is the one model here whose weights come from measurement
 rather than intuition: pressure anomaly leads, humidity is secondary, the
 derivative is a nudge, and the output is scaled by time of day. See
@@ -1179,6 +1185,79 @@ final_score = hysteretic_decay(raw_score, previous_score, decay=0.30)
 final_score = clamp(final_score, 0, 100)
 <code>`</code>
 <hr>
+<h2>7. onset_gate (Onset Specialist)</h2>
+
+<strong>Status:</strong> ✅ Implemented · <strong>Implementation:</strong> <code>pressure_variants.py::model_onset_gate</code>
+
+<p>The project&#x27;s stated goal is predicting when rain <strong>begins</strong> — hours ahead —<br>
+not whether it is raining. Scored on that transition alone (<code>front-3h</code>: from a<br>
+known-dry hour, does rain begin within 3 hours?), every spread-led model in<br>
+this file measures near chance, because at a dry hour a narrowing dew-point<br>
+spread argues <em>against</em> an imminent onset (front AUC of the spread derivative:<br>
+0.42 — anti-correlated). <code>onset_gate</code> is the first model built for the actual<br>
+question.</p>
+
+<h3>Algorithm</h3>
+
+<p>A frozen logistic over four template-expressible terms — deliberately **no<br>
+spread and no spread derivative**:</p>
+
+<code>`</code>python
+anom    = pressure - rolling_median(pressure, 30 days)   # how low vs its own month
+peak24  = rolling_max(pressure, 24h) - pressure          # fall from the recent ridge
+rh      = relative humidity (recovered from temp + spread when not direct)
+temp_d3 = (temp - temp_3h_ago) / 3                       # °C/h, trailing
+
+z = -1.8297 - 0.0648*anom + 0.0248*peak24 + 0.0209*rh + 0.7231*temp_d3
+score = 100 / (1 + exp(-z))
+<code>`</code>
+
+<p>The <code>temp_d3</code> sign is the surprise: at a dry hour, <em>rising</em> temperature over<br>
+the last 3 h makes an onset more likely — the convective signature of a heated<br>
+surface feeding an afternoon shower — and it is the second-strongest term in<br>
+the fit after pressure.</p>
+
+<h3>Provenance and validation</h3>
+
+<p>Coefficients were fitted once on 2021-01→2025-03 Open-Meteo reanalysis for<br>
+Minsk (36,846 dry hours) and are frozen in code; the model never refits, so<br>
+every score below is out-of-sample:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>Dataset</th>
+<th>front-3h ROC AUC</th>
+</tr></thead><tbody>
+<tr>
+<td>Reanalysis 2025-03→2026-08 (held out)</td>
+<td>0.706</td>
+</tr>
+<tr>
+<td>Local sensors 2026-07→08</td>
+<td><strong>0.739</strong></td>
+</tr>
+<tr>
+<td>— best other registered model, same rows</td>
+<td>0.611</td>
+</tr>
+<tr>
+<td>— walk-forward fitted logistic, same rows</td>
+<td>0.777</td>
+</tr>
+</tbody></table></div>
+
+<p>On the 28-day window ending 2026-08-21 it catches 15 of 18 onsets at<br>
+precision 0.185 (base rate 0.093) — but at ~1.8 alert episodes per dry day at<br>
+that threshold, so as a notification it wants a higher threshold or an edge<br>
+trigger plus re-arm interval.</p>
+
+<h3>Trade-off</h3>
+
+It is an onset specialist: its nowcast AUC (~0.64) trails the pressure blends,
+because recognising <em>ongoing</em> rain is exactly what it does not try to do. Use
+the pressure blends to describe now; use <code>onset_gate</code> to warn.
+<hr>
 <h2>Future Models (Planned)</h2>
 
 <h3>7. ensemble_vote (Future)</h3>
@@ -1258,7 +1337,7 @@ Override via <code>AnalysisConfig</code> in <code>run_analysis.py</code>.
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-21 05:08 UTC</p>
+        <p>Generated: 2026-08-21 20:40 UTC</p>
     </footer>
 </body>
 </html>

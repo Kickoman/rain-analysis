@@ -28,6 +28,53 @@
 
 <p>Notable changes to rain-analysis.</p>
 
+<h2>2026-08-21 (evening)</h2>
+
+<p>The daily report for 2026-08-21 was regenerated after verification found its<br>
+multi-window and front sections resting on starved data, and a new model was<br>
+added for the project&#x27;s actual question.</p>
+
+<h3>Fixed</h3>
+
+<ul>
+<li><strong>The daily pipeline now feeds on the durable archive.</strong> <code>run_full_analysis.py</code></li>
+</ul>
+  fetched Home Assistant history from the recorder alone, which purges after
+  ~10 days — so the &quot;14d&quot; and &quot;28d&quot; windows of every daily report were the same
+  ~9-day window twice (the 2026-08-21 report shipped with those columns
+  byte-identical), and in the front section models were scored on ~190 of 581
+  dry hours while the baselines saw all 581. The pipeline now fetches long-term
+  statistics, folds them into <code>data/archive/ha_hourly.csv</code>, and merges archive +
+  statistics + recorder before analysis. Verified effect: front AUCs claimed as
+  0.64–0.77 on the starved window measure 0.48–0.62 with full coverage.
+<ul>
+<li><strong>The front table shows per-candidate coverage</strong> (&quot;dry hours seen&quot;, with a ⚠️</li>
+</ul>
+  when a candidate saw well under the window&#x27;s dry hours), so a starved model
+  can no longer outrank a fully-scored one unnoticed.
+<ul>
+<li><strong><code>load_ha_csv</code> accepts mixed timestamp formats</strong> (hourly statistics carry no</li>
+</ul>
+  microseconds, recorder rows do; pandas&#x27; single-format inference refused the
+  merge).
+<ul>
+<li><strong><code>rainlib</code> package re-exports <code>label_front_within</code> / <code>detect_onsets</code></strong> —</li>
+</ul>
+  the front API existed only on the inner module.
+
+<h3>Added</h3>
+
+<ul>
+<li><strong><code>onset_gate</code></strong> (<code>pressure_variants.py::model_onset_gate</code>) — the first model</li>
+</ul>
+  aimed at the project&#x27;s stated goal: from a dry hour, will rain <em>begin</em> within
+  3 hours? A frozen four-term logistic (pressure anomaly, fall-from-24h-peak,
+  RH, 3-hour temperature trend — deliberately no spread terms, which are
+  anti-correlated with onsets) fitted once on 2021–2025 reanalysis. Held-out
+  front-3h ROC AUC: 0.706 on 2025–26 reanalysis, 0.739 on local sensors, versus
+  0.48–0.61 for every other registered model. On the regenerated 2026-08-21
+  report it leads the front section, catching 15 of 18 onsets.
+
 <h2>2026-08-14</h2>
 
 <p>Implements <code>plans/model-improvements.md</code>. With the harness fixed the day before,<br>
@@ -207,7 +254,7 @@ models. Benchmarks published before this date are superseded — see
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-08-21 05:08 UTC</p>
+        <p>Generated: 2026-08-21 20:40 UTC</p>
     </footer>
 </body>
 </html>
