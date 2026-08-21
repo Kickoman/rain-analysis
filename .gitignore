@@ -221,3 +221,4 @@ pyrightconfig.json
 /index.html
 /current/
 /docs_site/*.html
+.claude/
