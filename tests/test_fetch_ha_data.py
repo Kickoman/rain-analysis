@@ -15,6 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import fetch_ha_data
 
 
+def test_default_entities_include_dew_point_sensors():
+    """The ha_live replica reads spread(_trend); defaults must export them."""
+    assert "sensor.outside_dew_point_spread" in fetch_ha_data.DEFAULT_ENTITIES
+    assert "sensor.outside_dew_point_spread_trend" in fetch_ha_data.DEFAULT_ENTITIES
+
+
 def test_fetch_history_isolates_json_decode_error():
     """fetch_history should return [] on malformed JSON, not crash."""
     mock_response = Mock()
