@@ -122,19 +122,31 @@ if rain_probability >= threshold:
     rain_alert = True
 ```
 
-> **Note:** The original v0.1 model uses hardcoded constants (divisor=10, gain=20,
-> weights=0.7, trend bounds=[-40, 40]) rather than `ModelParams`. This was fixed
-> in PR #58 to make parameter tuning meaningful. When no params are provided,
-> the v0.1 defaults are used for backward compatibility.
+> **Note — which constants the report actually uses:** `model_original()` has two
+> code paths:
+>
+> * `p=None` → the historical v0.1 hardcoded constants (divisor=10, gain=20,
+>   weights=0.7/0.7, trend bounds=[-40, 40]). This is the backward-compatibility
+>   path.
+> * `p` provided → the `ModelParams` values (defaults: divisor=7.0, gain=20,
+>   weights=0.8/0.5, trend bounds=[-15, 30]).
+>
+> `run_analysis.run_models()` always passes a `ModelParams` instance to every
+> model, so the **"original" column in the daily reports and benchmark tables is
+> computed with the ModelParams defaults, not the v0.1 constants**. That makes the
+> reported "original" effectively "tuned without hysteresis" — it is **not** an
+> apples-to-apples comparison against the historical v0.1 F1 (0.440) quoted below.
+> The v0.1 constants apply only when `model_original(ctx)` is invoked directly
+> with `p=None` (kept for backward compatibility, per PR #58).
 
 ### Parameters
 
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
-| `proximity_divisor` | 10 | Spread that maps to 0% proximity (°C) |
-| `trend_gain` | 20 | Points per °C/h of spread narrowing |
-| `trend_bounds` | [-40, 40] | Clamp on trend contribution |
-| `blend_weights` | [0.7, 0.7] | Proximity and trend blend weights |
+| `proximity_divisor` | 10 (v0.1) / 7.0 (report) | Spread that maps to 0% proximity (°C) |
+| `trend_gain` | 20 (both) | Points per °C/h of spread narrowing |
+| `trend_bounds` | [-40, 40] (v0.1) / [-15, 30] (report) | Clamp on trend contribution |
+| `blend_weights` | [0.7, 0.7] (v0.1) / [0.8, 0.5] (report) | Proximity and trend blend weights |
 | `decision_threshold` | 50% | Rain/no-rain cutoff |
 
 ### How It Works
