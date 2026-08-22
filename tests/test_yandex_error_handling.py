@@ -141,3 +141,45 @@ def test_load_yandex_archive_mixed_valid_and_invalid():
             # Should warn about 1 skipped file (the malformed one)
             assert len(w) == 1
             assert "skipped 1/4 files" in str(w[0].message)
+
+
+def test_load_yandex_archive_skips_missing_now():
+    """Should skip valid-JSON snapshots that have 'fact' but no 'now' key."""
+    valid_data = {"now": 1721469600, "fact": {"condition": "clear", "temp": 20}}
+    missing_now = {"fact": {"condition": "rain", "temp": 16}}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / "valid.json").write_text(json.dumps(valid_data))
+        (Path(tmpdir) / "missing_now.json").write_text(json.dumps(missing_now))
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            df = rl.load_yandex_archive(tmpdir)
+
+            # Valid file loads, missing-now file is skipped as a content error
+            assert len(df) == 1
+            assert df["yx_temp"].iloc[0] == 20
+
+            assert len(w) == 1
+            assert "skipped 1/2 files" in str(w[0].message)
+
+
+def test_load_yandex_archive_skips_non_numeric_now():
+    """Should skip snapshots whose 'now' is present but not numeric."""
+    valid_data = {"now": 1721469600, "fact": {"condition": "clear", "temp": 20}}
+    bad_now = {"now": "2026-07-13T00:00:00Z", "fact": {"condition": "rain", "temp": 16}}
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        (Path(tmpdir) / "valid.json").write_text(json.dumps(valid_data))
+        (Path(tmpdir) / "bad_now.json").write_text(json.dumps(bad_now))
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            df = rl.load_yandex_archive(tmpdir)
+
+            # Valid file loads, non-numeric-now file is skipped
+            assert len(df) == 1
+            assert df["yx_temp"].iloc[0] == 20
+
+            assert len(w) == 1
+            assert "skipped 1/2 files" in str(w[0].message)

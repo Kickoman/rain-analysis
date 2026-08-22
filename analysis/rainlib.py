@@ -769,7 +769,11 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
         fact = d.get("fact")
         if not fact:
             continue
-        t = datetime.fromtimestamp(d["now"], tz=timezone.utc)
+        now = d.get("now")
+        if not isinstance(now, (int, float)) or isinstance(now, bool):
+            skipped += 1
+            continue
+        t = datetime.fromtimestamp(now, tz=timezone.utc)
         cond = fact.get("condition", "")
         rows[t] = {
             "yx_condition": cond,
@@ -785,7 +789,7 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
     
     if skipped > 0:
         warnings.warn(
-            f"load_yandex_archive: skipped {skipped}/{len(files)} files due to read errors",
+            f"load_yandex_archive: skipped {skipped}/{len(files)} files due to read or content errors",
             UserWarning
         )
     
