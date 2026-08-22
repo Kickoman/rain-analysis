@@ -68,3 +68,11 @@ def test_extract_report_meta_basic():
     assert meta["best_model"] == "trend_dominant"
     assert meta["best_f1"] == "0.188"
     assert meta["om_coverage"] == 5.0
+
+
+def test_pressure_primary_documented():
+    """pressure_primary (current best hand-tuned model) must have a description (issue #440)."""
+    assert "pressure_primary" in MODEL_DESCRIPTIONS
+    assert MODEL_DESCRIPTIONS["pressure_primary"]
+    assert "New model" not in MODEL_DESCRIPTIONS["pressure_primary"]
+    assert not _is_failed_experiment("pressure_primary")
