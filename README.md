@@ -193,7 +193,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - **Alembic** - Database migrations
 - **Pydantic** - Data validation
 - **SQLite/aiosqlite** - Database (development)
-- **Passlib** - Cryptographic utilities for API key hashing
+- **hashlib (SHA-256) + secrets** - API key generation and hashing
 
 ### ML Stack
 - **pandas** - Data manipulation
