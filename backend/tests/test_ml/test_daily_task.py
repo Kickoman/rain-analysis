@@ -1,7 +1,7 @@
 """Tests for daily ML task."""
 import pytest
 from datetime import datetime, timedelta, date
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 import pandas as pd
 from sqlalchemy import select
 
@@ -63,16 +63,12 @@ async def test_daily_task_process_model_success(db_session):
     
     yesterday = date.today() - timedelta(days=1)
     
-    # Mock PredictionService.predict_and_store
-    mock_predictions = [
-        Mock(id=1, probability=0.3, binary_prediction=0),
-        Mock(id=2, probability=0.7, binary_prediction=1),
-        Mock(id=3, probability=0.4, binary_prediction=0),
-    ]
+    # Mock PredictionService.predict_and_store (returns int count, per contract)
+    stored_count = 3
     
     with patch('app.ml.daily_task.PredictionService') as MockService:
         mock_service = MockService.return_value
-        mock_service.predict_and_store = AsyncMock(return_value=mock_predictions)
+        mock_service.predict_and_store = AsyncMock(return_value=stored_count)
         
         # Mock MetricsCalculator (returns None since no ground truth)
         with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
@@ -124,7 +120,7 @@ async def test_daily_task_model_error_continues(db_session):
             
             # First call raises, second succeeds
             mock_service.predict_and_store = AsyncMock(
-                side_effect=[Exception("Model 1 failed"), [Mock()]]
+                side_effect=[Exception("Model 1 failed"), 2]
             )
             
             with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
@@ -156,7 +152,7 @@ async def test_daily_task_metrics_storage(db_session):
     mock_df = pd.DataFrame({'temp': [20, 21], 'humidity': [60, 65]})
     yesterday = date.today() - timedelta(days=1)
     
-    mock_predictions = [Mock(id=1, probability=0.7, binary_prediction=1)]
+    stored_count = 1
     mock_metrics = {
         'brier_score': 0.25,
         'f1_score': 0.85,
@@ -169,7 +165,7 @@ async def test_daily_task_metrics_storage(db_session):
     
     with patch('app.ml.daily_task.PredictionService') as MockService:
         mock_service = MockService.return_value
-        mock_service.predict_and_store = AsyncMock(return_value=mock_predictions)
+        mock_service.predict_and_store = AsyncMock(return_value=stored_count)
         
         with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
             mock_calculator = MockCalculator.return_value

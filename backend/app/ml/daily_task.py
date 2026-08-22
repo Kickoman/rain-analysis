@@ -178,12 +178,12 @@ class DailyMLTask:
         
         # Generate and store predictions
         try:
-            predictions = await service.predict_and_store(
+            stored = await service.predict_and_store(
                 model.id, 
                 features_df, 
                 timestamps
             )
-            logger.info(f"Generated {len(predictions)} predictions for {model.name}")
+            logger.info(f"Generated {stored} predictions for {model.name}")
         except Exception as e:
             logger.error(f"Failed to generate predictions for {model.name}: {e}")
             raise
