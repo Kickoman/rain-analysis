@@ -9,6 +9,7 @@ from app.models.api_request_log import APIRequestLog
 from app.auth.crypto import hash_api_key
 from app.auth.rate_limiter import InMemoryRateLimiter
 from app.database import AsyncSessionLocal
+from datetime import datetime, timezone
 import logging
 import traceback
 
@@ -56,6 +57,17 @@ async def auth_middleware(request: Request, call_next):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid API key"},
                 )
+
+            # Reject expired keys
+            if api_key_obj.expires_at is not None:
+                expires_at = api_key_obj.expires_at
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at < datetime.now(timezone.utc):
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "Invalid API key"},
+                    )
 
             # Check rate limits
             allowed = await rate_limiter.check_rate_limit(

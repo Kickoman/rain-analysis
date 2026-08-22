@@ -21,6 +21,20 @@ from app.main import app as _app
 from unittest.mock import AsyncMock, MagicMock
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Reset the global rate limiter counters before/after each test.
+
+    The rate limiter is a module-level singleton shared across the whole test
+    session. Without resetting, counters keyed by (reused) key ids leak between
+    tests and cause spurious 429 responses.
+    """
+    from app.auth.middleware import rate_limiter
+    rate_limiter._counters.clear()
+    yield
+    rate_limiter._counters.clear()
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create event loop for async tests."""

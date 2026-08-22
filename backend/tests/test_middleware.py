@@ -67,10 +67,6 @@ async def test_api_key(setup_database):
         await db.refresh(api_key)
         
         yield raw_key, api_key.id
-        
-        # Cleanup
-        await db.delete(api_key)
-        await db.commit()
 
 
 @pytest.mark.asyncio
@@ -297,13 +293,12 @@ async def test_middleware_continues_on_logging_failure(test_api_key):
         
         # First execute succeeds (for auth check)
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
         
         # Setup real API key for auth
         async with AsyncSessionLocal() as real_db:
             result = await real_db.execute(select(APIKey).where(APIKey.id == key_id))
             real_key = result.scalars().first()
-            mock_result.scalars.return_value.all.return_value = [real_key]
+            mock_result.scalar_one_or_none.return_value = real_key
         
         mock_db.execute = AsyncMock(return_value=mock_result)
         
