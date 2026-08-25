@@ -222,3 +222,4 @@ pyrightconfig.json
 /current/
 /docs_site/*.html
 .claude/
+deploy/.env

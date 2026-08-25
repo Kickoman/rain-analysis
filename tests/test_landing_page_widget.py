@@ -20,10 +20,12 @@ def test_landing_template_mounts_widget():
     assert '<script src="assets/live-widget.js" defer></script>' in source
 
 
-def test_widget_ships_disabled():
+def test_widget_configuration():
     js = WIDGET_JS.read_text(encoding="utf-8")
-    # base: null means the site renders identically to the widget-free site
-    assert re.search(r"base:\s*null", js), "widget must ship disabled until a hostname exists"
+    # Deployed 2026-08-25: base points at the kfrank backend behind nginx.
+    # The embedded key is a PUBLIC read-only key by design (#407).
+    assert 'base: "https://www.kanstancin.net/rain-api"' in js
+    assert re.search(r'key:\s*"ra_live_[0-9a-f]+"', js)
     assert "live-rain-widget" in js
     assert "/api/v1/data/current" in js
     assert "X-API-Key" in js

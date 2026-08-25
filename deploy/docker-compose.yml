@@ -1,0 +1,42 @@
+# Backend deployment (Phase 6 decisions, #234):
+#   - image is built on the server, no registry
+#   - dependencies live in the image, code is bind-mounted (#221)
+#   - exactly ONE app process: the rate limiter is in-process (#421);
+#     do not add --workers until it is distributed
+#   - SQLite stays (#417): the DB is a file inside the mounted repo
+#     (backend/rain_analysis.db), so it survives rebuilds and is easy
+#     to back up
+#
+# Configuration (all optional, defaults in parentheses):
+#   BACKEND_PORT  (7010)      host port, bound to 127.0.0.1 only —
+#                             a reverse proxy terminates TLS in front
+#   ROOT_PATH     (empty)     path prefix when served behind a proxy,
+#                             e.g. /rain-api
+# Put overrides in a .env file next to this compose file.
+#
+# App secrets (API_KEYS_SALT, ...) come from backend/.env as usual.
+#
+# Usage (from the repo root):
+#   docker compose -f deploy/docker-compose.yml up -d --build
+#   docker compose -f deploy/docker-compose.yml run --rm backend \
+#       python -m alembic upgrade head
+
+services:
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-7010}:8000"
+    volumes:
+      - ..:/repo
+    env_file:
+      - ../backend/.env
+    environment:
+      # Container-local paths override whatever host paths backend/.env has
+      DATABASE_URL: "sqlite+aiosqlite:////repo/backend/rain_analysis.db"
+      MODELS_DIR: "/repo/backend/models"
+    command: >
+      python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+      --root-path "${ROOT_PATH:-}"
