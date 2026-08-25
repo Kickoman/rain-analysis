@@ -8,12 +8,27 @@ live in untracked `.env` files.
 
 | File | Purpose |
 |---|---|
+| `bootstrap.sh` | One-shot privileged setup: compose + migrations + nginx |
 | `Dockerfile` | Dependencies-only image; code is bind-mounted (#221) |
 | `docker-compose.yml` | One backend service, one worker (#421), SQLite file in the mounted repo (#417) |
 | `nginx-location.conf.example` | Reverse-proxy location block to adapt |
 | `update.sh` | Routine update: pull → build → migrate → restart |
 
-## First-time setup on a server
+## One-shot bootstrap
+
+With `backend/.env` and `deploy/.env` in place (see below), a single
+privileged script does everything — compose build/up, migrations, nginx
+snippet + include, smoke test. Idempotent, safe to re-run:
+
+```bash
+sudo bash deploy/bootstrap.sh \
+    --server-name <your https server_name> \
+    --nginx-site /etc/nginx/sites-enabled/<your site config> \
+    [--docker-user <user to add to the docker group>] \
+    [--public-url https://<host>/<prefix>]
+```
+
+## First-time setup on a server (manual steps)
 
 ```bash
 git clone https://github.com/Kickoman/rain-analysis.git && cd rain-analysis
