@@ -14,8 +14,8 @@
   "use strict";
 
   var RAIN_API = {
-    base: null, // e.g. "https://api.example.com" — null disables the widget
-    key: "PUBLIC_READ_KEY_PLACEHOLDER",
+    base: "https://www.kanstancin.net/rain-api", // null disables the widget
+    key: "ra_live_7c5385ff1ac54f6c7e9a35236c479ecc",
     sensor: "sensor.rain_probability",
     pollSeconds: 45,
     staleAfterSeconds: 15 * 60
