@@ -324,3 +324,20 @@ async def test_middleware_continues_on_logging_failure(test_api_key):
             # Request should still succeed despite logging failure
             assert response.status_code == 200
             assert response.json() == {"message": "success"}
+
+
+@pytest.mark.asyncio
+async def test_cors_preflight_bypasses_auth(setup_database):
+    """OPTIONS preflights carry no credentials; auth must not 401 them."""
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        response = await client.options(
+            "/test",
+            headers={
+                "Origin": "https://kickoman.github.io",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "x-api-key",
+            },
+        )
+        # This bare test app has no CORS middleware, so the request reaches
+        # the router (405: no OPTIONS handler) — the point is it is not 401
+        assert response.status_code != 401

@@ -27,6 +27,12 @@ async def auth_middleware(request: Request, call_next):
 
     Checks API key validity, applies rate limits, and logs requests.
     """
+    # CORS preflights carry no credentials by design; let them through to
+    # the CORS middleware (which sits inside this one) or the browser can
+    # never complete a cross-origin request with the X-API-Key header.
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     # Skip auth for the root/info page, health probes, and docs.
     # Behind a proxy prefix (uvicorn --root-path) request.url.path carries
     # the prefix; compare against the app-local path.
