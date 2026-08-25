@@ -10,9 +10,6 @@ from .measurement import (
     MeasurementResponse,
     MeasurementBulkCreate,
 )
-from .ml_model import MLModelBase, MLModelCreate, MLModelUpdate, MLModelResponse
-from .prediction import PredictionBase, PredictionCreate, PredictionResponse
-from .model_metric import ModelMetricBase, ModelMetricCreate, ModelMetricResponse
 from .api_key import (
     APIKeyCreate,
     APIKeyResponse,
@@ -21,11 +18,12 @@ from .api_key import (
 )
 from .common import PaginatedResponse, ErrorResponse
 from .ml import (
-    MLModelResponse as MLModelResponseV2,
+    MLModelResponse,
     MLModelListResponse,
-    MLModelCreate as MLModelCreateV2,
-    MLModelUpdate as MLModelUpdateV2,
+    MLModelCreate,
+    MLModelUpdate,
     CurrentPredictionsResponse,
+    PredictionResponse,
     PredictionHistoryResponse,
     EvaluationRequest,
     EvaluationResponse,
@@ -47,19 +45,6 @@ __all__ = [
     "MeasurementCreate",
     "MeasurementResponse",
     "MeasurementBulkCreate",
-    # ML Model schemas (legacy)
-    "MLModelBase",
-    "MLModelCreate",
-    "MLModelUpdate",
-    "MLModelResponse",
-    # Prediction schemas (legacy)
-    "PredictionBase",
-    "PredictionCreate",
-    "PredictionResponse",
-    # Model Metric schemas (legacy)
-    "ModelMetricBase",
-    "ModelMetricCreate",
-    "ModelMetricResponse",
     # API Key schemas
     "APIKeyCreate",
     "APIKeyResponse",
@@ -68,12 +53,13 @@ __all__ = [
     # Common schemas
     "PaginatedResponse",
     "ErrorResponse",
-    # ML endpoint schemas (new)
-    "MLModelResponseV2",
+    # ML endpoint schemas
+    "MLModelResponse",
     "MLModelListResponse",
-    "MLModelCreateV2",
-    "MLModelUpdateV2",
+    "MLModelCreate",
+    "MLModelUpdate",
     "CurrentPredictionsResponse",
+    "PredictionResponse",
     "PredictionHistoryResponse",
     "EvaluationRequest",
     "EvaluationResponse",

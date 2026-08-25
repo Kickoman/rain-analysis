@@ -215,10 +215,10 @@ async def evaluate_model(
     try:
         probabilities = service.predict(ml_model.name, features_df)
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
+        logger.error(f"Prediction error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Prediction failed: {str(e)}"
+            detail="Prediction failed"
         )
     
     logger.info(f"Generated {len(probabilities)} predictions")

@@ -14,39 +14,9 @@ from ..schemas.api_key import (
     APIKeyUpdate,
 )
 from ..auth.crypto import generate_api_key
+from ..auth.dependencies import require_admin
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-
-
-def require_admin(request: Request) -> APIKey:
-    """
-    Dependency to check admin scope.
-    
-    Requires that the request has been authenticated via middleware
-    and that the API key has admin scope.
-    
-    Args:
-        request: FastAPI request object with state.api_key set by middleware
-    
-    Returns:
-        APIKey: The authenticated admin API key
-    
-    Raises:
-        HTTPException: If no API key is present or if scope is not admin
-    """
-    if not hasattr(request.state, "api_key"):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
-    api_key = request.state.api_key
-    if api_key.scope != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required"
-        )
-    return api_key
 
 
 @router.post("/keys", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)

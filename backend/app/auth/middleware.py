@@ -1,14 +1,17 @@
 """Authentication and rate limiting middleware."""
 
+from datetime import datetime, timezone
+
 from fastapi import Request, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
-from app.models.api_key import APIKey
-from app.models.api_request_log import APIRequestLog
-from app.auth.crypto import hash_api_key
-from app.auth.rate_limiter import InMemoryRateLimiter
-from app.database import AsyncSessionLocal
+from ..constants import EXEMPT_PATHS
+from ..models.api_key import APIKey
+from ..models.api_request_log import APIRequestLog
+from .crypto import hash_api_key
+from .rate_limiter import InMemoryRateLimiter
+from ..database import AsyncSessionLocal
 import logging
 import traceback
 
@@ -24,8 +27,8 @@ async def auth_middleware(request: Request, call_next):
 
     Checks API key validity, applies rate limits, and logs requests.
     """
-    # Skip auth for health check, liveness/readiness probes, and docs
-    if request.url.path in ["/health", "/health/live", "/health/ready", "/docs", "/openapi.json", "/redoc"]:
+    # Skip auth for the root/info page, health probes, and docs
+    if request.url.path in EXEMPT_PATHS:
         return await call_next(request)
 
     # Extract API key from header
@@ -56,6 +59,17 @@ async def auth_middleware(request: Request, call_next):
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     content={"detail": "Invalid API key"},
                 )
+
+            if api_key_obj.expires_at is not None:
+                expires_at = api_key_obj.expires_at
+                # SQLite returns naive datetimes; the column semantics are UTC
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if expires_at < datetime.now(timezone.utc):
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "API key expired"},
+                    )
 
             # Check rate limits
             allowed = await rate_limiter.check_rate_limit(
@@ -106,6 +120,9 @@ async def auth_middleware(request: Request, call_next):
                     user_agent=request.headers.get("user-agent"),
                 )
                 db.add(log_entry)
+                # Piggyback last_used_at on the request-log commit
+                api_key_obj.last_used_at = datetime.now(timezone.utc)
+                db.add(api_key_obj)
                 await db.commit()
             except Exception as log_error:
                 logger.warning(
@@ -144,7 +161,7 @@ async def auth_middleware(request: Request, call_next):
             )
             return JSONResponse(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                content={"detail": f"Database error: {type(e).__name__}"},
+                content={"detail": "Database error"},
             )
 
         except Exception as e:

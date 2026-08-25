@@ -58,3 +58,8 @@ def require_api_key(required_scope: str):
         return api_key
     
     return check_scope
+
+
+# Admin access via the same hierarchy checker ("admin" is the top scope,
+# so hierarchy vs exact-match semantics are equivalent here).
+require_admin = require_api_key("admin")

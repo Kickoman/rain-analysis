@@ -254,3 +254,59 @@ async def test_auth_check_null_rate_limits(client: AsyncClient, db_session: Asyn
     assert data["remaining"]["rpm_remaining"] is None
     assert data["remaining"]["rph_remaining"] is None
     assert data["remaining"]["rpd_remaining"] is None
+
+
+@pytest.mark.asyncio
+async def test_expired_key_rejected(client: AsyncClient, db_session: AsyncSession):
+    """An expired key must be rejected with 401 even if still active."""
+    full_key, key_hash, key_prefix = generate_api_key("test")
+    api_key = APIKey(
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        owner="expired_owner",
+        description="Expired key",
+        scope="read",
+        is_active=True,
+        expires_at=datetime.utcnow() - timedelta(hours=1),
+    )
+    db_session.add(api_key)
+    await db_session.commit()
+
+    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "API key expired"
+
+
+@pytest.mark.asyncio
+async def test_future_expiry_accepted(client: AsyncClient, db_session: AsyncSession):
+    """A key expiring in the future must still work."""
+    full_key, key_hash, key_prefix = generate_api_key("test")
+    api_key = APIKey(
+        key_hash=key_hash,
+        key_prefix=key_prefix,
+        owner="future_owner",
+        description="Not yet expired key",
+        scope="read",
+        is_active=True,
+        expires_at=datetime.utcnow() + timedelta(days=1),
+    )
+    db_session.add(api_key)
+    await db_session.commit()
+
+    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_last_used_at_updated(client: AsyncClient, db_session: AsyncSession, test_api_key):
+    """A successful authenticated request must stamp last_used_at."""
+    full_key, api_key = test_api_key
+    assert api_key.last_used_at is None
+
+    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+    assert response.status_code == 200
+
+    await db_session.refresh(api_key)
+    assert api_key.last_used_at is not None

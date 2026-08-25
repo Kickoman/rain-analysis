@@ -24,9 +24,9 @@ def test_health_check(client):
 def test_root(client):
     """Test root endpoint."""
     response = client.get("/")
-    # Root endpoint requires authentication, so it should return 401
-    # unless we're testing with a valid API key
-    assert response.status_code == 401
+    # Root is an informational page and is exempt from authentication
+    assert response.status_code == 200
+    assert response.json()["message"] == "Rain Analysis API"
 
 
 def test_docs_accessible(client):

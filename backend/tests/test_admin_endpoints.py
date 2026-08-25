@@ -126,7 +126,7 @@ async def test_create_api_key_non_admin_forbidden(client: AsyncClient, read_key:
     )
     
     assert response.status_code == 403
-    assert "Admin access required" in response.json()["detail"]
+    assert "Insufficient permissions" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
