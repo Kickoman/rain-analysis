@@ -5,7 +5,9 @@ from typing import List
 class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./rain_analysis.db"
     api_keys_salt: str
-    cors_origins: List[str] = ["http://localhost:3000"]
+    # The GitHub Pages origin hosts the live widget (stage 7); localhost is
+    # for frontend development. Override via CORS_ORIGINS env as needed.
+    cors_origins: List[str] = ["https://kickoman.github.io", "http://localhost:3000"]
     log_level: str = "INFO"
     app_title: str = "Rain Analysis API"
     app_version: str = "0.1.0"

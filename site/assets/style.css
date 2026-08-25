@@ -258,3 +258,31 @@ code {
 .skip-link:focus {
     left: 0;
 }
+
+/* Live rain-probability widget (populated by assets/live-widget.js;
+   the container stays empty — and invisible — when the backend is
+   unreachable or the widget is disabled). */
+.live-widget {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.4rem 0.9rem;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 999px;
+    font-size: 0.95rem;
+}
+
+.live-widget-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+}
+
+.live-widget-age {
+    opacity: 0.75;
+    font-size: 0.8rem;
+}
+
+.live-widget-stale {
+    opacity: 0.6;
+}

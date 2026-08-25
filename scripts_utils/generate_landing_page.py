@@ -158,6 +158,7 @@ def main():
     <header>
         <h1>🌧️ Rain Prediction Model Analysis</h1>
         <p>Automated performance tracking and reports</p>
+        <div id="live-rain-widget"></div>
     </header>
 
     <nav>
@@ -255,6 +256,7 @@ def main():
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
         <p>Last updated: <span id="last-update">{date}</span></p>
     </footer>
+    <script src="assets/live-widget.js" defer></script>
 </body>
 </html>'''
 
