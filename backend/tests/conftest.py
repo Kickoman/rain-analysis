@@ -29,6 +29,24 @@ def event_loop():
     loop.close()
 
 
+@pytest.fixture(autouse=True)
+def reset_global_state():
+    """Reset process-global mutable state between tests.
+
+    The rate limiter and the model cache are module-level singletons;
+    without a reset their state leaks across tests and makes the suite
+    order-dependent (rate limits from earlier tests cause spurious 429s).
+    """
+    import app.auth.middleware as middleware_module
+    import app.ml.model_loader as model_loader_module
+
+    middleware_module.rate_limiter._counters.clear()
+    model_loader_module._model_cache = None
+    yield
+    middleware_module.rate_limiter._counters.clear()
+    model_loader_module._model_cache = None
+
+
 @pytest.fixture
 def app():
     """Provide the FastAPI app instance."""
