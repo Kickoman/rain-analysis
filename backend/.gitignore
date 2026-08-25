@@ -71,3 +71,4 @@ test_tmp/
 
 # Alembic (keep migrations, ignore db files)
 # Note: We keep alembic/ directory and migrations in version control
+models/*.pkl

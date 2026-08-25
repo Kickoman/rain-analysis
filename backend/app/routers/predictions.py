@@ -213,7 +213,7 @@ async def evaluate_model(
     # Generate predictions
     service = PredictionService(db)
     try:
-        probabilities = service.predict(ml_model.name, features_df)
+        probabilities = await service.predict_async(ml_model, features_df)
     except Exception as e:
         logger.error(f"Prediction error: {e}", exc_info=True)
         raise HTTPException(

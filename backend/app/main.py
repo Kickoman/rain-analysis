@@ -5,14 +5,14 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from .config import settings
 from .constants import EXEMPT_PATHS
 from .database import init_db, close_db, get_db
 from .routers import admin, auth, data, predictions, models
 from .auth.middleware import auth_middleware
-from .ml.daily_task import run_daily_task
+from .ml.daily_task import _daily_task
 import logging
 import time
 
@@ -22,17 +22,18 @@ logger = logging.getLogger(__name__)
 # Track application start time for uptime calculation
 app_start_time = time.time()
 
-# Create scheduler instance
-scheduler = BackgroundScheduler()
+# Async scheduler: jobs run as coroutines on the app's own event loop,
+# sharing the aiosqlite engine (a sync scheduler + asyncio.run would not)
+scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     await init_db()
-    
+
     # Start APScheduler
     scheduler.add_job(
-        run_daily_task,
+        _daily_task.run,
         trigger=CronTrigger(hour=0, minute=0, timezone="UTC"),
         id="daily_ml_task",
         name="Daily ML predictions and metrics",

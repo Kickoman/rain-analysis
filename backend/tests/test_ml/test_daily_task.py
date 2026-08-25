@@ -1,188 +1,155 @@
-"""Tests for daily ML task."""
+"""Tests for the daily ML task against the measurements-backed feature path."""
 import pytest
-from datetime import datetime, timedelta, date
-from unittest.mock import AsyncMock, Mock, patch
+from datetime import date, datetime, timedelta, timezone
+from unittest.mock import AsyncMock, patch
 import pandas as pd
 from sqlalchemy import select
 
 from app.ml.daily_task import DailyMLTask
-from app.models.ml import MLModel, Prediction, ModelMetric
+from app.models import Measurement, Sensor
+from app.models.ml import MLModel, ModelMetric, Prediction
+
+TARGET_DATE = date(2026, 8, 20)
+DAY_START = datetime.combine(TARGET_DATE, datetime.min.time(), tzinfo=timezone.utc)
+
+SENSOR_MAP = {"spread": "sensor.spread", "pressure": "sensor.pressure"}
 
 
-@pytest.mark.asyncio
-async def test_daily_task_no_weather_data(db_session):
-    """Test that task exits gracefully when no weather data available."""
-    task = DailyMLTask()
-    
-    # Mock _fetch_weather_data to return empty DataFrame
-    with patch.object(task, '_fetch_weather_data', return_value=pd.DataFrame()):
-        # Should not raise, just log warning and return
-        await task.run(db=db_session)
+async def make_model(db_session, name="test_model", config=None) -> MLModel:
+    model = MLModel(
+        name=name,
+        version="1.0.0",
+        description="Test model",
+        config=config or {"kind": "rainlib", "rainlib_model": "ha_live",
+                          "threshold": 0.5, "sensor_map": SENSOR_MAP},
+        active=True,
+    )
+    db_session.add(model)
+    await db_session.commit()
+    await db_session.refresh(model)
+    return model
+
+
+async def seed_measurements(db_session, sensor_name, hourly_values):
+    sensor = Sensor(name=sensor_name, sensor_type="numeric")
+    db_session.add(sensor)
+    await db_session.flush()
+    db_session.add_all([
+        Measurement(
+            sensor_id=sensor.id,
+            timestamp=DAY_START + timedelta(hours=i),
+            value=str(v),
+            source="test",
+        )
+        for i, v in enumerate(hourly_values)
+        if v is not None
+    ])
+    await db_session.commit()
 
 
 @pytest.mark.asyncio
 async def test_daily_task_no_active_models(db_session):
-    """Test that task exits gracefully when no active models."""
-    task = DailyMLTask()
-    
-    # Mock weather data available but no models
-    mock_df = pd.DataFrame({'temp': [20, 21], 'humidity': [60, 65]})
-    
-    with patch.object(task, '_fetch_weather_data', return_value=mock_df):
-        # Mock PredictionService to return empty list of models
-        with patch('app.ml.daily_task.PredictionService') as MockService:
-            mock_service = MockService.return_value
-            mock_service.get_active_models = AsyncMock(return_value=[])
-            
-            # Should exit gracefully when no models found
-            await task.run(db=db_session)
+    """Task exits gracefully when no active models exist."""
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
 
 
 @pytest.mark.asyncio
-async def test_daily_task_process_model_success(db_session):
-    """Test successful model processing."""
-    # Create a test model
-    model = MLModel(
-        name="test_model",
-        version="1.0.0",
-        description="Test model",
-        config={"file_path": "test.pkl", "threshold": 0.5},
-        active=True
-    )
-    db_session.add(model)
-    await db_session.commit()
-    await db_session.refresh(model)
-    
+async def test_daily_task_no_sensor_map(db_session):
+    """Task exits gracefully when models declare no sensor_map."""
+    await make_model(db_session, config={"threshold": 0.5})
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+
+
+@pytest.mark.asyncio
+async def test_daily_task_no_weather_data(db_session):
+    """Task exits gracefully when the day has no measurements."""
+    await make_model(db_session)
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+    rows = (await db_session.execute(select(Prediction))).scalars().all()
+    assert rows == []
+
+
+@pytest.mark.asyncio
+async def test_fetch_weather_data_pivots_hourly(db_session):
+    await seed_measurements(db_session, "sensor.spread", [5.0, 4.0, None, None, None, 2.0])
+    await seed_measurements(db_session, "sensor.pressure", [990.0] * 6)
+
     task = DailyMLTask()
-    
-    # Mock weather data
-    mock_df = pd.DataFrame({
-        'temperature': [20.0, 21.0, 19.0],
-        'humidity': [60.0, 65.0, 58.0]
-    })
-    
-    yesterday = date.today() - timedelta(days=1)
-    
-    # Mock PredictionService.predict_and_store
-    mock_predictions = [
-        Mock(id=1, probability=0.3, binary_prediction=0),
-        Mock(id=2, probability=0.7, binary_prediction=1),
-        Mock(id=3, probability=0.4, binary_prediction=0),
-    ]
-    
-    with patch('app.ml.daily_task.PredictionService') as MockService:
-        mock_service = MockService.return_value
-        mock_service.predict_and_store = AsyncMock(return_value=mock_predictions)
-        
-        # Mock MetricsCalculator (returns None since no ground truth)
-        with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
-            mock_calculator = MockCalculator.return_value
-            mock_calculator.calculate_daily_metrics = AsyncMock(return_value=None)
-            
-            # Process the model
-            await task._process_model(db_session, model, mock_df, yesterday)
-            
-            # Verify predict_and_store was called
-            mock_service.predict_and_store.assert_called_once()
-            
-            # Verify metrics calculation was attempted
-            mock_calculator.calculate_daily_metrics.assert_called_once_with(
-                model.id, yesterday
-            )
+    wide = await task._fetch_weather_data(
+        db_session, TARGET_DATE, ["sensor.spread", "sensor.pressure"]
+    )
+
+    assert list(wide.columns) == ["sensor.pressure", "sensor.spread"]
+    assert isinstance(wide.index, pd.DatetimeIndex)
+    # ffill bridges up to 2 missing hours, hour 4 stays NaN
+    assert wide["sensor.spread"].iloc[2] == 4.0
+    assert wide["sensor.spread"].iloc[3] == 4.0
+    assert pd.isna(wide["sensor.spread"].iloc[4])
+
+
+@pytest.mark.asyncio
+async def test_daily_task_end_to_end_rainlib(db_session):
+    """Full path: measurements -> features -> rainlib model -> stored predictions."""
+    await make_model(db_session)
+    await seed_measurements(db_session, "sensor.spread", [5.0, 3.0, 1.0, 0.5] * 6)
+    await seed_measurements(db_session, "sensor.pressure", [995.0] * 24)
+
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+
+    rows = (await db_session.execute(select(Prediction))).scalars().all()
+    assert len(rows) == 24
+    assert all(0.0 <= p.probability <= 1.0 for p in rows)
+
+    # Re-run is an upsert, not a duplicate
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+    rows = (await db_session.execute(select(Prediction))).scalars().all()
+    assert len(rows) == 24
 
 
 @pytest.mark.asyncio
 async def test_daily_task_model_error_continues(db_session):
-    """Test that error in one model doesn't stop processing others."""
-    # Create two test models
-    model1 = MLModel(
-        name="test_model_1",
-        version="1.0.0",
-        description="Test model 1",
-        config={"file_path": "test1.pkl", "threshold": 0.5},
-        active=True
-    )
-    model2 = MLModel(
-        name="test_model_2",
-        version="1.0.0",
-        description="Test model 2",
-        config={"file_path": "test2.pkl", "threshold": 0.5},
-        active=True
-    )
-    db_session.add_all([model1, model2])
-    await db_session.commit()
-    
-    task = DailyMLTask()
-    
-    mock_df = pd.DataFrame({'temp': [20, 21], 'humidity': [60, 65]})
-    
-    # Mock first model to raise error, second to succeed
-    with patch.object(task, '_fetch_weather_data', return_value=mock_df):
-        with patch('app.ml.daily_task.PredictionService') as MockService:
-            mock_service = MockService.return_value
-            mock_service.get_active_models = AsyncMock(return_value=[model1, model2])
-            
-            # First call raises, second succeeds
-            mock_service.predict_and_store = AsyncMock(
-                side_effect=[Exception("Model 1 failed"), [Mock()]]
-            )
-            
-            with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
-                mock_calculator = MockCalculator.return_value
-                mock_calculator.calculate_daily_metrics = AsyncMock(return_value=None)
-                
-                # Should not raise, just log error for model1 and continue to model2
-                await task.run(db=db_session)
-                
-                # Verify both models were attempted
-                assert mock_service.predict_and_store.call_count == 2
+    """An error in one model must not stop the others."""
+    await make_model(db_session, name="broken",
+                     config={"kind": "sklearn", "file_path": "missing.pkl",
+                             "threshold": 0.5, "sensor_map": SENSOR_MAP})
+    await make_model(db_session, name="working")
+    await seed_measurements(db_session, "sensor.spread", [5.0] * 24)
+    await seed_measurements(db_session, "sensor.pressure", [995.0] * 24)
+
+    await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+
+    working = (
+        await db_session.execute(select(MLModel).where(MLModel.name == "working"))
+    ).scalar_one()
+    rows = (
+        await db_session.execute(select(Prediction).where(Prediction.model_id == working.id))
+    ).scalars().all()
+    assert len(rows) == 24
 
 
 @pytest.mark.asyncio
 async def test_daily_task_metrics_storage(db_session):
-    """Test that metrics are stored when available."""
-    model = MLModel(
-        name="test_model",
-        version="1.0.0",
-        description="Test model",
-        config={"file_path": "test.pkl", "threshold": 0.5},
-        active=True
-    )
-    db_session.add(model)
-    await db_session.commit()
-    await db_session.refresh(model)
-    
-    task = DailyMLTask()
-    mock_df = pd.DataFrame({'temp': [20, 21], 'humidity': [60, 65]})
-    yesterday = date.today() - timedelta(days=1)
-    
-    mock_predictions = [Mock(id=1, probability=0.7, binary_prediction=1)]
+    """Metrics returned by the calculator are upserted into model_metrics."""
+    model = await make_model(db_session)
+    await seed_measurements(db_session, "sensor.spread", [5.0] * 24)
+    await seed_measurements(db_session, "sensor.pressure", [995.0] * 24)
+
     mock_metrics = {
-        'brier_score': 0.25,
-        'f1_score': 0.85,
-        'f2_score': 0.88,
-        'precision': 0.80,
-        'recall': 0.90,
-        'threshold': 0.5,
-        'confusion_matrix': {'TP': 10, 'TN': 8, 'FP': 2, 'FN': 1}
+        "brier_score": 0.25, "f1_score": 0.85, "f2_score": 0.88,
+        "precision": 0.80, "recall": 0.90, "threshold": 0.5,
+        "calibration_slope": 1.1,
+        "confusion_matrix": {"TP": 10, "TN": 8, "FP": 2, "FN": 1},
     }
-    
-    with patch('app.ml.daily_task.PredictionService') as MockService:
-        mock_service = MockService.return_value
-        mock_service.predict_and_store = AsyncMock(return_value=mock_predictions)
-        
-        with patch('app.ml.daily_task.MetricsCalculator') as MockCalculator:
-            mock_calculator = MockCalculator.return_value
-            mock_calculator.calculate_daily_metrics = AsyncMock(return_value=mock_metrics)
-            
-            await task._process_model(db_session, model, mock_df, yesterday)
-            
-            # Verify metric was stored in database using SQLAlchemy ORM
-            result = await db_session.execute(
-                select(ModelMetric).where(ModelMetric.model_id == model.id)
-            )
-            metrics_records = result.scalars().all()
-            assert len(metrics_records) == 1
-            assert metrics_records[0].date == yesterday
-            assert metrics_records[0].brier_score == 0.25
-            assert metrics_records[0].f2_score == 0.88
+    with patch("app.ml.daily_task.MetricsCalculator") as MockCalculator:
+        MockCalculator.return_value.calculate_daily_metrics = AsyncMock(return_value=mock_metrics)
+        await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+        # Second run exercises the metric upsert path
+        await DailyMLTask().run(db=db_session, target_date=TARGET_DATE)
+
+    records = (
+        await db_session.execute(select(ModelMetric).where(ModelMetric.model_id == model.id))
+    ).scalars().all()
+    assert len(records) == 1
+    assert records[0].date == TARGET_DATE
+    assert records[0].brier_score == 0.25
+    assert records[0].f2_score == 0.88

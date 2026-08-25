@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     app_title: str = "Rain Analysis API"
     app_version: str = "0.1.0"
-    models_dir: str = "../models"  # Directory containing trained model pickle files
+    models_dir: str = "./models"  # Directory containing trained model pickle files
     
     @field_validator("api_keys_salt")
     @classmethod

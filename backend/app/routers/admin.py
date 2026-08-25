@@ -1,9 +1,11 @@
 """Admin endpoints for API key management."""
-from fastapi import APIRouter, Depends, HTTPException, status, Request, BackgroundTasks
+import asyncio
+import logging
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
-import threading
 
 from ..database import get_db
 from ..models import APIKey, AdminAuditLog
@@ -16,7 +18,12 @@ from ..schemas.api_key import (
 from ..auth.crypto import generate_api_key
 from ..auth.dependencies import require_admin
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# Strong references to fire-and-forget tasks (see trigger_daily_task)
+_background_tasks: set[asyncio.Task] = set()
 
 
 @router.post("/keys", response_model=APIKeyCreateResponse, status_code=status.HTTP_201_CREATED)
@@ -261,20 +268,29 @@ async def trigger_daily_task(
     Manually trigger daily ML task (admin only).
     
     Useful for testing the daily task without waiting for the scheduled time.
-    The task runs in a background thread to avoid blocking the request.
-    
+    The task runs as an asyncio task on the app's event loop, sharing the
+    async engine safely (a raw thread + asyncio.run would not).
+
     Args:
         admin_key: The authenticated admin API key (from dependency)
         db: Database session
-    
+
     Returns:
         Success message indicating the task was triggered
     """
-    from ..ml.daily_task import run_daily_task
-    
-    # Run in background thread to avoid blocking
-    thread = threading.Thread(target=run_daily_task, daemon=True)
-    thread.start()
+    from ..ml.daily_task import _daily_task
+
+    task = asyncio.create_task(_daily_task.run())
+    # Keep a reference so the task isn't garbage-collected mid-run, and
+    # surface failures in the log (fire-and-forget swallows them otherwise)
+    _background_tasks.add(task)
+
+    def _log_result(finished: asyncio.Task):
+        _background_tasks.discard(finished)
+        if not finished.cancelled() and finished.exception() is not None:
+            logger.error("Triggered daily ML task failed", exc_info=finished.exception())
+
+    task.add_done_callback(_log_result)
     
     # Create audit log entry
     audit = AdminAuditLog(
