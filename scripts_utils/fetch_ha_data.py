@@ -28,6 +28,10 @@ DEFAULT_ENTITIES = [
     "sensor.datchik_klimata_vlazhnost",
     "sensor.rain_probability",
     "sensor.filtered_pressure",
+    # The deployed template reads these directly; without them the ha_live
+    # replica silently degrades to recomputed values (#431)
+    "sensor.outside_dew_point_spread",
+    "sensor.outside_dew_point_spread_trend",
 ]
 
 

@@ -153,19 +153,42 @@ alembic downgrade -1
 
 ## API Overview
 
-### Core Endpoints
+All API routes live under the `/api/v1/` prefix; only `/`, `/health*` and
+`/docs` are unversioned and key-exempt.
 
-- `GET /health` - Health check
+### Infrastructure
+
+- `GET /health`, `GET /health/live`, `GET /health/ready` - Health probes
 - `GET /` - API information
 - `GET /docs` - Interactive API documentation
 
-### Authentication Endpoints
+### Sensor Data
 
-- `GET /auth/check` - Check API key validity and rate limits
-- `POST /admin/keys` - Create new API key (admin only)
-- `GET /admin/keys` - List API keys (admin only)
-- `PATCH /admin/keys/{key_id}` - Update API key (admin only)
-- `DELETE /admin/keys/{key_id}` - Revoke API key (admin only)
+- `POST /api/v1/data/measurements` - Batch-ingest measurements (write scope, idempotent upsert; Home Assistant pushes here)
+- `GET /api/v1/data/sensors` - List sensors (`?include_stats=true` for latest timestamp/row count)
+- `PATCH /api/v1/data/sensors/{id}` - Fix sensor metadata (admin)
+- `GET /api/v1/data/measurements` - Typed, paginated series
+- `GET /api/v1/data/current` - Latest value per sensor (the site widget polls this)
+
+### Models & Predictions
+
+- `GET /api/v1/models` - List models (metrics under `/{id}/metrics[/history]`)
+- `GET /api/v1/predictions/current` / `/history` - Stored predictions
+- `POST /api/v1/predictions/evaluate` - Ad-hoc scoring (write scope)
+
+### Reports
+
+- `POST /api/v1/reports` - Upsert a daily report (pushed by `daily_analysis.py`)
+- `GET /api/v1/reports` / `/{date}` / `/latest` - Stored reports
+
+### Authentication
+
+- `GET /api/v1/auth/check` - Check API key validity and rate limits
+- `POST /api/v1/admin/keys` - Create new API key (admin only)
+- `GET /api/v1/admin/keys` - List API keys (admin only)
+- `PATCH /api/v1/admin/keys/{key_id}` - Update API key (admin only)
+- `DELETE /api/v1/admin/keys/{key_id}` - Revoke API key (admin only)
+- `POST /api/v1/admin/ml/trigger-daily-task` - Manually run the daily ML task (admin only)
 
 ### Database Schema
 
@@ -174,9 +197,10 @@ The backend uses a flexible schema designed for multiple sensors and ML models:
 **Core Data:**
 - **sensors** - Sensor definitions (name, type, unit)
 - **measurements** - Time-series sensor data
-- **models** - ML model metadata
+- **models** - ML model metadata (config selects sklearn pickle or shared rainlib formula model)
 - **predictions** - Model predictions over time
 - **model_metrics** - Model performance metrics
+- **reports** - Daily analysis reports pushed by the pipeline
 
 **Authentication:**
 - **api_keys** - API key definitions with scopes and rate limits
@@ -193,11 +217,12 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture docum
 - **Alembic** - Database migrations
 - **Pydantic** - Data validation
 - **SQLite/aiosqlite** - Database (development)
-- **Passlib** - Cryptographic utilities for API key hashing
+- **APScheduler** - In-process daily task scheduling
 
 ### ML Stack
 - **pandas** - Data manipulation
 - **numpy** - Numerical computing
+- **scikit-learn** - Metrics and fitted models
 - **matplotlib** - Visualization
 
 ### Testing
@@ -244,7 +269,7 @@ Phase 2 implemented secure API access:
 
 See [Phase 2 tracking issue](https://github.com/Kickoman/rain-analysis/issues/225) for details.
 
-### Phase 3: Models Integration & Predictions API 🔄 (In Progress)
+### Phase 3: Models Integration & Predictions API ✅ (Completed)
 
 Phase 3 focuses on integrating ML models into the backend:
 
@@ -254,14 +279,26 @@ Phase 3 focuses on integrating ML models into the backend:
 4. ✅ Models API endpoints (#304)
 5. ✅ Predictions API endpoints (#305)
 6. ✅ Admin endpoints for model management (#306)
-7. 🔄 Background task for daily ML analysis (#307)
-8. 🔄 Phase 3 testing and documentation (#308)
+7. ✅ Background task for daily ML analysis (#307) — feeds from the
+   measurements table; ground truth is pushed by the pipeline as
+   `openmeteo.precipitation`
+8. ✅ Phase 3 testing and documentation (#308)
+
+Models are served either as sklearn pickles (`config.kind = "sklearn"`)
+or directly through the shared `rainlib` formula models
+(`config.kind = "rainlib"`); `backend/scripts/register_model.py` registers
+them.
 
 See [Phase 3 tracking issue](https://github.com/Kickoman/rain-analysis/issues/231) for details.
 
-### Phase 4: Reports API & History Migration 📋 (Planned)
+### Phase 4: Reports API & History Migration ✅ (Core completed)
 
-Migration of historical reports and implementation of reports API.
+Reports API is live (`/api/v1/reports`); `daily_analysis.py` pushes new
+reports (variant B: the pipeline stays the only calculator) and
+`scripts_utils/migrate_reports_to_backend.py` migrates the committed
+markdown history. The measurements ingestion API (the gap flagged in #412)
+ships alongside: `/api/v1/data/*` with Home Assistant pushing via
+automation (see [docs/ha-integration.md](docs/ha-integration.md)).
 
 See [Phase 4 tracking issue](https://github.com/Kickoman/rain-analysis/issues/232) for details.
 
