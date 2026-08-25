@@ -10,7 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 from .config import settings
 from .constants import EXEMPT_PATHS
 from .database import init_db, close_db, get_db
-from .routers import admin, auth, predictions, models
+from .routers import admin, auth, data, predictions, models
 from .auth.middleware import auth_middleware
 from .ml.daily_task import run_daily_task
 import logging
@@ -105,6 +105,7 @@ app.middleware("http")(auth_middleware)
 api_v1 = APIRouter(prefix="/api/v1")
 api_v1.include_router(admin.router)
 api_v1.include_router(auth.router)
+api_v1.include_router(data.router)
 api_v1.include_router(models.router)
 api_v1.include_router(predictions.router)
 app.include_router(api_v1)

@@ -28,3 +28,9 @@ class SensorUpdate(BaseModel):
 class SensorResponse(SensorBase, IDMixin, TimestampMixin):
     """Schema for Sensor response."""
     model_config = ConfigDict(from_attributes=True)
+
+
+class SensorWithStats(SensorResponse):
+    """Sensor plus optional usage statistics (opt-in via ?include_stats=true)."""
+    latest_timestamp: Optional[datetime] = None
+    measurement_count: Optional[int] = None
