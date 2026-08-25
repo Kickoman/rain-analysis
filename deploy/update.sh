@@ -14,6 +14,9 @@ git pull --ff-only
 "${COMPOSE[@]}" build
 "${COMPOSE[@]}" run --rm backend python -m alembic upgrade head
 "${COMPOSE[@]}" up -d
+# Code is bind-mounted, so `up -d` alone won't reload it when the image
+# is unchanged — the running process must be restarted explicitly
+"${COMPOSE[@]}" restart backend
 
 sleep 2
 BACKEND_PORT="${BACKEND_PORT:-7010}"
