@@ -27,8 +27,14 @@ async def auth_middleware(request: Request, call_next):
 
     Checks API key validity, applies rate limits, and logs requests.
     """
-    # Skip auth for the root/info page, health probes, and docs
-    if request.url.path in EXEMPT_PATHS:
+    # Skip auth for the root/info page, health probes, and docs.
+    # Behind a proxy prefix (uvicorn --root-path) request.url.path carries
+    # the prefix; compare against the app-local path.
+    path = request.url.path
+    root_path = request.scope.get("root_path", "")
+    if root_path and path.startswith(root_path):
+        path = path[len(root_path):] or "/"
+    if path in EXEMPT_PATHS:
         return await call_next(request)
 
     # Extract API key from header
