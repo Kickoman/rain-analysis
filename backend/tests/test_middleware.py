@@ -67,8 +67,12 @@ async def test_api_key(setup_database):
         await db.refresh(api_key)
         
         yield raw_key, api_key.id
-        
-        # Cleanup
+
+        # Cleanup: request logs reference the key with a NOT NULL FK, so
+        # they go first (deleting the parent alone would try to null them)
+        await db.execute(
+            APIRequestLog.__table__.delete().where(APIRequestLog.api_key_id == api_key.id)
+        )
         await db.delete(api_key)
         await db.commit()
 
@@ -297,14 +301,13 @@ async def test_middleware_continues_on_logging_failure(test_api_key):
         
         # First execute succeeds (for auth check)
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
-        
-        # Setup real API key for auth
+
+        # Setup real API key for auth (middleware uses scalar_one_or_none)
         async with AsyncSessionLocal() as real_db:
             result = await real_db.execute(select(APIKey).where(APIKey.id == key_id))
             real_key = result.scalars().first()
-            mock_result.scalars.return_value.all.return_value = [real_key]
-        
+            mock_result.scalar_one_or_none.return_value = real_key
+
         mock_db.execute = AsyncMock(return_value=mock_result)
         
         # Commit fails (logging failure)

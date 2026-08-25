@@ -29,3 +29,30 @@ jobs:
     # --cov — for a suite that finishes in a few seconds either way.
     - name: Run tests
       run: python -m pytest tests/ --tb=short --cov=analysis --cov=scripts_utils --cov-report=term-missing
+
+  backend-test:
+    # The backend suite never ran in CI before (#422 flagged this as the
+    # most urgent Phase 6 item). It runs from backend/ so backend/pytest.ini
+    # (asyncio_mode=auto) applies.
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: pip
+        cache-dependency-path: backend/requirements.txt
+
+    - name: Install backend dependencies
+      run: pip install -r backend/requirements.txt
+
+    - name: Run backend tests
+      working-directory: backend
+      env:
+        # Any 64-char value: config.py rejects short or placeholder salts
+        API_KEYS_SALT: "ci-test-salt-ci-test-salt-ci-test-salt-ci-test-salt-ci-test-salt"
+        DATABASE_URL: "sqlite+aiosqlite:///:memory:"
+      run: python -m pytest tests/ --tb=short
