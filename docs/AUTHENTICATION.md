@@ -58,7 +58,7 @@ Created admin API key:
 Once you have an admin key, use it to create keys for different purposes via the API:
 
 ```bash
-curl -X POST https://api.example.com/admin/keys \
+curl -X POST https://api.example.com/api/v1/admin/keys \
   -H "X-API-Key: ra_live_your_admin_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -166,7 +166,7 @@ Rate limits prevent API abuse and ensure fair usage. Limits are configured per-k
 
 ```bash
 curl -H "X-API-Key: your_key" \
-     https://api.example.com/auth/check
+     https://api.example.com/api/v1/auth/check
 ```
 
 **Response:**
@@ -213,7 +213,7 @@ When you exceed a rate limit:
 **Best practices:**
 - Check the `reset_at` timestamp and wait until then
 - Implement exponential backoff in your client
-- Monitor your usage with `/auth/check`
+- Monitor your usage with `/api/v1/auth/check`
 - Request higher limits if needed (contact admin)
 
 ## Managing API Keys
@@ -223,7 +223,7 @@ Admin keys can manage other API keys through the admin endpoints.
 ### Create API Key
 
 ```bash
-curl -X POST https://api.example.com/admin/keys \
+curl -X POST https://api.example.com/api/v1/admin/keys \
   -H "X-API-Key: ra_live_admin_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -240,7 +240,7 @@ curl -X POST https://api.example.com/admin/keys \
 
 ```bash
 curl -H "X-API-Key: ra_live_admin_key" \
-     https://api.example.com/admin/keys
+     https://api.example.com/api/v1/admin/keys
 ```
 
 **Response:**
@@ -273,7 +273,7 @@ curl -H "X-API-Key: ra_live_admin_key" \
 ### Update API Key
 
 ```bash
-curl -X PATCH https://api.example.com/admin/keys/2 \
+curl -X PATCH https://api.example.com/api/v1/admin/keys/2 \
   -H "X-API-Key: ra_live_admin_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -285,7 +285,7 @@ curl -X PATCH https://api.example.com/admin/keys/2 \
 ### Revoke API Key
 
 ```bash
-curl -X DELETE https://api.example.com/admin/keys/2 \
+curl -X DELETE https://api.example.com/api/v1/admin/keys/2 \
   -H "X-API-Key: ra_live_admin_key"
 ```
 
@@ -299,7 +299,7 @@ This marks the key as inactive. The key remains in the database for audit purpos
 import requests
 
 API_KEY = "ra_live_your_key_here"
-BASE_URL = "https://api.example.com"
+BASE_URL = "https://api.example.com/api/v1"
 
 headers = {
     "X-API-Key": API_KEY
@@ -322,7 +322,7 @@ import httpx
 import asyncio
 
 API_KEY = "ra_live_your_key_here"
-BASE_URL = "https://api.example.com"
+BASE_URL = "https://api.example.com/api/v1"
 
 async def check_health():
     async with httpx.AsyncClient() as client:
@@ -340,7 +340,7 @@ print(result)
 
 ```javascript
 const API_KEY = "ra_live_your_key_here";
-const BASE_URL = "https://api.example.com";
+const BASE_URL = "https://api.example.com/api/v1";
 
 async function checkHealth() {
   const response = await fetch(`${BASE_URL}/health`, {
@@ -362,7 +362,7 @@ checkHealth();
 const axios = require('axios');
 
 const API_KEY = "ra_live_your_key_here";
-const BASE_URL = "https://api.example.com";
+const BASE_URL = "https://api.example.com/api/v1";
 
 const client = axios.create({
   baseURL: BASE_URL,
@@ -396,10 +396,10 @@ curl -H "X-API-Key: $API_KEY" \
 
 # Check authentication and rate limits
 curl -H "X-API-Key: $API_KEY" \
-     https://api.example.com/auth/check
+     https://api.example.com/api/v1/auth/check
 
 # Create a new API key (admin only)
-curl -X POST https://api.example.com/admin/keys \
+curl -X POST https://api.example.com/api/v1/admin/keys \
   -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
@@ -459,7 +459,7 @@ curl -H "X-API-Key: your_key" https://api.example.com/health
 
 **Solution:**
 1. Wait until the `reset_at` time
-2. Check your usage: `GET /auth/check`
+2. Check your usage: `GET /api/v1/auth/check`
 3. Implement rate limit awareness in your client
 4. Request higher limits if legitimately needed
 

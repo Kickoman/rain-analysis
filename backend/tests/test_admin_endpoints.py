@@ -66,7 +66,7 @@ async def test_create_api_key_success(client: AsyncClient, admin_key: tuple[str,
     }
     
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json=key_data,
         headers={"X-API-Key": admin_token}
     )
@@ -120,7 +120,7 @@ async def test_create_api_key_non_admin_forbidden(client: AsyncClient, read_key:
     }
     
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json=key_data,
         headers={"X-API-Key": read_token}
     )
@@ -138,7 +138,7 @@ async def test_create_api_key_no_auth(client: AsyncClient):
         "environment": "test"
     }
     
-    response = await client.post("/admin/keys", json=key_data)
+    response = await client.post("/api/v1/admin/keys", json=key_data)
     
     assert response.status_code == 401
 
@@ -163,7 +163,7 @@ async def test_list_api_keys(client: AsyncClient, admin_key: tuple[str, APIKey],
     await db_session.commit()
     
     response = await client.get(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         headers={"X-API-Key": admin_token}
     )
     
@@ -189,7 +189,7 @@ async def test_get_api_key(client: AsyncClient, admin_key: tuple[str, APIKey], d
     admin_token, admin_obj = admin_key
     
     response = await client.get(
-        f"/admin/keys/{admin_obj.id}",
+        f"/api/v1/admin/keys/{admin_obj.id}",
         headers={"X-API-Key": admin_token}
     )
     
@@ -208,7 +208,7 @@ async def test_get_api_key_not_found(client: AsyncClient, admin_key: tuple[str, 
     admin_token, _ = admin_key
     
     response = await client.get(
-        "/admin/keys/99999",
+        "/api/v1/admin/keys/99999",
         headers={"X-API-Key": admin_token}
     )
     
@@ -241,7 +241,7 @@ async def test_update_api_key_rate_limits(client: AsyncClient, admin_key: tuple[
     }
     
     response = await client.patch(
-        f"/admin/keys/{test_key.id}",
+        f"/api/v1/admin/keys/{test_key.id}",
         json=update_data,
         headers={"X-API-Key": admin_token}
     )
@@ -291,7 +291,7 @@ async def test_update_api_key_deactivate(client: AsyncClient, admin_key: tuple[s
     update_data = {"is_active": False}
     
     response = await client.patch(
-        f"/admin/keys/{test_key.id}",
+        f"/api/v1/admin/keys/{test_key.id}",
         json=update_data,
         headers={"X-API-Key": admin_token}
     )
@@ -324,7 +324,7 @@ async def test_deactivate_api_key(client: AsyncClient, admin_key: tuple[str, API
     await db_session.refresh(test_key)
     
     response = await client.delete(
-        f"/admin/keys/{test_key.id}",
+        f"/api/v1/admin/keys/{test_key.id}",
         headers={"X-API-Key": admin_token}
     )
     
@@ -365,7 +365,7 @@ async def test_deactivate_already_inactive_key(client: AsyncClient, admin_key: t
     await db_session.refresh(test_key)
     
     response = await client.delete(
-        f"/admin/keys/{test_key.id}",
+        f"/api/v1/admin/keys/{test_key.id}",
         headers={"X-API-Key": admin_token}
     )
     
@@ -388,7 +388,7 @@ async def test_create_api_key_with_expiry(client: AsyncClient, admin_key: tuple[
     }
     
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json=key_data,
         headers={"X-API-Key": admin_token}
     )
@@ -407,7 +407,7 @@ async def test_create_api_key_validation_errors(client: AsyncClient, admin_key: 
     
     # Invalid scope
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json={
             "owner": "test",
             "scope": "invalid_scope",
@@ -419,7 +419,7 @@ async def test_create_api_key_validation_errors(client: AsyncClient, admin_key: 
     
     # Invalid environment
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json={
             "owner": "test",
             "scope": "read",
@@ -431,7 +431,7 @@ async def test_create_api_key_validation_errors(client: AsyncClient, admin_key: 
     
     # Invalid rate limit (negative)
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         json={
             "owner": "test",
             "scope": "read",

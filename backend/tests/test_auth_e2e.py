@@ -44,7 +44,7 @@ async def test_full_authentication_flow(client: AsyncClient, db_session):
     
     # Step 2: Use admin key to create a read-only key
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         headers={"X-API-Key": admin_key_value},
         json={
             "name": "test-read-key",
@@ -73,7 +73,7 @@ async def test_full_authentication_flow(client: AsyncClient, db_session):
     
     # Step 4: Check authentication status
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": read_key_value}
     )
     assert response.status_code == 200
@@ -109,7 +109,7 @@ async def test_full_authentication_flow(client: AsyncClient, db_session):
     
     # Step 6: Admin deactivates the read key
     response = await client.delete(
-        f"/admin/keys/{read_key_id}",
+        f"/api/v1/admin/keys/{read_key_id}",
         headers={"X-API-Key": admin_key_value}
     )
     assert response.status_code == 200
@@ -160,7 +160,7 @@ async def test_scope_enforcement(client: AsyncClient, db_session):
     
     # Try to use read key on admin endpoint (should fail)
     response = await client.get(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         headers={"X-API-Key": read_key_value}
     )
     assert response.status_code == 403
@@ -235,7 +235,7 @@ async def test_rate_limit_reset(client: AsyncClient, db_session):
     
     # Check auth to get reset time
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": test_key_value}
     )
     
@@ -268,7 +268,7 @@ async def test_multiple_scopes(client: AsyncClient, db_session):
     
     # Create key with both read and write scopes
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         headers={"X-API-Key": admin_key_value},
         json={
             "name": "read-write-key",
@@ -281,7 +281,7 @@ async def test_multiple_scopes(client: AsyncClient, db_session):
     
     # Verify both scopes are present
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": multi_scope_key}
     )
     assert response.status_code == 200
@@ -313,7 +313,7 @@ async def test_audit_logging(client: AsyncClient, db_session):
     
     # Perform admin action (create key)
     response = await client.post(
-        "/admin/keys",
+        "/api/v1/admin/keys",
         headers={"X-API-Key": admin_key_value},
         json={
             "name": "audit-test-key",

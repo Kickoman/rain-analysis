@@ -55,7 +55,7 @@ class TestListModels:
         await db_session.commit()
         
         # Test default behavior (active_only=True)
-        response = await client.get("/models", headers=auth_headers)
+        response = await client.get("/api/v1/models", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -83,7 +83,7 @@ class TestListModels:
         await db_session.commit()
         
         # Test with active_only=False
-        response = await client.get("/models?active_only=false", headers=auth_headers)
+        response = await client.get("/api/v1/models?active_only=false", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -97,7 +97,7 @@ class TestListModels:
     
     async def test_list_models_empty(self, client, auth_headers, db_session):
         """Test listing models when database is empty."""
-        response = await client.get("/models", headers=auth_headers)
+        response = await client.get("/api/v1/models", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -114,7 +114,7 @@ class TestListModels:
         db_session.add_all([model_c, model_a, model_b])
         await db_session.commit()
         
-        response = await client.get("/models", headers=auth_headers)
+        response = await client.get("/api/v1/models", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -123,12 +123,12 @@ class TestListModels:
     
     async def test_list_models_no_auth(self, client):
         """Test that listing models requires authentication."""
-        response = await client.get("/models")
+        response = await client.get("/api/v1/models")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
     
     async def test_list_models_invalid_api_key(self, client):
         """Test that listing models rejects invalid API key."""
-        response = await client.get("/models", headers={"X-API-Key": "invalid_key"})
+        response = await client.get("/api/v1/models", headers={"X-API-Key": "invalid_key"})
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -149,7 +149,7 @@ class TestGetModel:
         await db_session.commit()
         await db_session.refresh(model)
         
-        response = await client.get(f"/models/{model.id}", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model.id}", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -163,7 +163,7 @@ class TestGetModel:
     
     async def test_get_model_not_found(self, client, auth_headers):
         """Test retrieving a non-existent model."""
-        response = await client.get("/models/99999", headers=auth_headers)
+        response = await client.get("/api/v1/models/99999", headers=auth_headers)
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "not found" in response.json()["detail"].lower()
@@ -175,7 +175,7 @@ class TestGetModel:
         await db_session.commit()
         await db_session.refresh(model)
         
-        response = await client.get(f"/models/{model.id}")
+        response = await client.get(f"/api/v1/models/{model.id}")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -219,7 +219,7 @@ class TestGetLatestMetrics:
         db_session.add_all([older_metric, latest_metric])
         await db_session.commit()
         
-        response = await client.get(f"/models/{model.id}/metrics", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model.id}/metrics", headers=auth_headers)
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
@@ -238,7 +238,7 @@ class TestGetLatestMetrics:
     
     async def test_get_latest_metrics_model_not_found(self, client, auth_headers):
         """Test getting metrics for non-existent model."""
-        response = await client.get("/models/99999/metrics", headers=auth_headers)
+        response = await client.get("/api/v1/models/99999/metrics", headers=auth_headers)
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "model" in response.json()["detail"].lower()
@@ -251,7 +251,7 @@ class TestGetLatestMetrics:
         await db_session.commit()
         await db_session.refresh(model)
         
-        response = await client.get(f"/models/{model.id}/metrics", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model.id}/metrics", headers=auth_headers)
         
         assert response.status_code == status.HTTP_404_NOT_FOUND
         assert "no metrics" in response.json()["detail"].lower()
@@ -263,7 +263,7 @@ class TestGetLatestMetrics:
         await db_session.commit()
         await db_session.refresh(model)
         
-        response = await client.get(f"/models/{model.id}/metrics")
+        response = await client.get(f"/api/v1/models/{model.id}/metrics")
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
 
@@ -305,7 +305,7 @@ class TestGetMetricsHistory:
         end_date = base_date
         
         response = await client.get(
-            f"/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
+            f"/api/v1/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
             headers=auth_headers
         )
         
@@ -340,7 +340,7 @@ class TestGetMetricsHistory:
         end_date = date.today()
         
         response = await client.get(
-            f"/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
+            f"/api/v1/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
             headers=auth_headers
         )
         
@@ -355,7 +355,7 @@ class TestGetMetricsHistory:
         end_date = date.today()
         
         response = await client.get(
-            f"/models/99999/metrics/history?start={start_date}&end={end_date}",
+            f"/api/v1/models/99999/metrics/history?start={start_date}&end={end_date}",
             headers=auth_headers
         )
         
@@ -375,7 +375,7 @@ class TestGetMetricsHistory:
         end_date = date.today() - timedelta(days=7)
         
         response = await client.get(
-            f"/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
+            f"/api/v1/models/{model.id}/metrics/history?start={start_date}&end={end_date}",
             headers=auth_headers
         )
         
@@ -390,13 +390,13 @@ class TestGetMetricsHistory:
         await db_session.refresh(model)
         
         # Missing both parameters
-        response = await client.get(f"/models/{model.id}/metrics/history", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model.id}/metrics/history", headers=auth_headers)
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
         
         # Missing end parameter
         start_date = date.today() - timedelta(days=7)
         response = await client.get(
-            f"/models/{model.id}/metrics/history?start={start_date}",
+            f"/api/v1/models/{model.id}/metrics/history?start={start_date}",
             headers=auth_headers
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -404,7 +404,7 @@ class TestGetMetricsHistory:
         # Missing start parameter
         end_date = date.today()
         response = await client.get(
-            f"/models/{model.id}/metrics/history?end={end_date}",
+            f"/api/v1/models/{model.id}/metrics/history?end={end_date}",
             headers=auth_headers
         )
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
@@ -420,7 +420,7 @@ class TestGetMetricsHistory:
         end_date = date.today()
         
         response = await client.get(
-            f"/models/{model.id}/metrics/history?start={start_date}&end={end_date}"
+            f"/api/v1/models/{model.id}/metrics/history?start={start_date}&end={end_date}"
         )
         assert response.status_code == status.HTTP_401_UNAUTHORIZED
 
@@ -454,17 +454,17 @@ class TestModelsIntegration:
         await db_session.commit()
         
         # Test 1: List active models
-        response = await client.get("/models", headers=auth_headers)
+        response = await client.get("/api/v1/models", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert len(response.json()["models"]) == 2
         
         # Test 2: Get specific model
-        response = await client.get(f"/models/{model1.id}", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model1.id}", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["name"] == "model_a"
         
         # Test 3: Get latest metrics
-        response = await client.get(f"/models/{model1.id}/metrics", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model1.id}/metrics", headers=auth_headers)
         assert response.status_code == status.HTTP_200_OK
         assert response.json()["model"] == "model_a"
         assert response.json()["latest_metrics"]["brier_score"] == 0.10
@@ -473,12 +473,12 @@ class TestModelsIntegration:
         start_date = date.today() - timedelta(days=2)
         end_date = date.today()
         response = await client.get(
-            f"/models/{model1.id}/metrics/history?start={start_date}&end={end_date}",
+            f"/api/v1/models/{model1.id}/metrics/history?start={start_date}&end={end_date}",
             headers=auth_headers
         )
         assert response.status_code == status.HTTP_200_OK
         assert len(response.json()["history"]) == 3
         
         # Test 5: Model without metrics returns 404
-        response = await client.get(f"/models/{model2.id}/metrics", headers=auth_headers)
+        response = await client.get(f"/api/v1/models/{model2.id}/metrics", headers=auth_headers)
         assert response.status_code == status.HTTP_404_NOT_FOUND

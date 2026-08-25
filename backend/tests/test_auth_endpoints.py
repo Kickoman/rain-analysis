@@ -36,7 +36,7 @@ async def test_auth_check_valid_key(client: AsyncClient, test_api_key):
     raw_key, api_key = test_api_key
     
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
 
@@ -68,7 +68,7 @@ async def test_auth_check_with_rate_limits(client: AsyncClient, db_session: Asyn
     await db_session.commit()
 
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
 
@@ -101,7 +101,7 @@ async def test_auth_check_with_expiration(client: AsyncClient, db_session: Async
     await db_session.commit()
 
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
 
@@ -116,7 +116,7 @@ async def test_auth_check_with_expiration(client: AsyncClient, db_session: Async
 @pytest.mark.asyncio
 async def test_auth_check_without_key(client: AsyncClient):
     """Test /auth/check without API key returns 401."""
-    response = await client.get("/auth/check")
+    response = await client.get("/api/v1/auth/check")
 
     assert response.status_code == 401
     data = response.json()
@@ -127,7 +127,7 @@ async def test_auth_check_without_key(client: AsyncClient):
 async def test_auth_check_with_invalid_key(client: AsyncClient):
     """Test /auth/check with invalid API key returns 401."""
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": "invalid_key_12345"}
     )
 
@@ -152,7 +152,7 @@ async def test_auth_check_with_inactive_key(client: AsyncClient, db_session: Asy
     await db_session.commit()
 
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
 
@@ -179,7 +179,7 @@ async def test_auth_check_remaining_decreases(client: AsyncClient, db_session: A
 
     # First request
     response1 = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
     assert response1.status_code == 200
@@ -188,7 +188,7 @@ async def test_auth_check_remaining_decreases(client: AsyncClient, db_session: A
 
     # Second request
     response2 = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
     assert response2.status_code == 200
@@ -215,7 +215,7 @@ async def test_auth_check_different_scopes(client: AsyncClient, db_session: Asyn
         await db_session.commit()
 
         response = await client.get(
-            "/auth/check",
+            "/api/v1/auth/check",
             headers={"X-API-Key": raw_key}
         )
 
@@ -242,7 +242,7 @@ async def test_auth_check_null_rate_limits(client: AsyncClient, db_session: Asyn
     await db_session.commit()
 
     response = await client.get(
-        "/auth/check",
+        "/api/v1/auth/check",
         headers={"X-API-Key": raw_key}
     )
 
@@ -272,7 +272,7 @@ async def test_expired_key_rejected(client: AsyncClient, db_session: AsyncSessio
     db_session.add(api_key)
     await db_session.commit()
 
-    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+    response = await client.get("/api/v1/auth/check", headers={"X-API-Key": full_key})
 
     assert response.status_code == 401
     assert response.json()["detail"] == "API key expired"
@@ -294,7 +294,7 @@ async def test_future_expiry_accepted(client: AsyncClient, db_session: AsyncSess
     db_session.add(api_key)
     await db_session.commit()
 
-    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+    response = await client.get("/api/v1/auth/check", headers={"X-API-Key": full_key})
 
     assert response.status_code == 200
 
@@ -305,7 +305,7 @@ async def test_last_used_at_updated(client: AsyncClient, db_session: AsyncSessio
     full_key, api_key = test_api_key
     assert api_key.last_used_at is None
 
-    response = await client.get("/auth/check", headers={"X-API-Key": full_key})
+    response = await client.get("/api/v1/auth/check", headers={"X-API-Key": full_key})
     assert response.status_code == 200
 
     await db_session.refresh(api_key)

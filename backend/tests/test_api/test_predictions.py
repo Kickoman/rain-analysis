@@ -114,7 +114,7 @@ class TestGetCurrentPredictions:
     ):
         """Test getting current predictions successfully."""
         response = await client.get(
-            "/predictions/current",
+            "/api/v1/predictions/current",
             headers={"X-API-Key": read_api_key.full_key}
         )
         
@@ -136,7 +136,7 @@ class TestGetCurrentPredictions:
     ):
         """Test getting current predictions when no predictions exist."""
         response = await client.get(
-            "/predictions/current",
+            "/api/v1/predictions/current",
             headers={"X-API-Key": read_api_key.full_key}
         )
         
@@ -160,7 +160,7 @@ class TestGetCurrentPredictions:
         await db_session.commit()
         
         response = await client.get(
-            "/predictions/current",
+            "/api/v1/predictions/current",
             headers={"X-API-Key": read_api_key.full_key}
         )
         
@@ -173,7 +173,7 @@ class TestGetCurrentPredictions:
     
     async def test_get_current_predictions_no_auth(self, client):
         """Test getting current predictions without authentication."""
-        response = await client.get("/predictions/current")
+        response = await client.get("/api/v1/predictions/current")
         
         assert response.status_code == 401
 
@@ -189,7 +189,7 @@ class TestGetPredictionHistory:
         end_time = datetime(2024, 1, 1, 16, 0, 0)
         
         response = await client.get(
-            "/predictions/history",
+            "/api/v1/predictions/history",
             params={
                 "model": "test_model",
                 "start": start_time.isoformat(),
@@ -217,7 +217,7 @@ class TestGetPredictionHistory:
         end_time = datetime(2024, 1, 1, 15, 0, 0)
         
         response = await client.get(
-            "/predictions/history",
+            "/api/v1/predictions/history",
             params={
                 "model": "test_model",
                 "start": start_time.isoformat(),
@@ -239,7 +239,7 @@ class TestGetPredictionHistory:
         end_time = datetime(2024, 1, 1, 16, 0, 0)
         
         response = await client.get(
-            "/predictions/history",
+            "/api/v1/predictions/history",
             params={
                 "model": "nonexistent_model",
                 "start": start_time.isoformat(),
@@ -257,7 +257,7 @@ class TestGetPredictionHistory:
         end_time = datetime(2024, 1, 1, 16, 0, 0)
         
         response = await client.get(
-            "/predictions/history",
+            "/api/v1/predictions/history",
             params={
                 "model": "test_model",
                 "start": start_time.isoformat(),
@@ -314,7 +314,7 @@ class TestEvaluateModel:
         }
         
         response = await client.post(
-            "/predictions/evaluate",
+            "/api/v1/predictions/evaluate",
             json=request_data,
             headers={"X-API-Key": write_api_key.full_key}
         )
@@ -346,7 +346,7 @@ class TestEvaluateModel:
         }
         
         response = await client.post(
-            "/predictions/evaluate",
+            "/api/v1/predictions/evaluate",
             json=request_data,
             headers={"X-API-Key": write_api_key.full_key}
         )
@@ -364,7 +364,7 @@ class TestEvaluateModel:
         }
         
         response = await client.post(
-            "/predictions/evaluate",
+            "/api/v1/predictions/evaluate",
             json=request_data,
             headers={"X-API-Key": write_api_key.full_key}
         )
@@ -388,7 +388,7 @@ class TestEvaluateModel:
         }
         
         response = await client.post(
-            "/predictions/evaluate",
+            "/api/v1/predictions/evaluate",
             json=request_data,
             headers={"X-API-Key": read_api_key.full_key}
         )
@@ -410,7 +410,7 @@ class TestEvaluateModel:
         }
         
         response = await client.post(
-            "/predictions/evaluate",
+            "/api/v1/predictions/evaluate",
             json=request_data
         )
         

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, status
+from fastapi import APIRouter, FastAPI, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
@@ -100,11 +100,14 @@ app.add_middleware(
 # Register authentication middleware
 app.middleware("http")(auth_middleware)
 
-# Register routers
-app.include_router(admin.router)
-app.include_router(auth.router)
-app.include_router(models.router)
-app.include_router(predictions.router)
+# Register routers under the versioned API prefix.
+# Health probes and the root info page stay unversioned.
+api_v1 = APIRouter(prefix="/api/v1")
+api_v1.include_router(admin.router)
+api_v1.include_router(auth.router)
+api_v1.include_router(models.router)
+api_v1.include_router(predictions.router)
+app.include_router(api_v1)
 
 @app.get("/health")
 async def health_check(db: AsyncSession = Depends(get_db)):
