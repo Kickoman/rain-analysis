@@ -5,6 +5,7 @@ from .ml import MLModel, Prediction, ModelMetric
 from .api_key import APIKey
 from .api_request_log import APIRequestLog
 from .admin_audit_log import AdminAuditLog
+from .report import Report
 
 __all__ = [
     "Base",
@@ -16,4 +17,5 @@ __all__ = [
     "APIKey",
     "APIRequestLog",
     "AdminAuditLog",
+    "Report",
 ]

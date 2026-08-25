@@ -10,7 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 from .config import settings
 from .constants import EXEMPT_PATHS
 from .database import init_db, close_db, get_db
-from .routers import admin, auth, data, predictions, models
+from .routers import admin, auth, data, predictions, models, reports
 from .auth.middleware import auth_middleware
 from .ml.daily_task import _daily_task
 import logging
@@ -109,6 +109,7 @@ api_v1.include_router(auth.router)
 api_v1.include_router(data.router)
 api_v1.include_router(models.router)
 api_v1.include_router(predictions.router)
+api_v1.include_router(reports.router)
 app.include_router(api_v1)
 
 @app.get("/health")

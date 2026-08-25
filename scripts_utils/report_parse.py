@@ -149,3 +149,96 @@ def leaderboard_f1(html: str, model_name: str) -> float | None:
         if row["model"] == model_name:
             return row["f1"]
     return None
+
+
+# ---------------------------------------------------------------------------
+# Markdown-native extractors (Phase 4 migration, #399/#400)
+#
+# Same rules as the HTML side: sections are located by their headings, and
+# ``N/A`` is a value (None), not a parse failure. These operate on the raw
+# report markdown so the backend migration does not depend on the HTML
+# rendering pipeline.
+# ---------------------------------------------------------------------------
+
+_MD_H2 = re.compile(r"^##\s+(.+?)\s*$", re.M)
+_MD_H3 = re.compile(r"^###\s+(.+?)\s*$", re.M)
+_MD_TABLE_ROW = re.compile(r"^\|(.+)\|\s*$", re.M)
+
+
+def split_markdown_sections(text: str) -> list[tuple[str, str]]:
+    """Split report markdown into ``(h2_title, body)`` pairs, in order."""
+    matches = list(_MD_H2.finditer(text))
+    sections = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        sections.append((m.group(1), text[m.end():end].strip()))
+    return sections
+
+
+def markdown_section(text: str, title_pattern: str) -> str | None:
+    """Body of the first ``##`` section whose title matches the regex."""
+    pattern = re.compile(title_pattern)
+    for title, body in split_markdown_sections(text):
+        if pattern.search(title):
+            return body
+    return None
+
+
+def parse_markdown_table(block: str) -> list[dict]:
+    """First markdown table in ``block`` as header-keyed rows.
+
+    Cell values stay raw strings (callers decide what is numeric);
+    the ``|---|`` separator row is dropped. Returns ``[]`` without a table.
+    """
+    rows = [
+        [cell.strip() for cell in m.group(1).split("|")]
+        for m in _MD_TABLE_ROW.finditer(block)
+    ]
+    if len(rows) < 2:
+        return []
+    header = rows[0]
+    out = []
+    for row in rows[1:]:
+        if all(re.fullmatch(r":?-{2,}:?", cell) for cell in row if cell):
+            continue  # separator row
+        if len(row) != len(header):
+            continue
+        out.append(dict(zip(header, row)))
+    return out
+
+
+def extract_leaderboard_md(text: str) -> list[dict]:
+    """Markdown counterpart of :func:`extract_leaderboard`.
+
+    Reads the ``Model Performance`` section's table into
+    ``[{model, f1, precision, recall, status}, ...]`` with metric cells as
+    float-or-None. Returns ``[]`` when the section or table is missing.
+    """
+    body = markdown_section(text, r"Model Performance")
+    if body is None:
+        return []
+    rows = []
+    seen = set()
+    for raw in parse_markdown_table(body):
+        model = raw.get("Model", "").strip()
+        if not model or model in seen:
+            continue
+        seen.add(model)
+        rows.append({
+            "model": model,
+            "f1": _parse_cell(raw.get("F1", "")),
+            "precision": _parse_cell(raw.get("Precision", "")),
+            "recall": _parse_cell(raw.get("Recall", "")),
+            "status": raw.get("Status", "").strip() or None,
+        })
+    return rows
+
+
+def markdown_subsections(body: str) -> list[tuple[str, str]]:
+    """Split a section body into ``(h3_title, sub_body)`` pairs."""
+    matches = list(_MD_H3.finditer(body))
+    subs = []
+    for i, m in enumerate(matches):
+        end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
+        subs.append((m.group(1), body[m.end():end].strip()))
+    return subs

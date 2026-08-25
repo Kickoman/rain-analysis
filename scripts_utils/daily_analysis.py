@@ -1001,7 +1001,20 @@ Examples:
         action="store_true",
         help="Skip git commit/push (useful for testing)"
     )
-    
+
+    parser.add_argument(
+        "--backend-url",
+        default=os.environ.get("RAIN_BACKEND_URL"),
+        help="Backend base URL to POST the finished report to "
+             "(default: RAIN_BACKEND_URL env; skipped when unset)"
+    )
+
+    parser.add_argument(
+        "--backend-key",
+        default=os.environ.get("RAIN_BACKEND_KEY"),
+        help="Write-scoped backend API key (default: RAIN_BACKEND_KEY env)"
+    )
+
     args = parser.parse_args()
     
     workspace = args.workspace.resolve()
@@ -1053,7 +1066,37 @@ Examples:
         f.write(report_md)
     
     print(f"\n✓ Report saved: {report_file}")
-    
+
+    # Push the finished report to the backend (variant B, #402): the
+    # pipeline stays the only calculator, the backend only stores. Uses the
+    # same content builder as the history migration so both paths produce
+    # identical structure. Skipped silently when no backend is configured
+    # (e.g. CI without secrets).
+    if args.backend_url and args.backend_key:
+        try:
+            import requests
+            from migrate_reports_to_backend import build_content
+
+            payload = {
+                "report_date": timestamp,
+                "content": build_content(report_md),
+                "meta": {"source_markdown": report_md, "generator": "daily_analysis.py"},
+            }
+            response = requests.post(
+                args.backend_url.rstrip("/") + "/api/v1/reports",
+                json=payload,
+                headers={"X-API-Key": args.backend_key},
+                timeout=60,
+            )
+            response.raise_for_status()
+            print(f"✓ Report pushed to backend: {response.json().get('action')}")
+        except Exception as e:
+            # A backend hiccup must not fail the pipeline; the report is
+            # already on disk and the migration script repairs gaps.
+            print(f"⚠ Backend push failed (report saved locally): {e}")
+    elif args.backend_url or args.backend_key:
+        print("⚠ Backend push skipped: need BOTH --backend-url and --backend-key")
+
     if not args.no_commit:
         # Commit report
         print("\n" + "=" * 70)
