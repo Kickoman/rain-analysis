@@ -237,7 +237,13 @@ def load_data(config: AnalysisConfig) -> pd.DataFrame:
 
     # Open-meteo
     om_frames = [rl.load_open_meteo(src) for src in config.om_sources]
-    om = pd.concat(om_frames).sort_index() if om_frames else pd.DataFrame()
+    # kind="stable" is load-bearing: with overlapping sources the dedupe below
+    # keeps the last row for a timestamp, which only means "the last source on
+    # the command line" if equal timestamps keep their input order. The default
+    # quicksort does not, so precedence was silently arbitrary and two sources
+    # covering the same hour could each supply part of the ground truth.
+    om = (pd.concat(om_frames).sort_index(kind="stable")
+          if om_frames else pd.DataFrame())
     if not om.empty:
         om = om[~om.index.duplicated(keep="last")]
 

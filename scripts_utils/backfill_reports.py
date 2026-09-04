@@ -16,10 +16,21 @@ numbers and `daily_analysis.generate_report` for the markdown — rather than
 reimplementing either; the only additions are a fixed window anchor and a
 provenance note in the output.
 
-Inputs (all committed, so the run is reproducible):
-  data/archive/ha_hourly.csv     — HA long-term statistics, 2026-07-01 onward
-  data/archive/om_backfill.json  — Open-Meteo archive, 2026-06-15 → 2026-08-13
-  data/archive/ms_backfill.json  — Meteostat, same range
+It has since served a second purpose: filling the gap left when the runner
+that generated the daily reports stopped after 2026-08-22. There the local
+sensor history comes from the backend (see pull_measurements.py) rather than
+from Home Assistant, which is why every input is an argument.
+
+Inputs (defaults are the committed archive, so a default run is reproducible):
+  --ha-csv      data/archive/ha_hourly.csv     — HA history, 2026-07-01 onward
+  --om-sources  data/archive/om_backfill.json  — Open-Meteo, 2026-06-15 onward
+  --meteostat   data/archive/ms_backfill.json  — Meteostat, same range
+  --yandex-dir  none by default — the archive is not always reachable
+
+Pass ONE Open-Meteo source unless the files genuinely do not overlap: on
+overlapping hours the last source wins, which mixes two different series
+(the ERA5 archive and the forecast past-days series disagree by ~3x on rain
+hours) into one ground truth.
 
 Differences from the original reports, stated once here:
   * Windows are anchored at 00:00 UTC of the day after the report date, not at
@@ -33,12 +44,16 @@ Differences from the original reports, stated once here:
 Usage:
   python scripts_utils/backfill_reports.py                 # full range
   python scripts_utils/backfill_reports.py --start 2026-08-01 --end 2026-08-03
+  python scripts_utils/backfill_reports.py --start 2026-08-23 --end 2026-09-03 \
+      --om-sources data/archive/om_backfill_forecast.json \
+      --yandex-dir data/yandex_archive --provenance "> ..."
 """
 
 import argparse
 import json
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -61,7 +76,21 @@ PROVENANCE = (
 )
 
 
-def run_window(day: date, days: int, python: str) -> dict | None:
+@dataclass
+class Inputs:
+    """The data files one backfill run reads. Defaults are the committed archive."""
+
+    ha_csv: Path = HA_CSV
+    om_sources: tuple[Path, ...] = (OM_JSON,)
+    meteostat: Path = MS_JSON
+    yandex_dir: Path | None = None
+
+    def paths(self):
+        required = [self.ha_csv, *self.om_sources, self.meteostat]
+        return required + ([self.yandex_dir] if self.yandex_dir else [])
+
+
+def run_window(day: date, days: int, python: str, inputs: Inputs) -> dict | None:
     """Run the analysis pipeline for one (date, window) pair; return its JSON."""
     window_end = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) \
         + timedelta(days=1)
@@ -73,14 +102,16 @@ def run_window(day: date, days: int, python: str) -> dict | None:
 
     cmd = [
         python, str(REPO / "analysis/run_analysis.py"),
-        "--ha-csv", str(HA_CSV),
-        "--om-sources", str(OM_JSON),
-        "--meteostat", str(MS_JSON),
+        "--ha-csv", str(inputs.ha_csv),
+        "--om-sources", *[str(src) for src in inputs.om_sources],
+        "--meteostat", str(inputs.meteostat),
         "--window-start", window_start.isoformat(),
         "--window-end", window_end.isoformat(),
         "--output", str(out_json),
         "--quiet",
     ]
+    if inputs.yandex_dir:
+        cmd += ["--yandex-dir", str(inputs.yandex_dir)]
     proc = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
     if proc.returncode != 0:
         print(f"  ✗ {day} {days}d failed:\n{proc.stderr[-2000:]}", file=sys.stderr)
@@ -89,10 +120,10 @@ def run_window(day: date, days: int, python: str) -> dict | None:
         return json.load(f)
 
 
-def backfill_one(day: date, python: str) -> bool:
+def backfill_one(day: date, python: str, inputs: Inputs, provenance: str) -> bool:
     results = {}
     for days in WINDOWS:
-        results[days] = run_window(day, days, python)
+        results[days] = run_window(day, days, python, inputs)
         if results[days] is None:
             return False
 
@@ -101,7 +132,7 @@ def backfill_one(day: date, python: str) -> bool:
 
     # Insert the provenance note right after the "**Generated:**" line, so the
     # report format otherwise stays byte-compatible with the daily pipeline's.
-    note = PROVENANCE.format(today=date.today().isoformat())
+    note = provenance.format(today=date.today().isoformat())
     lines = report_md.split("\n")
     for i, line in enumerate(lines):
         if line.startswith("**Generated:**"):
@@ -125,9 +156,24 @@ def main() -> int:
                         help="Last report date (default: 2026-08-13)")
     parser.add_argument("--python", default=sys.executable,
                         help="Interpreter with pandas/numpy/sklearn")
+    parser.add_argument("--ha-csv", type=Path, default=HA_CSV,
+                        help="HA history CSV (entity_id,state,last_changed)")
+    parser.add_argument("--om-sources", type=Path, nargs="+", default=[OM_JSON],
+                        help="Open-Meteo JSON files; on overlap the last one wins")
+    parser.add_argument("--meteostat", type=Path, default=MS_JSON,
+                        help="Meteostat JSON file")
+    parser.add_argument("--yandex-dir", type=Path, default=None,
+                        help="Directory of Yandex snapshots (default: none, "
+                             "the archive is not always reachable)")
+    parser.add_argument("--provenance", default=PROVENANCE,
+                        help="Provenance note inserted after the Generated line; "
+                             "{today} is substituted")
     args = parser.parse_args()
 
-    for path in (HA_CSV, OM_JSON, MS_JSON):
+    inputs = Inputs(ha_csv=args.ha_csv, om_sources=tuple(args.om_sources),
+                    meteostat=args.meteostat, yandex_dir=args.yandex_dir)
+
+    for path in inputs.paths():
         if not path.exists():
             print(f"✗ Missing input: {path}", file=sys.stderr)
             return 1
@@ -137,7 +183,7 @@ def main() -> int:
     failed = []
     while day <= last:
         started = datetime.now()
-        ok = backfill_one(day, args.python)
+        ok = backfill_one(day, args.python, inputs, args.provenance)
         took = (datetime.now() - started).total_seconds()
         print(f"{'✓' if ok else '✗'} {day}  ({took:.0f}s)", flush=True)
         if not ok:

@@ -484,3 +484,46 @@ def test_build_grid_merges_multiple_sources():
     grid = rl.build_grid(ha_wide_df=ha_df, om_df=om_df, freq="10min")
     assert "ha_temp" in grid.columns
     assert "om_temp" in grid.columns
+
+
+# ---------------------------------------------------------------------------
+# Multiple Open-Meteo sources
+# ---------------------------------------------------------------------------
+
+def _om_json(path, start_hour, hours, precip_value):
+    """Write a minimal Open-Meteo payload covering `hours` consecutive hours."""
+    import json
+    times = [f"2026-08-{10 + (start_hour + i) // 24:02d}T{(start_hour + i) % 24:02d}:00"
+             for i in range(hours)]
+    path.write_text(json.dumps({
+        "latitude": 53.9, "longitude": 27.6,
+        "hourly_units": {"precipitation": "mm"},
+        "hourly": {"time": times, "precipitation": [precip_value] * hours},
+    }))
+    return str(path)
+
+
+def test_last_om_source_wins_on_overlap(tmp_path):
+    """Precedence must follow the command line, not the sort's whim.
+
+    A non-stable sort left overlapping sources interleaved, so ground truth
+    for a single window could come partly from each — a difference big enough
+    to change every model's score, and invisible in the report.
+    """
+    from run_analysis import AnalysisConfig, load_data
+
+    first = _om_json(tmp_path / "first.json", 0, 36, 1.0)
+    second = _om_json(tmp_path / "second.json", 12, 36, 0.0)
+
+    ha = tmp_path / "ha.csv"
+    ha.write_text("entity_id,state,last_changed\n" + "".join(
+        f"sensor.datchik_klimata_temperatura,20.0,2026-08-{10 + h // 24:02d}T"
+        f"{h % 24:02d}:00:00+00:00\n" for h in range(48)))
+
+    config = AnalysisConfig(ha_csv=str(ha), om_sources=[first, second])
+    grid, _ = load_data(config)
+
+    # Hours 12-35 are covered by both files; the second one must own all of them.
+    overlap = grid.loc["2026-08-10 12:00":"2026-08-11 11:00", "om_precip"]
+    assert (overlap == 0.0).all(), f"later source did not win: {overlap.tolist()}"
+    assert (grid.loc["2026-08-10 00:00":"2026-08-10 11:00", "om_precip"] == 1.0).all()
