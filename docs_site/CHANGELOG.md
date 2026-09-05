@@ -2,6 +2,52 @@
 
 Notable changes to rain-analysis.
 
+## 2026-09-04
+
+The daily reports stopped after 2026-08-22 when the runner that produced them
+stopped; 2026-08-16..08-20 were missing too. Both gaps are filled, and the
+report pipeline no longer needs Home Assistant to be reachable.
+
+### Added
+
+- **`scripts_utils/pull_measurements.py`** — the mirror of `push_measurements.py`.
+  Reads sensor history back out of the backend (`GET /api/v1/data/measurements`)
+  into the `entity_id,state,last_changed` CSV the analysis pipeline already
+  understands, so `archive_ha_data.py` can fold it into `data/archive/ha_hourly.csv`.
+  It requests one sensor per call — the endpoint pages over the combined row
+  stream, so a multi-sensor request silently truncates — and treats a sensor that
+  returns no rows as an error rather than letting a sensor-free report through.
+  This is what makes the backend, rather than a live HA, the source of local
+  history: `data/archive/ha_hourly.csv` now carries all six entities, including
+  `sensor.rain_probability` and `sensor.outside_dew_point_spread`, which it had
+  never held before.
+- **`backfill_reports.py` takes its inputs as arguments** (`--ha-csv`,
+  `--om-sources`, `--meteostat`, `--yandex-dir`, `--provenance`) instead of
+  hardcoding the three archive paths, so a backfill from different sources does
+  not require editing the script — and can include Yandex, which earlier
+  backfills had to omit.
+
+### Fixed
+
+- **Overlapping Open-Meteo sources had arbitrary precedence.** `load_data`
+  concatenated every `--om-sources` file, sorted, and kept the last row per
+  timestamp — which only means "the last file on the command line" if the sort
+  is stable. It was `quicksort`, so on overlapping hours the ground truth came
+  partly from each file: passing the ERA5 archive and the forecast series
+  together produced 9 rain hours in a window where the intended source had 6.
+  Now sorted with `kind="stable"`.
+
+### Note on ground truth
+
+The new reports (2026-08-16 onward) take Open-Meteo precipitation from the
+forecast API's past-days series — the same series the backend stores as
+`openmeteo.precipitation`, and the one the 2026-08-14..08-22 reports already
+used. Reports up to 2026-08-13 use the ERA5 archive series, which reports about
+three times as many rain hours over the same period (52 vs 15 over
+2026-08-24..09-03). Rain base rates are not comparable across that boundary,
+and neither are scores that depend on them. Each backfilled report says so in
+its provenance note.
+
 ## 2026-08-21 (evening)
 
 The daily report for 2026-08-21 was regenerated after verification found its
