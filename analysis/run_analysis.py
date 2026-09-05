@@ -1344,6 +1344,10 @@ def main():
                         help="Clip the analysis grid to start at this time (ISO 8601, UTC)")
     parser.add_argument("--window-end", default=None,
                         help="Clip the analysis grid to end at this time (ISO 8601, UTC)")
+    parser.add_argument("--dump-grid", default=None,
+                        help="Also write the computed grid (features, model outputs, "
+                             "labels) to this CSV — the report JSON keeps only "
+                             "aggregates, so this is the only way to get per-hour data")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress text summary on stdout")
 
@@ -1371,6 +1375,9 @@ def main():
 
     stats["ground_truth"] = gt_stats
     stats["model_summary"] = model_stats
+
+    if args.dump_grid:
+        grid.to_csv(args.dump_grid)
 
     # Plots (optional)
     plot_paths = save_plots(grid, config, output_dir) if args.plots else []
