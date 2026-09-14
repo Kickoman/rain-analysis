@@ -2,6 +2,22 @@
 
 Complete documentation of all rain prediction models in this analysis framework.
 
+> **Read the table below as history, not as a ranking.** Every F1 in it scores
+> the nowcast target — "is it raining this hour" — which the project no longer
+> selects on. On the target that matters, *does anything warn before rain
+> starts*, the ordering is different and most of these models are
+> indistinguishable from a coin toss. Measured over 2026-07-18..09-14, 59 days,
+> 29 rain starts:
+>
+> | Model | catches | lift over random | front AUC (95% CI) | verdict |
+> |---|:---:|:---:|:---:|---|
+> | `pressure_primary` | 13/29 | 1.42× | 0.69 (0.64–0.75) | the only one that holds |
+> | `onset_gate` | 8/29 | 0.92× | 0.62 (0.56–0.67) | ranks, but no usable threshold |
+> | `ha_live` / `ha_live_actual` | 11/29 | 1.13× | 0.50–0.52 | chance |
+> | everything else | — | <1.0 | 0.51–0.56 | chance |
+>
+> See the daily reports and `docs_site/CHANGELOG.md` (2026-09-15).
+
 ## Model Comparison Table
 
 | Model | Type | F1 (7d) | Precision | Recall | Status |
@@ -177,8 +193,12 @@ From `BASELINE_MODEL.md`:
 
 ## 2. ha_live (Production Model)
 
-**Status:** ✅ Current production (deployed in Home Assistant)  
-**F1:** 0.484 | **Precision:** 0.519 | **Recall:** 0.455
+**Status:** ✅ Deployed in Home Assistant as `sensor.rain_probability` —
+and measured at chance for predicting the start of rain (front AUC 0.50,
+95% CI 0.41–0.58, over 29 onsets). It is good at noticing that the air is
+already saturated, which is what the F1 below rewards and what an alert
+cannot use.  
+**F1 (nowcast target):** 0.484 | **Precision:** 0.519 | **Recall:** 0.455
 
 ### Algorithm
 
