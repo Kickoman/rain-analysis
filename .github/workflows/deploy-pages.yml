@@ -169,6 +169,12 @@ jobs:
           # report that carried the pre-rename `ha_live` series (it is
           # ha_live_replica in the regenerated ones), so its disappearance is
           # intentional. Remove the flag once gh-pages no longer has it.
+          #
+          # The first publish after 2026-09-15 also changes the metrics series
+          # wholesale — the page follows four named candidates on the onset
+          # target where it used to follow every model's nowcast F1. check_site
+          # detects that as a schema change and skips the model-set comparison
+          # for it; the date and page-size checks still apply.
           python3 scripts_utils/check_site.py --baseline-ref HEAD --allow-drop ha_live
 
       - name: Commit and push
