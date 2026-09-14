@@ -128,3 +128,36 @@ async def test_list_and_latest(client: AsyncClient, write_key, read_key):
 async def test_latest_404_when_empty(client: AsyncClient, read_key):
     response = await client.get("/api/v1/reports/latest", headers={"X-API-Key": read_key})
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_onset_sections_survive_the_round_trip(client: AsyncClient, write_key, read_key):
+    """Sections the onset-first report publishes must not be dropped.
+
+    ReportContent silently discards unknown keys, so a section missing from the
+    schema is accepted with a 200 and stored as nothing. That is exactly what
+    happened to the onset scoreboard — the only part of the report that answers
+    the project's question.
+    """
+    payload = {
+        "report_date": "2026-09-13",
+        "content": {
+            "executive_summary": {"best_model": "pressure_primary", "threshold": 80.0},
+            "onset_scoreboard": {
+                "window_days": 58.0,
+                "onsets": 28,
+                "rows": [{"model": "pressure_primary", "caught": 13, "onsets": 28,
+                          "lift": 1.42, "roc_auc": 0.69, "verdict": "works"}],
+            },
+            "recent_events": {"text": "No rain started in this window."},
+        },
+    }
+    response = await client.post("/api/v1/reports", json=payload,
+                                 headers={"X-API-Key": write_key})
+    assert response.status_code == 200
+
+    stored = await client.get("/api/v1/reports/2026-09-13", headers={"X-API-Key": read_key})
+    content = stored.json()["content"]
+    assert content["onset_scoreboard"]["onsets"] == 28
+    assert content["onset_scoreboard"]["rows"][0]["model"] == "pressure_primary"
+    assert content["recent_events"]["text"].startswith("No rain")
