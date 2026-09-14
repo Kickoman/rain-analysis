@@ -34,6 +34,37 @@ The barometer sits at roughly 220 m, where station pressure has a median of
 station's own recent median removes the elevation offset without needing to know
 the elevation, and tracks the seasonal drift for free.
 
+## Re-measured on the onset target, 2026-09-15
+
+The table below scores this rule on the *warning* target — rain in any of the
+next three hours — which counts every hour of ongoing rain as a success. On the
+target the project now selects by, "from a dry hour, does rain *begin* within
+three hours", over 59 days and 29 onsets:
+
+| rule (as it actually runs) | catches | if random | lift | alert h/week | lead |
+|---|:---:|:---:|:---:|:---:|:---:|
+| `Possible rain` — spread < 4 & trend < −0.5 | 7/29 | 6.9 | **1.02** | 13 | 2 h |
+| `Rain likely` — anomaly < −3 & humidity > 75 | 8/29 | 6.0 | **1.33** | 12 | 3 h |
+| both, as they run together today | 11/29 | 10.3 | **1.06** | 21 | 3 h |
+| `pressure_primary` ≥ 80 (proposed) | 13/29 | 9.2 | **1.42** | 18 | 3 h |
+
+"If random" is what the same number of alert-hours would catch scattered at
+random; lift is the ratio. Two things follow, and the second is the reason this
+section exists:
+
+* **The humidity rule is indistinguishable from noise** (1.02). It spends 13
+  alert-hours a week to catch what 13 random alert-hours would catch. That is
+  consistent with the reanalysis result, where every spread-derivative model
+  sits at chance over 1,463 onsets.
+* **Running both is worse than running the pressure rule alone.** The pair
+  catches 11 of 29 for 21 alert-hours a week at lift 1.06; the pressure rule by
+  itself catches 8 for 12 hours at 1.33. The humidity rule is not adding
+  warnings so much as diluting them.
+
+Reproduce with `python analysis/score_alert_rules.py`. The intervals are wide —
+28–62% for the best row — so treat the ordering as the finding and the exact
+numbers as provisional.
+
 ## What it scores
 
 Ground truth is Open-Meteo precipitation ≥ 0.1 mm/h; the target is rain in any of
