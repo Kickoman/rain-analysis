@@ -796,6 +796,14 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
     return out
 
 
+# Meteostat condition codes that mean precipitation is falling.
+# Deliberately excludes 5 (Fog) and 6 (Freezing Fog): fog is not rain, and
+# counting it makes every humidity-proximity model look like a rain predictor
+# — measured, it lifts the deployed sensor's onset AUC from 0.48 to 0.68
+# against a target that is really "is it damp out".
+MS_RAIN_CODES = frozenset({7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 25, 26, 27})
+
+
 def load_meteostat(json_path: str) -> pd.DataFrame:
     """Load Meteostat hourly data from JSON.
 
@@ -808,7 +816,15 @@ def load_meteostat(json_path: str) -> pd.DataFrame:
       ]
     }
 
-    Returns DataFrame with columns: ms_temp, ms_rhum, ms_precip, ms_pres, ms_dwpt
+    Returns DataFrame with columns: ms_temp, ms_rhum, ms_precip, ms_pres,
+    ms_dwpt, ms_wdir, ms_wspd, ms_coco.
+
+    ``ms_coco`` is the station's condition code. It used to be dropped here,
+    which cost the project its only precipitation signal independent of a
+    rain gauge: on 2026-08-24 a shower seen from the window, and plain in the
+    local sensors, was reported as 0.0 mm by both Open-Meteo and Meteostat's
+    gauge. A condition code does not depend on a tipping bucket catching
+    enough water in the right hour.
     """
     try:
         with open(json_path) as f:
@@ -835,6 +851,7 @@ def load_meteostat(json_path: str) -> pd.DataFrame:
         "dwpt": "ms_dwpt",
         "wdir": "ms_wdir",
         "wspd": "ms_wspd",
+        "coco": "ms_coco",
     }
     df = df.rename(columns={k: v for k, v in rename_map.items() if k in df.columns})
 
@@ -856,6 +873,10 @@ PRECIP_COLUMNS = {
     'ms_precip',
     'om_rain',
     'om_showers',
+    # A condition code reports what the station saw in that hour. Carrying
+    # "rain shower" forward for six hours would invent rain hours, and those
+    # invented hours would then be scored as if a model had missed them.
+    'ms_coco',
 }
 
 # Condition/state columns that CAN be forward-filled
@@ -1053,6 +1074,79 @@ def label_rain(grid: pd.DataFrame,
     if return_source:
         raise ValueError("No precipitation or condition column to label from.")
     raise ValueError("No precipitation or condition column to label from.")
+
+
+def label_rain_meteostat(grid: pd.DataFrame,
+                        threshold_mm: float = 0.1) -> pd.Series:
+    """A rain label independent of Open-Meteo, from the Meteostat station.
+
+    Rain when the gauge reports >= threshold_mm **or** the condition code is
+    one of MS_RAIN_CODES. The two catch different failures: the gauge misses
+    showers too light or too brief to register, the code misses nothing it
+    observed but exists only when someone/something classified the hour.
+
+    This is the yardstick's control. A model that scores well against
+    Open-Meteo and at chance against this one has not been measured, it has
+    been flattered by one series' quirks.
+    """
+    parts = []
+    if "ms_precip" in grid.columns and grid["ms_precip"].notna().any():
+        gauge = (grid["ms_precip"] >= threshold_mm).astype(float)
+        gauge[grid["ms_precip"].isna()] = np.nan
+        parts.append(gauge)
+    if "ms_coco" in grid.columns and grid["ms_coco"].notna().any():
+        code = grid["ms_coco"].isin(MS_RAIN_CODES).astype(float)
+        code[grid["ms_coco"].isna()] = np.nan
+        parts.append(code)
+    if not parts:
+        return pd.Series(np.nan, index=grid.index)
+
+    stacked = pd.concat(parts, axis=1)
+    out = stacked.max(axis=1)              # either witness suffices
+    out[stacked.isna().all(axis=1)] = np.nan   # neither witness present
+    return out
+
+
+def wilson_interval(successes: int, trials: int, z: float = 1.96) -> tuple:
+    """95% confidence interval for a proportion, Wilson score.
+
+    Onsets are counted in tens, not thousands: 10 of 15 caught is 0.67 with a
+    interval from 0.42 to 0.85. Quoting the 0.67 alone, as every report did,
+    turns a coin's worth of evidence into a ranking.
+    """
+    if trials <= 0:
+        return (None, None)
+    p = successes / trials
+    denom = 1 + z * z / trials
+    centre = (p + z * z / (2 * trials)) / denom
+    half = z * math.sqrt(p * (1 - p) / trials + z * z / (4 * trials * trials)) / denom
+    return (max(0.0, centre - half), min(1.0, centre + half))
+
+
+def bootstrap_auc_ci(pred: pd.Series, truth: pd.Series,
+                     n_boot: int = 400, seed: int = 0) -> tuple:
+    """Percentile bootstrap interval for ROC AUC.
+
+    Same reason as wilson_interval: on this much data the difference between
+    two models' AUC is usually smaller than either one's error bar, and a
+    report that hides that invites acting on noise.
+    """
+    mask = pred.notna() & truth.notna()
+    x, y = pred[mask].to_numpy(), truth[mask].to_numpy()
+    if len(x) < 30 or len(set(y)) < 2:
+        return (None, None)
+    rng = np.random.default_rng(seed)
+    draws = []
+    for _ in range(n_boot):
+        take = rng.integers(0, len(x), len(x))
+        ys = y[take]
+        if len(set(ys)) < 2:
+            continue
+        draws.append(roc_auc(pd.Series(x[take]), pd.Series(ys)))
+    if not draws:
+        return (None, None)
+    lo, hi = np.percentile(draws, [2.5, 97.5])
+    return (float(lo), float(hi))
 
 
 def label_rain_within(labels: pd.Series, hours: int,

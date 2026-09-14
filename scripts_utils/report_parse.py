@@ -242,3 +242,145 @@ def markdown_subsections(body: str) -> list[tuple[str, str]]:
         end = matches[i + 1].start() if i + 1 < len(matches) else len(body)
         subs.append((m.group(1), body[m.end():end].strip()))
     return subs
+
+
+# ---------------------------------------------------------------------------
+# Onset-first reports (2026-09-15 onward)
+#
+# The daily report no longer leads with a nowcast leaderboard, because nothing
+# in the product asks whether it is raining right now. What it publishes is one
+# scoreboard on rain *starts*, and these read it. The older extractors above
+# still work on the archived reports that have a "Model Performance" table.
+# ---------------------------------------------------------------------------
+
+_ONSET_TITLE = re.compile(
+    r"Rain Onset Report[^—–-]*[—–-]\s*(\d{4}-\d{2}-\d{2})")
+
+_ONSET_HEADING = re.compile(r"<h2[^>]*>\s*Onset scoreboard\b", re.IGNORECASE)
+
+_VERDICT_MARK = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only", "—": "chance"}
+
+# candidate | catches | if random | lift | alert h/wk | lead | AUC (CI) | cross | mark
+_ONSET_ROW = re.compile(
+    r"<tr>\s*<td[^>]*>\s*<code>([\w_]+)</code>[^<]*(?:<em>[^<]*</em>)?\s*</td>\s*"
+    r"<td[^>]*>\s*(\d+)\s*/\s*(\d+)\s*</td>\s*"
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # expected if random
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # lift
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # alert hours per week
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # median lead
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # AUC (CI)
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # cross-label AUC
+    r"<td[^>]*>\s*([^<]*?)\s*</td>",        # verdict mark
+    re.IGNORECASE,
+)
+
+_AUC_WITH_CI = re.compile(rf"({_NUMBER})\s*\(({_NUMBER})[–-]({_NUMBER})\)")
+
+
+def is_onset_report(text: str) -> bool:
+    """True for the onset-first format, in markdown or rendered HTML."""
+    return _ONSET_TITLE.search(text) is not None
+
+
+def extract_onset_date(text: str) -> str | None:
+    m = _ONSET_TITLE.search(text)
+    return m.group(1) if m else None
+
+
+def extract_onset_scoreboard(html: str) -> list[dict]:
+    """Parse the onset scoreboard into one dict per candidate.
+
+    Located by its heading for the same reason the leaderboard is: the report
+    holds more than one table, and picking "the first one" is how Temporal
+    Metrics once got published as F1.
+    """
+    heading = _ONSET_HEADING.search(html)
+    if not heading:
+        return []
+    table = _TABLE.search(html, heading.end())
+    if not table:
+        return []
+
+    rows = []
+    for m in _ONSET_ROW.finditer(table.group(0)):
+        auc, lo, hi = None, None, None
+        ci = _AUC_WITH_CI.search(m.group(8))
+        if ci:
+            auc, lo, hi = (float(ci.group(1)), float(ci.group(2)), float(ci.group(3)))
+        else:
+            auc = _parse_cell(m.group(8))
+        rows.append({
+            "model": m.group(1),
+            "caught": int(m.group(2)),
+            "onsets": int(m.group(3)),
+            "event_recall": int(m.group(2)) / int(m.group(3)) if int(m.group(3)) else None,
+            "expected_if_random": _parse_cell(m.group(4)),
+            "lift": _parse_cell(m.group(5)),
+            "alert_hours_per_week": _parse_cell(m.group(6)),
+            "median_lead_hours": _parse_cell(m.group(7)),
+            "roc_auc": auc,
+            "roc_auc_ci": [lo, hi] if lo is not None else None,
+            "cross_label_auc": _parse_cell(m.group(9)),
+            "verdict": _VERDICT_MARK.get(strip_tags(m.group(10)).strip(), None),
+        })
+    return rows
+
+
+def extract_recommended(text: str) -> dict | None:
+    """The verdict's recommendation: which candidate at which threshold."""
+    m = re.search(r"Run\s+`?([\w_]+)`?\s+at\s+(\d+)%", strip_tags(text))
+    if not m:
+        return None
+    return {"model": m.group(1), "threshold": float(m.group(2))}
+
+
+def extract_onset_window(text: str) -> dict:
+    """Window size and onset counts from the scoreboard's header line."""
+    plain = strip_tags(text).replace("**", "")
+    out = {}
+    m = re.search(r"Window:\s*([0-9.]+)\s*days", plain)
+    if m:
+        out["window_days"] = float(m.group(1))
+    m = re.search(r"onsets:\s*(\d+)\s*\(Open-Meteo\)\s*/\s*(\d+)", plain)
+    if m:
+        out["onsets"] = int(m.group(1))
+        out["onsets_cross_label"] = int(m.group(2))
+    return out
+
+
+def extract_onset_scoreboard_md(text: str) -> list[dict]:
+    """Markdown counterpart of :func:`extract_onset_scoreboard`.
+
+    The backend migration reads the committed markdown directly rather than
+    the rendered HTML, so the same table has to be readable both ways.
+    """
+    body = markdown_section(text, r"Onset scoreboard")
+    if body is None:
+        return []
+
+    rows = []
+    marks = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only", "—": "chance",
+             "…": "insufficient_evidence"}
+    for raw in parse_markdown_table(body):
+        name = raw.get("Candidate", "")
+        m = re.search(r"`([\w_]+)`", name)
+        if not m:
+            continue
+        caught = re.match(r"\s*(\d+)\s*/\s*(\d+)", raw.get("Catches", "") or "")
+        auc_cell = raw.get("Front AUC (95% CI)", "") or ""
+        ci = _AUC_WITH_CI.search(auc_cell)
+        verdict_cell = (raw.get("", "") or "").strip()
+        rows.append({
+            "model": m.group(1),
+            "caught": int(caught.group(1)) if caught else None,
+            "onsets": int(caught.group(2)) if caught else None,
+            "expected_if_random": _parse_cell(raw.get("If random", "")),
+            "lift": _parse_cell(raw.get("Lift", "")),
+            "alert_hours_per_week": _parse_cell(raw.get("Alert h/wk", "")),
+            "median_lead_hours": _parse_cell(raw.get("Lead", "")),
+            "roc_auc": float(ci.group(1)) if ci else _parse_cell(auc_cell),
+            "roc_auc_ci": [float(ci.group(2)), float(ci.group(3))] if ci else None,
+            "cross_label_auc": _parse_cell(raw.get("Meteostat AUC", "")),
+            "verdict": marks.get(verdict_cell),
+        })
+    return rows

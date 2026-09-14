@@ -2,6 +2,27 @@
 
 Rain forecasting based on sensor data.
 
+## The question this project answers
+
+**Standing in a dry hour, does anything warn that rain will start within three
+hours?** Rain already falling, when it stops and how much fell are out of
+scope — the product is a notification, and it is only useful before the first
+drop.
+
+Measured over 2026-07-18..09-14 (59 days, 29 rain starts):
+
+| | catches | lift over random | alert h/week | front AUC (95% CI) |
+|---|:---:|:---:|:---:|:---:|
+| `pressure_primary` @ 80% | 13/29 | 1.42× | 18 | 0.69 (0.64–0.75) |
+| `rain_probability` (deployed in HA) | 11/29 | 1.13× | 20 | 0.50 (0.41–0.58) |
+
+The deployed sensor is not distinguishable from a coin toss at this task; the
+one candidate that clears chance on two independent yardsticks is
+`pressure_primary`, and it is 1.4× better than alerting at random — real, and
+not more than that. Daily reports are rendered by
+`scripts_utils/make_onset_report.py`; see `docs_site/CHANGELOG.md` (2026-09-15)
+for how the scoring was rebuilt.
+
 ## Project Structure
 
 ```
