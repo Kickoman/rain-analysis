@@ -168,7 +168,7 @@ def test_empty_series_is_blocked(tmp_path):
     build_site(tmp_path, dates=[], models=[])
     problems = check_site.check_metrics(tmp_path, None)
     assert "metrics/data.json: no dates" in problems
-    assert "metrics/data.json: no models" in problems
+    assert "metrics/data.json: no model series" in problems
 
 
 def test_unreadable_baseline_does_not_block_a_valid_site(tmp_path):
@@ -193,3 +193,37 @@ def test_main_fails_on_an_incomplete_site(tmp_path, monkeypatch):
     (tmp_path / "metrics/data.json").unlink()
     monkeypatch.setattr("sys.argv", ["check_site.py", "--root", str(tmp_path), "--no-baseline"])
     assert check_site.main() == 1
+
+
+def test_series_schema_change_is_not_a_loss(tmp_path):
+    """Replacing the tracked series is a deliberate change, not silent breakage.
+
+    The onset metrics page follows four named candidates where the nowcast page
+    followed every model it found. Without this, the first publish after that
+    change reads as "eleven models dropped" and blocks the site.
+    """
+    build_site(tmp_path, dates=["2026-09-13", "2026-09-14"], models=[])
+    data = json.loads((tmp_path / "metrics/data.json").read_text())
+    data.pop("models", None)
+    data["series"] = {"pressure_primary": {"auc": [0.69, 0.69]}}
+    (tmp_path / "metrics/data.json").write_text(json.dumps(data))
+
+    old = json.dumps({"dates": ["2026-09-13", "2026-09-14"],
+                      "models": {name: {} for name in ("combined", "tuned", "original")}})
+
+    assert check_site.check_metrics(tmp_path, old) == []
+
+
+def test_series_loss_within_one_schema_still_blocks(tmp_path):
+    """Once both sides speak the same schema, a vanished series is breakage again."""
+    build_site(tmp_path, dates=["2026-09-13", "2026-09-14"], models=[])
+    data = json.loads((tmp_path / "metrics/data.json").read_text())
+    data.pop("models", None)
+    data["series"] = {"pressure_primary": {"auc": [0.69, 0.69]}}
+    (tmp_path / "metrics/data.json").write_text(json.dumps(data))
+
+    old = json.dumps({"dates": ["2026-09-13", "2026-09-14"],
+                      "series": {"pressure_primary": {}, "onset_gate": {}}})
+
+    problems = check_site.check_metrics(tmp_path, old)
+    assert any("onset_gate" in p for p in problems)

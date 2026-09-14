@@ -139,30 +139,50 @@ def build_onset_landing(html_content: str) -> None:
     proven, deployed = meta["proven"], meta["deployed"]
     rec = meta["recommended"]
 
+    def num(value, digits=2, dash="—"):
+        return dash if value is None else f"{value:.{digits}f}"
+
     if proven:
         best = max(proven, key=lambda r: r.get("lift") or 0)
         thr = f" at {rec['threshold']:.0f}%" if rec and rec["model"] == best["model"] else ""
+        # Any of these can be absent on a window where the candidate had no
+        # usable operating point; a missing number must read as a dash, not
+        # crash the generator and take the whole landing page down with it.
+        share = (f" ({best['caught'] / best['onsets'] * 100:.0f}%)"
+                 if best.get("caught") is not None and best.get("onsets") else "")
         headline = (
             f"<strong><code>{best['model']}</code>{thr}</strong> warns before "
-            f"{best['caught']} of {best['onsets']} rain starts "
-            f"({best['caught'] / best['onsets'] * 100:.0f}%), costing "
-            f"{best['alert_hours_per_week']:.0f} alert-hours a week — "
-            f"{best['lift']:.2f}× better than alerting at random."
+            f"{best.get('caught', '—')} of {best.get('onsets', '—')} rain starts"
+            f"{share}, costing {num(best.get('alert_hours_per_week'), 0)} "
+            f"alert-hours a week — {num(best.get('lift'))}× better than "
+            "alerting at random."
         )
+    elif not any(r.get("verdict") in {"works", "ranks_only", "one_label_only", "chance"}
+                 for r in meta["rows"]):
+        # Distinct from "measured and nothing won": the record simply does not
+        # hold enough rain starts yet, and saying otherwise on the front page
+        # would be a stronger claim than the report itself makes.
+        headline = (f"<strong>Not enough rain starts yet.</strong> The record holds "
+                    f"{meta['onsets'] or '—'} of them; below fifteen the confidence "
+                    "intervals are wider than any difference between candidates, so "
+                    "nothing is named.")
     else:
         headline = ("<strong>Nothing currently beats a coin toss.</strong> No candidate's "
                     "confidence interval clears chance on both yardsticks.")
 
-    if deployed and deployed.get("verdict") != "works":
+    if deployed and deployed.get("roc_auc") is None:
+        deployed_line = ("The deployed sensor <code>ha_live_actual</code> had no usable "
+                         "history in this window and could not be scored.")
+    elif deployed and deployed.get("verdict") != "works":
         deployed_line = (
             f"The sensor actually deployed in Home Assistant, <code>ha_live_actual</code>, "
-            f"scores {deployed['roc_auc']:.2f} — chance is 0.50. It reaches "
-            f"{deployed['caught']} of {deployed['onsets']} starts, which is what "
-            f"{deployed['alert_hours_per_week']:.0f} alert-hours a week reach by luck."
+            f"scores {num(deployed.get('roc_auc'))} — chance is 0.50. It reaches "
+            f"{deployed.get('caught', '—')} of {deployed.get('onsets', '—')} starts, which is what "
+            f"{num(deployed.get('alert_hours_per_week'), 0)} alert-hours a week reach by luck."
         )
     elif deployed:
         deployed_line = (f"The deployed sensor <code>ha_live_actual</code> clears chance "
-                         f"({deployed['roc_auc']:.2f}).")
+                         f"({num(deployed.get('roc_auc'))}).")
     else:
         deployed_line = "The deployed sensor had no data in this window."
 

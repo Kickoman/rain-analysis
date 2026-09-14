@@ -223,3 +223,8 @@ pyrightconfig.json
 /docs_site/*.html
 .claude/
 deploy/.env
+
+# Hourly grid dumps from make_onset_report: ~250 KB per report day and fully
+# regenerable from the archive. The analysis_report.json beside each one is
+# the detail the report points readers at, and that is committed.
+reports/daily/*/full/grid.csv

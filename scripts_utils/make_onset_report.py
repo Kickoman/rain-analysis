@@ -79,6 +79,10 @@ def day_rows(grid_csv: Path, day: date, front: dict) -> list[dict]:
     scores = front.get("scores") or {}
     proven = [n for n in (front.get("proven_models") or [])
               if n not in onset_report.BASELINES]
+    # Flag every non-baseline candidate, not only the proven ones: with nothing
+    # proven the report still narrates the leading candidate, and it needs that
+    # candidate's alert flags to do it.
+    proven = proven or [n for n in scores if n not in onset_report.BASELINES]
     thresholds = {n: ((scores.get(n) or {}).get("events") or {}).get("threshold")
                   for n in proven}
     # `ha_live_replica` is column model_ha_live; the deployed sensor is its own column.

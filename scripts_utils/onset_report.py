@@ -229,8 +229,16 @@ def render_last_day(day: str, grid_rows: list[dict] | None, front: dict) -> list
 
     scores = front.get("scores") or {}
     proven = [n for n in (front.get("proven_models") or []) if n not in BASELINES]
-    best = max(proven, key=lambda n: (scores[n].get("events") or {}).get("lift_vs_random") or 0) \
-        if proven else None
+    if proven:
+        best = max(proven, key=lambda n: (scores[n].get("events") or {}).get("lift_vs_random") or 0)
+        caveat = ""
+    else:
+        # Nothing is proven yet, but "did anything warn last night" is still the
+        # question a reader opens the report with. Narrate the leading candidate
+        # and say plainly that it is not established.
+        ranked = [(n, s.get("roc_auc") or 0) for n, s in scores.items() if n not in BASELINES]
+        best = max(ranked, key=lambda r: r[1])[0] if ranked else None
+        caveat = " _(leading candidate, not yet proven)_"
     threshold = ((scores.get(best) or {}).get("events") or {}).get("threshold") if best else None
 
     onsets = [r for r in grid_rows if r.get("is_onset")]
@@ -238,15 +246,15 @@ def render_last_day(day: str, grid_rows: list[dict] | None, front: dict) -> list
         lines.append("No rain started in this window.")
     for r in onsets:
         when = r["time"].strftime("%H:%M")
-        if best and threshold is not None:
+        if best and threshold is not None and f"warned_{best}" in r:
             warned = r.get(f"warned_{best}")
             mark = "✅ warned" if warned else "❌ no warning"
-            lines.append(f"- **{when} UTC** — rain started. `{best}`: {mark}.")
+            lines.append(f"- **{when} UTC** — rain started. `{best}`{caveat}: {mark}.")
         else:
             lines.append(f"- **{when} UTC** — rain started.")
     lines.append("")
 
-    if best and threshold is not None:
+    if best and threshold is not None and any(f"alert_{best}" in r for r in grid_rows):
         alert_hours = sum(1 for r in grid_rows if r.get(f"alert_{best}"))
         lines.append(
             f"`{best}` held the alert for {alert_hours} of {len(grid_rows)} hours "

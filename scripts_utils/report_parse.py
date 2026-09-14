@@ -258,7 +258,8 @@ _ONSET_TITLE = re.compile(
 
 _ONSET_HEADING = re.compile(r"<h2[^>]*>\s*Onset scoreboard\b", re.IGNORECASE)
 
-_VERDICT_MARK = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only", "—": "chance"}
+_VERDICT_MARK = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only",
+                 "—": "chance", "…": "insufficient_evidence", "?": "unknown"}
 
 # candidate | catches | if random | lift | alert h/wk | lead | AUC (CI) | cross | mark
 _ONSET_ROW = re.compile(
