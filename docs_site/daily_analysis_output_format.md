@@ -1,7 +1,17 @@
 # daily_analysis.py Output Format Contract
 
-**Version:** 1.0  
+**Version:** 1.0 — **superseded 2026-09-15**  
 **Last updated:** 2026-07-21
+
+> **This describes the archived report format**, the eleven-section layout that
+> `daily_analysis.py` produced up to 2026-08-22 and that reports 2026-07-13..17
+> still use. Reports from 2026-07-18 onward are the onset-first format rendered
+> by `scripts_utils/onset_report.py`: one verdict, one scoreboard on rain
+> starts, the last day, and data health. Its contract with the site is the
+> `## Onset scoreboard` heading and the table beneath it, read by
+> `report_parse.extract_onset_scoreboard` (HTML) and
+> `extract_onset_scoreboard_md` (markdown). The parsers below still exist so
+> the archived reports stay readable.
 
 This document specifies the Markdown output format produced by `scripts/daily_analysis.py`. This format is a **versioned contract** parsed by GitHub Pages generators:
 - `scripts/generate_history_index.py`
