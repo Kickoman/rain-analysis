@@ -252,6 +252,30 @@ beside each report.
   Meteostat. It is not distinguishable from a coin at predicting rain starts.
 * Everything else, including every other pressure variant, sits at chance.
 
+**Checked against 50x more events.** `analysis/validate_on_reanalysis.py`
+scores the same candidates on 5.5 years of Open-Meteo reanalysis at the
+project's coordinates — 1,463 onsets over 39,201 dry hours, against the local
+record's 29. Reanalysis is not these sensors (an ~11 km cell smooths exactly
+the convective showers this site cares about), so it answers "is the skill
+real", not "what would the alert have done here". It is unambiguous:
+
+| candidate | front AUC | 95% CI | per-year range |
+|---|:---:|:---:|:---:|
+| `onset_gate` | 0.711 | 0.703–0.717 | 0.690–0.736 |
+| `pressure_primary` | 0.627 | 0.617–0.634 | 0.576–0.642 |
+| `ha_live` (deployed formula) | 0.513 | 0.503–0.522 | 0.472–0.537 |
+| persistence (control) | 0.486 | 0.483–0.489 | — |
+| `trend_dominant` | 0.426 | 0.416–0.432 | — |
+
+Two things follow. The deployed formula's inability to predict rain starts is
+not a small-sample artifact — it holds over 1,463 events and every year
+separately. And `onset_gate` ranks hours better than `pressure_primary` here,
+while on the local record it has no threshold that beats random alerting inside
+the alert budget (lift 0.92 vs 1.42); a quantile sweep instead of the fixed
+5..95 grid does not change that. So `pressure_primary` is what to deploy today
+and `onset_gate` is what to re-check as the local record grows past a hundred
+onsets.
+
 **Ground truth is the weak link and the report says so.** On 2026-08-24 rain
 seen from the window, and unmistakable in the local sensors (−4.7 °C in two
 hours, +24 pp humidity), was logged as 0.0 mm by Open-Meteo *and* by the
