@@ -88,7 +88,8 @@ def check_history(root: Path, baseline: str | None) -> list[str]:
 
 
 def check_metrics(root: Path, baseline: str | None,
-                  allowed_drops: set[str] | None = None) -> list[str]:
+                  allowed_drops: set[str] | None = None,
+                  allow_dates_before: str | None = None) -> list[str]:
     raw = (root / "metrics/data.json").read_text(encoding="utf-8")
     try:
         data = json.loads(raw)
@@ -114,8 +115,21 @@ def check_metrics(root: Path, baseline: str | None,
     except json.JSONDecodeError:
         return problems  # published copy is unreadable; nothing to compare against
 
+    # A date leaving the series is normally breakage — a report that stopped
+    # parsing takes its whole day with it. It is legitimate only when the day
+    # is deliberately not measured any more, which is why the exemption is a
+    # cutoff recorded in the workflow rather than a blanket "ignore dates":
+    # reports before the onset format score a different target and cannot share
+    # the timeline with it.
     old_dates = set(before.get("dates") or [])
     lost_dates = old_dates - set(dates)
+    if lost_dates and allow_dates_before:
+        acknowledged_dates = {d for d in lost_dates if d < allow_dates_before}
+        if acknowledged_dates:
+            print(f"   ⚠ metrics/data.json: {len(acknowledged_dates)} date(s) dropped as "
+                  f"allowed (before {allow_dates_before}): "
+                  f"{', '.join(sorted(acknowledged_dates)[:3])}…", file=sys.stderr)
+        lost_dates -= acknowledged_dates
     if lost_dates:
         problems.append(
             f"metrics/data.json: {len(lost_dates)} date(s) dropped, e.g. "
@@ -163,6 +177,11 @@ def main() -> int:
                         metavar="MODEL",
                         help="Model name whose disappearance from "
                              "metrics/data.json is intentional (repeatable)")
+    parser.add_argument("--allow-dates-before", default=None, metavar="YYYY-MM-DD",
+                        help="Dates before this may leave the metrics series — "
+                             "for reports deliberately no longer plotted, such as "
+                             "ones scored on a superseded target. Later dates "
+                             "still fail.")
     args = parser.parse_args()
 
     root = Path(args.root)
@@ -179,7 +198,8 @@ def main() -> int:
 
     problems += check_history(root, baseline_for("history/index.html"))
     problems += check_metrics(root, baseline_for("metrics/data.json"),
-                              allowed_drops=set(args.allow_drop))
+                              allowed_drops=set(args.allow_drop),
+                              allow_dates_before=args.allow_dates_before)
 
     if problems:
         for p in problems:

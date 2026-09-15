@@ -175,7 +175,15 @@ jobs:
           # target where it used to follow every model's nowcast F1. check_site
           # detects that as a schema change and skips the model-set comparison
           # for it; the date and page-size checks still apply.
-          python3 scripts_utils/check_site.py --baseline-ref HEAD --allow-drop ha_live
+          #
+          # --allow-dates-before 2026-07-20: seven days leave the timeline on
+          # purpose. 2026-07-13..17 are the last reports scored on the nowcast
+          # target and cannot share an axis with the onset series; 2026-07-18
+          # and 07-19 are onset reports from before the record held any rain, so
+          # they have no scoreboard to plot. Every later date must still be
+          # present, and a report that silently stops parsing still fails here.
+          python3 scripts_utils/check_site.py --baseline-ref HEAD \
+            --allow-drop ha_live --allow-dates-before 2026-07-20
 
       - name: Commit and push
         run: |
