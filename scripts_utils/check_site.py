@@ -97,11 +97,14 @@ def check_metrics(root: Path, baseline: str | None,
 
     problems = []
     dates = data.get("dates") or []
-    models = data.get("models") or {}
+    # The onset page keys its per-model series under "series"; the nowcast page
+    # it replaced used "models". Read whichever is present so this gate keeps
+    # working across the change instead of having to be switched off for it.
+    models = data.get("series") or data.get("models") or {}
     if not dates:
         problems.append("metrics/data.json: no dates")
     if not models:
-        problems.append("metrics/data.json: no models")
+        problems.append("metrics/data.json: no model series")
 
     if baseline is None:
         return problems
@@ -124,7 +127,19 @@ def check_metrics(root: Path, baseline: str | None,
     # A drop can be legitimate — the 2026-08-15 backfill superseded the reports
     # that carried the pre-rename `ha_live` series — but only when named
     # explicitly via --allow-drop, so intent is recorded in the workflow diff.
-    lost_models = set(before.get("models") or {}) - set(models)
+    # A schema change legitimately replaces the whole set of tracked series —
+    # the onset page follows four named candidates where the nowcast page
+    # followed every model it could find. Comparing across that is noise, and
+    # the change is visible in the diff that caused it.
+    old_schema = "series" if "series" in before else "models"
+    new_schema = "series" if "series" in data else "models"
+    if old_schema != new_schema:
+        print(f"   ⚠ metrics/data.json: series schema changed "
+              f"({old_schema} → {new_schema}); model-set comparison skipped",
+              file=sys.stderr)
+        return problems
+
+    lost_models = set(before.get(old_schema) or {}) - set(models)
     acknowledged = lost_models & (allowed_drops or set())
     for name in sorted(acknowledged):
         print(f"   ⚠ metrics/data.json: model dropped as allowed: {name}",
@@ -174,8 +189,9 @@ def main() -> int:
 
     cards = count_cards((root / "history/index.html").read_text(encoding="utf-8"))
     data = json.loads((root / "metrics/data.json").read_text(encoding="utf-8"))
+    series = data.get("series") or data.get("models") or {}
     print(f"✅ Site checks passed — {cards} history cards, "
-          f"{len(data.get('dates', []))} dates, {len(data.get('models', {}))} models")
+          f"{len(data.get('dates', []))} dates, {len(series)} model series")
     return 0
 
 

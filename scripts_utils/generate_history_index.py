@@ -11,8 +11,35 @@ import re
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from report_parse import extract_best_model, leaderboard_f1, strip_tags  # noqa: E402
+from report_parse import (  # noqa: E402
+    extract_best_model,
+    extract_onset_scoreboard,
+    extract_recommended,
+    is_onset_report,
+    leaderboard_f1,
+    strip_tags,
+)
 from page_head import head_tags  # noqa: E402
+
+
+def _describe_onset_report(html_content: str) -> str:
+    """One line for the history card of an onset-format report.
+
+    What a reader wants from a list of fifty reports is which day found
+    something and which found nothing — so the card carries the recommendation
+    and what it catches, or says plainly that nothing beat chance.
+    """
+    text = strip_tags(html_content)
+    rows = extract_onset_scoreboard(html_content)
+    proven = [r for r in rows if r.get("verdict") == "works"]
+    if not rows:
+        return "no rain starts to score yet"
+    if not proven:
+        return "nothing beat chance"
+    best = max(proven, key=lambda r: r.get("lift") or 0)
+    rec = extract_recommended(text)
+    at = f" @ {rec['threshold']:.0f}%" if rec and rec["model"] == best["model"] else ""
+    return f"{best['model']}{at} — catches {best['caught']}/{best['onsets']}"
 
 
 def _extract_best_model(html_content: str) -> str:
@@ -27,6 +54,9 @@ def _extract_best_model(html_content: str) -> str:
     to fall through to the Temporal Metrics table and present *that* F1 — a score
     measured under a ±3h tolerance — as if it were the leaderboard's.
     """
+    if is_onset_report(html_content):
+        return _describe_onset_report(html_content)
+
     text = strip_tags(html_content)
 
     # Format 1: Pressure variants report (F1: or F1=)
@@ -103,7 +133,7 @@ def main():
 
         cards.append(f'''                <div class="card">
                     <h3>{date}</h3>
-                    <p>Best model: {best}</p>
+                    <p>{best}</p>
                     <a href="{report.name}">View Report →</a>
                 </div>''')
     
@@ -114,7 +144,7 @@ def main():
 
         cards.append(f'''                <div class="card">
                     <h3>{date}</h3>
-                    <p>Best model: {best}</p>
+                    <p>{best}</p>
                     <a href="{report.name}">View Report →</a>
                 </div>''')
 

@@ -202,10 +202,12 @@ def test_real_report_keeps_the_no_data_model():
     table further down."""
     from md_to_html import markdown_to_html
 
-    md = (REPO / "reports" / "2026-08-13.md").read_text()
+    # A report that stays in the nowcast format: 2026-07-18 onward was
+    # regenerated as onset-first, which has no leaderboard to parse.
+    md = (REPO / "reports" / "2026-07-17.md").read_text()
     expected = _leaderboard_from_markdown(md)
 
-    rows = extract_leaderboard(markdown_to_html(md, "2026-08-13"))
+    rows = extract_leaderboard(markdown_to_html(md, "2026-07-17"))
     by_name = {r["model"]: r for r in rows}
 
     assert len(rows) == len(expected)

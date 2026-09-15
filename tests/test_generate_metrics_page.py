@@ -1,119 +1,79 @@
-"""Tests for generate_metrics_page.py source table parsing."""
+"""Tests for the onset metrics page.
+
+The page this file used to test plotted per-model F1 and parsed the
+"Precipitation Source Reliability" table. Both are gone: the report no longer
+scores the nowcast target, so there is no F1 series to plot and no such table
+to read. What matters now is that the timeline is assembled only from reports
+scored on rain starts, and that older reports are skipped rather than spliced
+into it.
+"""
+
 import sys
 from pathlib import Path
 
-# Add scripts directory to path
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts_utils"))
 
-from generate_metrics_page import _extract_source_rows
+from generate_metrics_page import collect  # noqa: E402
 
+ONSET_HTML = """
+<h1>Rain Onset Report — 2026-09-14</h1>
+<h2>Onset scoreboard</h2>
+<p><strong>Window:</strong> 59.0 days · <strong>onsets:</strong> 29 (Open-Meteo) / 20 (Meteostat)</p>
+<table>
+<tr><td><code>pressure_primary</code></td><td>13/29</td><td>9.2</td><td>1.42</td>
+<td>18</td><td>3.0</td><td>0.69 (0.64–0.75)</td><td>0.69</td><td>✅</td></tr>
+<tr><td><code>ha_live_actual</code></td><td>11/29</td><td>9.7</td><td>1.13</td>
+<td>20</td><td>2.0</td><td>0.50 (0.41–0.58)</td><td>0.48</td><td>—</td></tr>
+</table>
+"""
 
-def test_extract_source_rows_with_descriptions():
-    """Test that source rows with descriptions like 'OM (Open-Meteo)' are parsed correctly."""
-    html = """
-    <table>
-        <thead>
-            <tr>
-                <th>Source</th>
-                <th>Rain Hours</th>
-                <th>Agreement</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr>
-                <td>OM (Open-Meteo)</td>
-                <td>42</td>
-                <td>95%</td>
-            </tr>
-            <tr>
-                <td>MS (Meteostat)</td>
-                <td>38</td>
-                <td>90%</td>
-            </tr>
-            <tr>
-                <td>YX</td>
-                <td>45</td>
-                <td>100%</td>
-            </tr>
-        </tbody>
-    </table>
-    """
-    
-    rows = _extract_source_rows(html)
-    
-    assert len(rows) == 3, f"Expected 3 rows, got {len(rows)}"
-    
-    assert rows[0]["source"] == "OM"
-    assert rows[0]["rain_hours"] == 42
-    assert rows[0]["agreement"] == "95%"
-    
-    assert rows[1]["source"] == "MS"
-    assert rows[1]["rain_hours"] == 38
-    assert rows[1]["agreement"] == "90%"
-    
-    assert rows[2]["source"] == "YX"
-    assert rows[2]["rain_hours"] == 45
-    assert rows[2]["agreement"] == "100%"
+LEGACY_HTML = """
+<h1>Daily Model Analysis — 2026-08-01</h1>
+<h2>Model Performance (7-day window)</h2>
+<table><tr><td>combined</td><td>0.548</td><td>0.451</td><td>0.697</td></tr></table>
+"""
 
 
-def test_extract_source_rows_without_descriptions():
-    """Test that simple source codes without descriptions still work."""
-    html = """
-    <table>
-        <tr>
-            <td>OM</td>
-            <td>42</td>
-            <td>95%</td>
-        </tr>
-        <tr>
-            <td>MS</td>
-            <td>38</td>
-            <td>90%</td>
-        </tr>
-    </table>
-    """
-    
-    rows = _extract_source_rows(html)
-    
-    assert len(rows) == 2
-    assert rows[0]["source"] == "OM"
-    assert rows[0]["rain_hours"] == 42
-    assert rows[1]["source"] == "MS"
-    assert rows[1]["rain_hours"] == 38
+def test_collect_reads_onset_reports(tmp_path):
+    history = tmp_path / "history"
+    history.mkdir()
+    (history / "2026-09-14.html").write_text(ONSET_HTML)
+
+    dates, series, latest, skipped = collect(history)
+
+    assert dates == ["2026-09-14"]
+    assert skipped == []
+    assert series["pressure_primary"]["auc"] == [0.69]
+    assert series["pressure_primary"]["lift"] == [1.42]
+    assert series["ha_live_actual"]["auc"] == [0.50]
+    assert {r["model"] for r in latest} == {"pressure_primary", "ha_live_actual"}
+    assert latest[0]["onsets"] == 29
 
 
-def test_extract_source_rows_skips_header():
-    """Test that header row with 'Source' is skipped."""
-    html = """
-    <table>
-        <tr>
-            <td>Source</td>
-            <td>Rain Hours</td>
-            <td>Agreement</td>
-        </tr>
-        <tr>
-            <td>OM (Open-Meteo)</td>
-            <td>42</td>
-            <td>95%</td>
-        </tr>
-    </table>
-    """
-    
-    rows = _extract_source_rows(html)
-    
-    assert len(rows) == 1
-    assert rows[0]["source"] == "OM"
+def test_collect_skips_pre_onset_reports(tmp_path):
+    """A nowcast-era report must not be spliced into the onset timeline."""
+    history = tmp_path / "history"
+    history.mkdir()
+    (history / "2026-08-01.html").write_text(LEGACY_HTML)
+    (history / "2026-09-14.html").write_text(ONSET_HTML)
+
+    dates, _, _, skipped = collect(history)
+
+    assert dates == ["2026-09-14"]
+    assert [name for name, _ in skipped] == ["2026-08-01.html"]
 
 
-def test_extract_source_rows_empty():
-    """Test that empty or malformed HTML returns empty list."""
-    assert _extract_source_rows("") == []
-    assert _extract_source_rows("<table></table>") == []
-    assert _extract_source_rows("<p>No table here</p>") == []
+def test_collect_leaves_gaps_for_absent_candidates(tmp_path):
+    """A model missing from one report gets a gap, not a carried-forward value."""
+    history = tmp_path / "history"
+    history.mkdir()
+    without = ONSET_HTML.replace(
+        "<tr><td><code>ha_live_actual</code></td><td>11/29</td><td>9.7</td><td>1.13</td>\n"
+        "<td>20</td><td>2.0</td><td>0.50 (0.41–0.58)</td><td>0.48</td><td>—</td></tr>", "")
+    (history / "2026-09-13.html").write_text(without.replace("2026-09-14", "2026-09-13"))
+    (history / "2026-09-14.html").write_text(ONSET_HTML)
 
+    dates, series, _, _ = collect(history)
 
-if __name__ == "__main__":
-    test_extract_source_rows_with_descriptions()
-    test_extract_source_rows_without_descriptions()
-    test_extract_source_rows_skips_header()
-    test_extract_source_rows_empty()
-    print("✅ All tests passed")
+    assert dates == ["2026-09-13", "2026-09-14"]
+    assert series["ha_live_actual"]["auc"] == [None, 0.50]

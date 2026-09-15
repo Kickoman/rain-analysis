@@ -20,9 +20,20 @@ class ModelMetricsEntry(BaseModel):
 
 
 class ReportContent(BaseModel):
-    """Structured content of a daily report (#232 schema)."""
+    """Structured content of a daily report (#232 schema).
+
+    Unknown keys are dropped on the way in, so every section the pipeline
+    publishes needs a field here. The onset-first report (2026-09-15) added
+    two, and their absence cost a silent loss: the scoreboard — the only part
+    of the report that answers the project's question — was accepted with a
+    200 and stored as nothing.
+    """
     executive_summary: Optional[dict[str, Any]] = None
     data_context: Optional[dict[str, Any]] = None
+    # Onset-first reports: the scoreboard on rain starts, and the narrative of
+    # the report day itself.
+    onset_scoreboard: Optional[dict[str, Any]] = None
+    recent_events: Optional[dict[str, Any]] = None
     models: Optional[list[ModelMetricsEntry]] = None
     multi_window_comparison: Optional[dict[str, Any]] = None
     rankings: Optional[dict[str, Any]] = None

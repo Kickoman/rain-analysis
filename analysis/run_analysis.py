@@ -104,6 +104,16 @@ class AnalysisConfig:
     # rain start from a dry hour.
     front_dry_hours: int = 3
 
+    # How many hours a week the alert may be raised. The threshold for every
+    # candidate is chosen as the one catching the most onsets inside this
+    # budget, because that is the trade a person actually makes.
+    #
+    # Hours, not episodes: episodes are gameable. A model that simply stays on
+    # is one long episode, which scored as "5.6 alerts a week" and caught every
+    # onset by construction — the budget has to measure how much of the time
+    # the thing is yelling, and 24 h is about three and a half hours a day.
+    alert_budget_hours_per_week: float = 24.0
+
     # Evaluate the fitted model alongside the hand-tuned ones. Off makes the run
     # independent of scikit-learn.
     learned_model: bool = True
@@ -628,6 +638,11 @@ def _rescore_on(grid: pd.DataFrame, truth: pd.Series, index: pd.Index) -> dict:
     return dict(sorted(out.items(), key=lambda kv: -kv[1]))
 
 
+# Reference predictors, never deployment candidates: excluded when naming a
+# best model so "always_alert" can never win a table by catching everything.
+BASELINE_NAMES = frozenset({"persistence", "always_alert", "yandex_forecast"})
+
+
 def build_baselines(grid: pd.DataFrame) -> dict[str, pd.Series]:
     """Reference predictors that any real model must beat.
 
@@ -736,22 +751,31 @@ def score_warning_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
 
 
 def score_front_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
-    """Score every model and baseline on rain *fronts* only.
+    """Score every candidate on the only question the product asks: from a dry
+    hour, does rain *begin* within the horizon, and did the alert say so first?
 
-    The warning target counts every in-rain hour as a positive, so a predictor
-    that recognises ongoing rain — persistence above all — outranks models that
-    actually anticipate. Measured over 2026-07-01→08-14 that inversion is
-    total: persistence sits at warning AUC 0.712 but front AUC 0.485 (chance),
-    catching 8 of 41 onsets at below-base-rate precision.
+    Three things this reports that the earlier version did not, each of which
+    changed a conclusion when it was added:
 
-    Two views per candidate, both restricted to known-dry hours:
-
-    - ranking: ROC AUC / AP against `front_truth` (onset within the horizon);
-    - events: at the F1-best threshold, the share of onsets with an alert in
-      the `horizon` dry hours before them, the share of alert-hours that were
-      followed by an onset, and alert episodes per day — the notification-
-      fatigue number an automation actually pays.
+    - **An operating point a person can feel.** ROC AUC ranks, but nobody
+      deploys an AUC. Here each candidate is given the threshold that catches
+      the most onsets while staying inside an alert budget (default one alert
+      a day), and is reported as "caught X of N, Y alerts a week, Z hours of
+      warning".
+    - **Error bars.** The record holds tens of onsets, not thousands. 13 of 29
+      caught is 0.45 with a 95% interval of 0.28-0.63; two models separated by
+      less than their intervals are not separated at all.
+    - **A second, independent yardstick.** Every score is recomputed against
+      the Meteostat station label (gauge or condition code). A model that beats
+      chance under Open-Meteo alone has been flattered by one series' quirks;
+      one that beats chance under both has been measured.
     """
+    # Below this many onsets nothing is called proven, whatever the intervals
+    # say. A nine-day window holding four onsets produced "2.97x better than
+    # noise — real" from two lucky hits; the interval was 15-85% and the
+    # sentence still read like a recommendation.
+    MIN_ONSETS_FOR_VERDICT = 15
+
     if "front_truth" not in grid.columns:
         return {}
 
@@ -765,72 +789,155 @@ def score_front_target(grid: pd.DataFrame, config: AnalysisConfig) -> dict:
                                          freq=config.grid_freq) == 1]
     step = pd.Timedelta(config.grid_freq)
     horizon_steps = max(1, int(round(pd.Timedelta(hours=config.rain_within_hours) / step)))
-    dry_days = float(dry.sum()) * (step / pd.Timedelta(days=1))
+    window_days = len(grid) * (step / pd.Timedelta(days=1))
+
+    # The independent control label, scored the same way.
+    alt_labels = rl.label_rain_meteostat(grid, config.rain_threshold_mm)
+    alt_front = None
+    alt_onsets = []
+    if alt_labels.notna().sum() and alt_labels.dropna().nunique() > 1:
+        alt_front = rl.label_front_within(alt_labels, config.rain_within_hours,
+                                          config.front_dry_hours, freq=config.grid_freq)
+        alt_onsets = grid.index[rl.detect_onsets(alt_labels, config.front_dry_hours,
+                                                 freq=config.grid_freq) == 1]
 
     candidates = {}
     for name in MODELS:
         col = f"model_{name}"
         if col in grid.columns:
-            # Display names, so `model_ha_live` reads as ha_live_replica here
-            # exactly as it does in every other scoring table.
             candidates[display_name_for(col)] = grid[col]
     if "ha_rain_prob" in grid.columns:
         candidates[display_name_for("ha_rain_prob")] = grid["ha_rain_prob"]
     candidates.update(build_baselines(grid))
 
     def event_metrics(score: pd.Series, threshold: float) -> dict | None:
+        """What this threshold would have delivered and cost over the window."""
         alert = (score >= threshold) & dry & score.notna()
         n_alert = int(alert.sum())
         if n_alert == 0:
             return None
-        hits = 0
+        hits, leads = 0, []
         for t in onsets:
-            lookback = [t - step * k for k in range(1, horizon_steps + 1)]
-            if any(w in alert.index and bool(alert.loc[w]) for w in lookback):
+            fired = [k for k in range(1, horizon_steps + 1)
+                     if (t - step * k) in alert.index and bool(alert.loc[t - step * k])]
+            if fired:
                 hits += 1
+                # The earliest warning inside the horizon is the one that mattered.
+                leads.append(max(fired) * (step / pd.Timedelta(hours=1)))
         followed = front[alert] == 1.0
         alert_times = alert[alert].index.to_series()
         episodes = int((alert_times.diff() > step).sum()) + 1
+        lo, hi = rl.wilson_interval(hits, len(onsets)) if len(onsets) else (None, None)
+
+        # The number that separates aiming from yelling. Alerting a share f of
+        # dry hours at random catches an onset with probability 1-(1-f)^h over
+        # an h-hour horizon; a model is only doing something if it beats that.
+        # Without this, "caught 11 of 29" reads like skill when the same alert
+        # load scattered at random would have caught 10.
+        share = n_alert / float(dry.sum()) if dry.sum() else None
+        expected_random = (1 - (1 - share) ** horizon_steps) * len(onsets) \
+            if share is not None and onsets is not None else None
         return {
             "threshold": float(threshold),
             "onsets_caught": hits,
+            "onsets_total": len(onsets),
             "event_recall": hits / len(onsets) if len(onsets) else None,
+            "event_recall_ci": [lo, hi],
             "precision": _or_none(float(followed.mean())),
             "alert_hours": n_alert,
-            "episodes_per_day": episodes / dry_days if dry_days else None,
+            "alert_episodes": episodes,
+            "alerts_per_week": episodes / window_days * 7 if window_days else None,
+            "alert_hours_per_week": n_alert / window_days * 7 if window_days else None,
+            "alert_hours_share": n_alert / float(dry.sum()) if dry.sum() else None,
+            "median_lead_hours": float(np.median(leads)) if leads else None,
+            "expected_caught_if_random": _or_none(expected_random),
+            "lift_vs_random": _or_none(hits / expected_random) if expected_random else None,
+            "episodes_per_day": episodes / window_days if window_days else None,
         }
 
     out = {}
     for name, score in candidates.items():
         sc = score.where(dry)
         mask = sc.notna() & front.notna()
+        auc = _or_none(rl.roc_auc(sc[mask], front[mask])) if mask.sum() else None
+        ci_lo, ci_hi = rl.bootstrap_auc_ci(sc[mask], front[mask]) if mask.sum() else (None, None)
         entry = {
-            "roc_auc": _or_none(rl.roc_auc(sc[mask], front[mask])) if mask.sum() else None,
+            "roc_auc": auc,
+            "roc_auc_ci": [ci_lo, ci_hi],
             "average_precision": _or_none(rl.average_precision(sc[mask], front[mask])) if mask.sum() else None,
             "n_samples": int(mask.sum()),
         }
+
+        # Same model, independent label. No error bars here: this is a check on
+        # the yardstick, not a second ranking.
+        if alt_front is not None:
+            alt_sc = score.where(alt_labels == 0)
+            alt_mask = alt_sc.notna() & alt_front.notna()
+            entry["cross_label"] = {
+                "label": "meteostat",
+                "roc_auc": _or_none(rl.roc_auc(alt_sc[alt_mask], alt_front[alt_mask]))
+                           if alt_mask.sum() > 30 and alt_front[alt_mask].nunique() > 1 else None,
+                "n_onsets": len(alt_onsets),
+            }
+
+        # Operating point: most onsets caught inside the alert budget. Ranking by
+        # F1 on a 7% base rate used to pick thresholds that fired twice a month.
         best = None
         for threshold in range(5, 96, 5):
             m = event_metrics(score, threshold)
-            if not m or not m["precision"] or not m["event_recall"]:
+            if not m or m["alert_hours_per_week"] is None:
                 continue
-            f1 = 2 * m["precision"] * m["event_recall"] / (m["precision"] + m["event_recall"])
-            if best is None or f1 > best[0]:
-                best = (f1, m)
+            if m["alert_hours_per_week"] > config.alert_budget_hours_per_week:
+                continue
+            key = (m["onsets_caught"], -m["alert_hours_per_week"])
+            if best is None or key > best[0]:
+                best = (key, m)
+        if best is None:                      # nothing fits the budget: show the quietest
+            quiet = [m for m in (event_metrics(score, t) for t in range(5, 96, 5)) if m]
+            best = ((0, 0), min(quiet, key=lambda m: m["alert_hours_per_week"])) if quiet else None
         entry["events"] = best[1] if best else None
+
+        # A candidate "works" only if all three hold: its own interval clears
+        # chance, the independent label agrees, and the threshold it would
+        # actually run at beats scattering the same alert time at random.
+        # Ranking skill without a usable operating point is not deployable —
+        # onset_gate has AUC 0.62 and a lift of 0.92, and shipping it on the
+        # strength of the AUC alone would buy nothing.
+        cross = (entry.get("cross_label") or {}).get("roc_auc")
+        lift = (entry.get("events") or {}).get("lift_vs_random")
+        if auc is None or ci_lo is None:
+            entry["verdict"] = "unknown"
+        elif len(onsets) < MIN_ONSETS_FOR_VERDICT:
+            entry["verdict"] = "insufficient_evidence"
+        elif ci_lo > 0.5 and (cross is None or cross > 0.5) and (lift or 0) >= 1.1:
+            entry["verdict"] = "works"
+        elif ci_lo > 0.5 and (cross is None or cross > 0.5):
+            entry["verdict"] = "ranks_only"
+        elif ci_lo > 0.5:
+            entry["verdict"] = "one_label_only"
+        else:
+            entry["verdict"] = "chance"
         out[name] = entry
 
     ranked = [(name, s["roc_auc"]) for name, s in out.items()
-              if s["roc_auc"] is not None]
+              if s["roc_auc"] is not None and name not in BASELINE_NAMES]
     best_model = max(ranked, key=lambda r: r[1])[0] if ranked else None
+    proven = [n for n, s in out.items()
+              if s["verdict"] == "works" and n not in BASELINE_NAMES]
 
     return {
         "horizon_hours": config.rain_within_hours,
         "dry_hours_before_onset": config.front_dry_hours,
+        "min_onsets_for_verdict": MIN_ONSETS_FOR_VERDICT,
+        "enough_evidence": len(onsets) >= MIN_ONSETS_FOR_VERDICT,
+        "window_days": round(window_days, 1),
         "n_onsets": len(onsets),
+        "n_onsets_cross_label": len(alt_onsets),
         "base_rate": _or_none(float(front.mean())),
+        "alert_budget_hours_per_week": config.alert_budget_hours_per_week,
         "scores": out,
         "best_model": best_model,
+        "proven_models": proven,
         "ranked_by": "roc_auc",
     }
 
@@ -1344,6 +1451,10 @@ def main():
                         help="Clip the analysis grid to start at this time (ISO 8601, UTC)")
     parser.add_argument("--window-end", default=None,
                         help="Clip the analysis grid to end at this time (ISO 8601, UTC)")
+    parser.add_argument("--dump-grid", default=None,
+                        help="Also write the computed grid (features, model outputs, "
+                             "labels) to this CSV — the report JSON keeps only "
+                             "aggregates, so this is the only way to get per-hour data")
     parser.add_argument("--quiet", "-q", action="store_true",
                         help="Suppress text summary on stdout")
 
@@ -1371,6 +1482,9 @@ def main():
 
     stats["ground_truth"] = gt_stats
     stats["model_summary"] = model_stats
+
+    if args.dump_grid:
+        grid.to_csv(args.dump_grid)
 
     # Plots (optional)
     plot_paths = save_plots(grid, config, output_dir) if args.plots else []

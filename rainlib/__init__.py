@@ -54,7 +54,13 @@ from analysis.rainlib import (
     label_rain,
     label_rain_within,
     label_front_within,
+    label_rain_meteostat,
     detect_onsets,
+    MS_RAIN_CODES,
+
+    # Uncertainty — onset counts are in the tens, so every score needs one
+    wilson_interval,
+    bootstrap_auc_ci,
 
     # Metrics
     roc_auc,
@@ -111,7 +117,11 @@ __all__ = [
     "label_rain",
     "label_rain_within",
     "label_front_within",
+    "label_rain_meteostat",
     "detect_onsets",
+    "MS_RAIN_CODES",
+    "wilson_interval",
+    "bootstrap_auc_ci",
 
     # Metrics
     "roc_auc",

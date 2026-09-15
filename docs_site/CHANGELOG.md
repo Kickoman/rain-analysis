@@ -208,3 +208,80 @@ models. Benchmarks published before this date are superseded — see
 
 - **Precipitation forward-fill removed** (`rainlib.py::build_grid()`). Previously, precipitation columns were forward-filled during grid construction, inflating rain-hour counts by approximately 80%. The fix restricts forward-fill to temperature/humidity/pressure columns only.
 - See [DATA_SOURCES.md](DATA_SOURCES.md) for updated forward-fill behavior description.
+
+## 2026-09-15 — The report answers one question now
+
+**What changed.** Daily reports scored "is it raining right now" in eleven
+sections and mentioned rain *starts* in the ninth. Since the product is a
+notification that has to speak before the first drop, the target was the one
+thing the report never led with. The report is now ~60 lines: a verdict, one
+scoreboard on onsets, what happened in the last day, and data health. Nothing
+was deleted — every old section is still computed into `analysis_report.json`
+beside each report.
+
+**Scoring changes, and what each one revealed.**
+
+* **One window instead of three.** Reports ran 7d/14d/28d in parallel; a 7-day
+  window holds three or four onsets, so "best model" was a coin toss dressed as
+  a ranking. Each report now scores the whole record up to its own date.
+* **Error bars, and a floor under them.** Wilson intervals on catch counts,
+  bootstrap intervals on AUC. On 29 onsets an interval spans ±0.06 AUC, so
+  most of the leaderboard's ordering was never real. Below 15 onsets the report
+  refuses to name a winner at all.
+* **A second, independent yardstick.** Every candidate is re-scored against the
+  Meteostat station label. Measured: `pressure_primary` clears chance under
+  all six label variants tried; nothing else does.
+* **Meteostat condition codes are loaded.** They were fetched and dropped.
+  Fog codes (5, 6) are deliberately *not* counted as rain — including them
+  lifts the deployed sensor's onset AUC from 0.48 to 0.68 against a target
+  that is really "is it damp out".
+* **Lift over random.** For each candidate, how many onsets it caught divided
+  by how many the same alert-hours would catch scattered at random. This is the
+  number that separates aiming from yelling, and it demoted most of the board.
+* **Alert budget in hours, not episodes.** Thresholds are chosen to catch the
+  most onsets within 24 alert-hours a week. Counting episodes instead let a
+  model that never switches off score as "5.6 alerts a week" while catching
+  every onset by construction.
+
+**What the numbers say** (2026-07-18..09-14, 59 days, 29 onsets):
+
+* `pressure_primary` @ 80% — catches 13 of 29 (45%, CI 28–62%), 18 alert-hours
+  a week, 3 h median warning, front AUC 0.69 (0.64–0.75), 0.69 on Meteostat,
+  1.42× better than random. Holds on both halves of the record (0.69 / 0.65).
+* The deployed sensor `rain_probability` — front AUC 0.50 (0.41–0.58), 0.48 on
+  Meteostat. It is not distinguishable from a coin at predicting rain starts.
+* Everything else, including every other pressure variant, sits at chance.
+
+**Checked against 50x more events.** `analysis/validate_on_reanalysis.py`
+scores the same candidates on 5.5 years of Open-Meteo reanalysis at the
+project's coordinates — 1,463 onsets over 39,201 dry hours, against the local
+record's 29. Reanalysis is not these sensors (an ~11 km cell smooths exactly
+the convective showers this site cares about), so it answers "is the skill
+real", not "what would the alert have done here". It is unambiguous:
+
+| candidate | front AUC | 95% CI | per-year range |
+|---|:---:|:---:|:---:|
+| `onset_gate` | 0.711 | 0.703–0.717 | 0.690–0.736 |
+| `pressure_primary` | 0.627 | 0.617–0.634 | 0.576–0.642 |
+| `ha_live` (deployed formula) | 0.513 | 0.503–0.522 | 0.472–0.537 |
+| persistence (control) | 0.486 | 0.483–0.489 | — |
+| `trend_dominant` | 0.426 | 0.416–0.432 | — |
+
+Two things follow. The deployed formula's inability to predict rain starts is
+not a small-sample artifact — it holds over 1,463 events and every year
+separately. And `onset_gate` ranks hours better than `pressure_primary` here,
+while on the local record it has no threshold that beats random alerting inside
+the alert budget (lift 0.92 vs 1.42); a quantile sweep instead of the fixed
+5..95 grid does not change that. So `pressure_primary` is what to deploy today
+and `onset_gate` is what to re-check as the local record grows past a hundred
+onsets.
+
+**Ground truth is the weak link and the report says so.** On 2026-08-24 rain
+seen from the window, and unmistakable in the local sensors (−4.7 °C in two
+hours, +24 pp humidity), was logged as 0.0 mm by Open-Meteo *and* by the
+Meteostat gauge. Precision figures are a floor, not an estimate.
+
+**Pipeline.** `scripts_utils/make_onset_report.py` renders one report;
+`scripts_utils/daily_pipeline.sh` is the cron entry point that refreshes data,
+renders, and pushes to the backend. The openclaw runner is gone and is not
+coming back.

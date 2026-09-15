@@ -15,6 +15,13 @@ Generates rich report with:
 - Key observations (intelligent analytics, not dumb thresholds)
 
 Commits report to reports/ directory.
+
+SUPERSEDED (2026-09-15). The daily report is now rendered by
+scripts_utils/make_onset_report.py, which scores one question — does anything
+warn before rain *starts* — over the whole record instead of three sliding
+windows. This module still builds the eleven-section nowcast report and is kept
+so the archived reports from 2026-07-13..08-22 can be reproduced; nothing
+generates that format on a schedule any more.
 """
 
 import sys

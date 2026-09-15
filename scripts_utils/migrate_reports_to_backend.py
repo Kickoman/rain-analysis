@@ -37,8 +37,51 @@ import report_parse as rp
 REPORT_GLOB = "20??-??-??.md"
 
 
+def build_onset_content(md: str) -> dict:
+    """Structured content for an onset-first report.
+
+    Same #232 shape — optional-tolerant sections, nothing invented — but the
+    substance is the onset scoreboard rather than a nowcast leaderboard. The
+    two formats coexist in reports/ and both have to reach the backend.
+    """
+    plain = md.replace("**", "")
+    content: dict = {}
+
+    verdict = rp.markdown_section(md, r"Verdict")
+    recommended = rp.extract_recommended(plain)
+    window = rp.extract_onset_window(md)
+    summary = {}
+    if verdict:
+        summary["text"] = verdict
+    if recommended:
+        summary["best_model"] = recommended["model"]
+        summary["threshold"] = recommended["threshold"]
+    if summary:
+        content["executive_summary"] = summary
+
+    rows = rp.extract_onset_scoreboard_md(md)
+    board = dict(window)
+    if rows:
+        board["rows"] = rows
+    if board:
+        content["onset_scoreboard"] = board
+
+    health = rp.markdown_section(md, r"Data health")
+    if health or window:
+        content["data_context"] = {"text": health or "", **window}
+
+    last_day = rp.markdown_section(md, r"Last 24 hours")
+    if last_day:
+        content["recent_events"] = {"text": last_day}
+
+    return content
+
+
 def build_content(md: str) -> dict:
     """Structured content per the #232 schema, tolerant of missing sections."""
+    if rp.is_onset_report(md):
+        return build_onset_content(md)
+
     plain = md.replace("**", "")
 
     content: dict = {}
