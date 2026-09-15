@@ -3,15 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rain Analysis — Model Performance Reports</title>
-    <meta name="description" content="Automated performance tracking for rain prediction models, scored against real precipitation data.">
+    <title>Rain Analysis — Does anything warn before rain?</title>
+    <meta name="description" content="Which rain-prediction model warns before rain starts, how often it is right, and what the alerts cost.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Automated performance tracking and reports</p>
+        <h1>🌧️ Will it start raining?</h1>
+        <p>One question, measured honestly: does anything warn before the first drop?</p>
         <div id="live-rain-widget"></div>
     </header>
 
@@ -24,95 +24,58 @@
     </nav>
 
     <main>
-        <section class="intro">
-            <h2>About This Project</h2>
-            <p>This site tracks the performance of multiple rain prediction models, comparing their accuracy against real precipitation data from multiple sources.</p>
-
-            <h3>Current Models</h3>
-            <ul>
-                <li><strong>combined</strong> — ✅ Fully combined — temp + humidity + pressure signals <em>(F1=0.340)</em></li>
-                <li><strong>ha_live_actual</strong> — ✅ Production — actual HA sensor <em>(F1=0.346)</em></li>
-                <li><strong>ha_live_replica</strong> — 🔄 Replica backtest of production formula <em>(F1=0.346)</em></li>
-                <li><strong>onset_gate</strong> — New model — no description yet <em>(F1=0.306)</em></li>
-                <li><strong>original</strong> — Baseline v0.1 — dew-point spread + trend <em>(F1=0.296)</em></li>
-                <li><strong>pressure_absolute</strong> — Absolute pressure + trend <em>(F1=0.312)</em></li>
-                <li><strong>pressure_aware</strong> — Pressure-corrected baseline <em>(F1=0.316)</em></li>
-                <li><strong>pressure_combined</strong> — Combined pressure signals <em>(F1=0.351)</em></li>
-                <li><strong>pressure_lagged</strong> — Pressure lagged by 6h <em>(F1=0.316)</em></li>
-                <li><strong>pressure_long_window</strong> — 12h pressure window <em>(F1=0.351)</em></li>
-                <li><strong>pressure_primary</strong> — New model — no description yet <em>(F1=0.315)</em></li>
-                <li><strong>trend_dominant</strong> — ❌ Failed experiment — trend-primary <em>(F1=0.368)</em></li>
-                <li><strong>tuned</strong> — Grid-search optimized parameters <em>(F1=0.316)</em></li>
-            </ul>
+        <section class="latest">
+            <h2>Where it stands — 2026-09-14</h2>
+            <div class="report-card">
+                <p><strong><code>pressure_primary</code> at 80%</strong> warns before 13 of 29 rain starts (45%), costing 18 alert-hours a week — 1.42× better than alerting at random.</p>
+                <p>The sensor actually deployed in Home Assistant, <code>ha_live_actual</code>, scores 0.50 — chance is 0.50. It reaches 11 of 29 starts, which is what 20 alert-hours a week reach by luck.</p>
+                <a href="current/index.html" class="btn">Read the full report →</a>
+            </div>
         </section>
 
-        <section class="latest">
-            <h2>Latest Results</h2>
-            <div class="report-card">
-                <h3>Daily Report — 2026-09-04</h3>
-                <p>Best model: <strong>pressure_primary (F1: 0.315)</strong></p>
-                <a href="current/index.html" class="btn">View Full Report →</a>
-            </div>
+        <section class="intro">
+            <h2>Top candidates</h2>
+            <p>Scored over 59.0 days holding 29 rain starts.
+            <strong>Catches</strong> counts starts with an alert in the three hours before them;
+            <strong>lift</strong> divides that by what the same alert time would catch at random,
+            so 1.0 means the alerts carry no information. ✅ marks a candidate that clears chance
+            on two independent yardsticks <em>and</em> beats random at its own threshold.</p>
+            <table>
+                <thead><tr><th>Candidate</th><th>Catches</th><th>Lift</th>
+                <th>Alert h/wk</th><th>Front AUC (95% CI)</th><th></th></tr></thead>
+                <tbody>
+<tr><td><code>pressure_primary</code></td><td>13/29</td><td>1.42</td><td>18</td><td>0.69 (0.64–0.75)</td><td>✅</td></tr>
+<tr><td><code>onset_gate</code></td><td>8/29</td><td>0.92</td><td>17</td><td>0.62 (0.56–0.67)</td><td>◐</td></tr>
+<tr><td><code>combined</code></td><td>8/29</td><td>0.78</td><td>21</td><td>0.56 (0.49–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_combined</code></td><td>6/29</td><td>0.64</td><td>19</td><td>0.55 (0.49–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_absolute</code></td><td>6/29</td><td>0.75</td><td>16</td><td>0.55 (0.48–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_lagged</code></td><td>5/29</td><td>0.71</td><td>14</td><td>0.55 (0.48–0.60)</td><td>—</td></tr>
+                </tbody>
+            </table>
         </section>
 
         <section class="quick-links">
-            <h2>Quick Links</h2>
+            <h2>More</h2>
             <div class="cards">
                 <div class="card">
-                    <h3>📊 Current Performance</h3>
-                    <p>Latest model metrics and comparisons</p>
-                    <a href="current/index.html">View →</a>
+                    <h3>📈 Over time</h3>
+                    <p>Has the skill held up, day by day?</p>
+                    <a href="metrics/index.html">View →</a>
                 </div>
                 <div class="card">
-                    <h3>📅 Historical Reports</h3>
-                    <p>Browse past analysis results</p>
+                    <h3>📅 Past reports</h3>
+                    <p>Every daily report, newest first</p>
                     <a href="history/index.html">Browse →</a>
                 </div>
                 <div class="card">
-                    <h3>📈 Metrics Timeline</h3>
-                    <p>Track performance trends over time</p>
-                    <a href="metrics/index.html">Explore →</a>
-                </div>
-            </div>
-        </section>
-
-        <section class="documentation">
-            <h2>📚 Documentation</h2>
-            <div class="cards">
-                <div class="card">
                     <h3>📖 Glossary</h3>
-                    <p>ML metrics definitions (Precision, Recall, F1, F2, Confusion Matrix)</p>
+                    <p>What onset, lift and lead mean here</p>
                     <a href="docs/GLOSSARY.html">Read →</a>
                 </div>
                 <div class="card">
-                    <h3>📝 Changelog</h3>
-                    <p>What changed in the analysis pipeline, and which results it invalidated</p>
-                    <a href="docs/CHANGELOG.html">Read →</a>
-                </div>
-                <div class="card">
-                    <h3>🤖 Models</h3>
-                    <p>All rain prediction models and their performance</p>
-                    <a href="docs/MODELS.html">Read →</a>
-                </div>
-                <div class="card">
-                    <h3>📊 Baseline Model</h3>
-                    <p>Current production model analysis</p>
-                    <a href="docs/BASELINE_MODEL.html">Read →</a>
-                </div>
-                <div class="card">
-                    <h3>⚙️ CLI Runner</h3>
-                    <p>Complete CLI usage guide</p>
-                    <a href="docs/CLI_RUNNER.html">Read →</a>
-                </div>
-                <div class="card">
-                    <h3>💾 Data Sources</h3>
-                    <p>Ground truth data sources and quality</p>
+                    <h3>💾 Data sources</h3>
+                    <p>Where ground truth comes from, and how it fails</p>
                     <a href="docs/DATA_SOURCES.html">Read →</a>
-                </div>
-                <div class="card">
-                    <h3>🔧 Contributing</h3>
-                    <p>Development workflow</p>
-                    <a href="https://github.com/Kickoman/rain-analysis/blob/master/CONTRIBUTING.md">Read →</a>
                 </div>
             </div>
         </section>
@@ -120,7 +83,7 @@
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Last updated: <span id="last-update">2026-09-04</span></p>
+        <p>Last updated: <span id="last-update">2026-09-14</span></p>
     </footer>
     <script src="assets/live-widget.js" defer></script>
 </body>

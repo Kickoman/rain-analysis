@@ -26,8 +26,18 @@
         <section class="docs-content">
 <h1>daily_analysis.py Output Format Contract</h1>
 
-<strong>Version:</strong> 1.0  
+<strong>Version:</strong> 1.0 — <strong>superseded 2026-09-15</strong>  
 <strong>Last updated:</strong> 2026-07-21
+
+<p>&gt; <strong>This describes the archived report format</strong>, the eleven-section layout that<br>
+&gt; <code>daily_analysis.py</code> produced up to 2026-08-22 and that reports 2026-07-13..17<br>
+&gt; still use. Reports from 2026-07-18 onward are the onset-first format rendered<br>
+&gt; by <code>scripts_utils/onset_report.py</code>: one verdict, one scoreboard on rain<br>
+&gt; starts, the last day, and data health. Its contract with the site is the<br>
+&gt; <code>## Onset scoreboard</code> heading and the table beneath it, read by<br>
+&gt; <code>report_parse.extract_onset_scoreboard</code> (HTML) and<br>
+&gt; <code>extract_onset_scoreboard_md</code> (markdown). The parsers below still exist so<br>
+&gt; the archived reports stay readable.</p>
 
 This document specifies the Markdown output format produced by <code>scripts/daily_analysis.py</code>. This format is a <strong>versioned contract</strong> parsed by GitHub Pages generators:
 <ul>
@@ -373,7 +383,7 @@ These tests verify:
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-05 11:07 UTC</p>
+        <p>Generated: 2026-09-15 00:20 UTC</p>
     </footer>
 </body>
 </html>

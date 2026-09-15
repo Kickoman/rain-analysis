@@ -3,588 +3,107 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrics Timeline — Rain Analysis</title>
-    <meta name="description" content="Model performance over time: F1, precision and recall for every rain prediction model.">
+    <title>Rain Onset Metrics — Over Time</title>
+    <meta name="description" content="How well anything predicts the start of rain, tracked day by day.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
-    <!-- Pinned by hash: without integrity, a changed or compromised CDN file
-         executes unchallenged, and renderChart() calls Plotly.newPlot directly,
-         so a failed load throws ReferenceError and every chart stays blank. The
-         data table below the charts is the fallback either way. -->
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"
-            integrity="sha384-cCVCZkAjYNxaYKbM8lsArLznDF/SvMFr1jcZrvOpSTCa0W40ZAdLzHCEulnUa5i7"
-            crossorigin="anonymous"></script>
-    <style>
-        .chart-container {
-            background: #fff;
-            border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-            margin: 1.5em 0;
-            padding: 0.5em;
-        }
-        .chart-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1em;
-        }
-        @media (max-width: 900px) {
-            .chart-row { grid-template-columns: 1fr; }
-        }
-        .chart-full {
-            grid-column: 1 / -1;
-        }
-        table {
-            font-size: 0.9em;
-        }
-    </style>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 </head>
 <body>
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Automated performance tracking and reports</p>
-        <p style="font-size:0.85em;opacity:0.85;max-width:70ch;margin:0.6em auto 0">
-            ⚠️ Points before <strong>2026-08-13</strong> come from the pre-fix
-            harness, which scored models on roughly 17 labelled rain hours.
-            They are not comparable with later points — see the
-            <a href="../docs/CHANGELOG.html">changelog</a>.
-        </p>
+        <h1>🌧️ Onset prediction over time</h1>
+        <p>pressure_primary warns before 13 of 29 rain starts</p>
     </header>
 
     <nav>
         <a href="../index.html">Home</a>
         <a href="../current/index.html">Latest Report</a>
         <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html" class="active">Metrics Timeline</a>
+        <a href="index.html" class="active">Metrics</a>
         <a href="../docs/GLOSSARY.html">Glossary</a>
     </nav>
 
     <main>
+        <section class="intro">
+            <h2>What these charts answer</h2>
+            <p>Every point is one report, scored on the whole record up to that day:
+            standing in a dry hour, did anything warn that rain would start within
+            three hours? Rain already falling is excluded, so a model that merely
+            recognises wet weather earns nothing here.</p>
+        </section>
+
         <section>
-            <h2>📈 Performance Metrics Over Time</h2>
-            <p>Interactive charts tracking model performance evolution. Hover for details, click legend items to toggle, drag to zoom.</p>
+            <h2>Skill — front AUC</h2>
+            <p>0.5 is a coin toss; the dashed line marks it. A series that hugs
+            that line has no ability to anticipate rain, however well it scores
+            on other targets.</p>
+            <div id="auc-chart"></div>
+        </section>
 
-            <h3>🏆 F1 Score Timeline</h3>
-            <div class="chart-container" id="chart-f1" style="height:450px"></div>
+        <section>
+            <h2>Is it aiming, or just yelling? — lift over random</h2>
+            <p>How many rain starts the model caught, divided by how many the
+            same number of alert-hours would catch scattered at random. At or
+            below 1.0 the alerts carry no information.</p>
+            <div id="lift-chart"></div>
+        </section>
 
-            <h3>🎯 Model Comparison — 2026-09-04</h3>
-            <div class="chart-row">
-                <div class="chart-container" id="chart-bar-f1" style="height:380px"></div>
-                <div class="chart-container" id="chart-bar-prec-rec" style="height:380px"></div>
-            </div>
+        <section>
+            <h2>What it costs — alert-hours per week</h2>
+            <p>Hours a week the alert would be raised at the threshold each model
+            is scored at. This is the number a person actually pays.</p>
+            <div id="cost-chart"></div>
+        </section>
 
-            <h3>🎯 Precision Timeline</h3>
-            <div class="chart-container" id="chart-precision" style="height:400px"></div>
-
-            <h3>🔄 Recall Timeline</h3>
-            <div class="chart-container" id="chart-recall" style="height:400px"></div>
-
-            <h3>🌧️ Precipitation Sources</h3>
-            <div class="chart-container" id="chart-sources" style="height:350px"></div>
-
-            <h3>📋 Raw Data Table</h3>
+        <section>
+            <h2>Latest report — 2026-09-14</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Best Model</th>
-                        <th>F1 Score</th>
-                        <th>Precision</th>
-                        <th>Recall</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Candidate</th><th>Catches</th><th>Lift</th>
+                <th>Alert h/wk</th><th>Front AUC (95% CI)</th><th></th></tr></thead>
                 <tbody>
-                    <tr>
-                        <td>2026-09-04</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.315</td>
-                        <td class="metric">0.202</td>
-                        <td class="metric">0.708</td>
-                    </tr>
-                    <tr>
-                        <td>2026-09-03</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.348</td>
-                        <td class="metric">0.364</td>
-                        <td class="metric">0.333</td>
-                    </tr>
-                    <tr>
-                        <td>2026-09-02</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.333</td>
-                        <td class="metric">0.333</td>
-                        <td class="metric">0.333</td>
-                    </tr>
-                    <tr>
-                        <td>2026-09-01</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.471</td>
-                        <td class="metric">0.400</td>
-                        <td class="metric">0.571</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-31</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.533</td>
-                        <td class="metric">0.571</td>
-                        <td class="metric">0.500</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-30</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.471</td>
-                        <td class="metric">0.444</td>
-                        <td class="metric">0.500</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-29</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.471</td>
-                        <td class="metric">0.444</td>
-                        <td class="metric">0.500</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-28</td>
-                        <td>original</td>
-                        <td class="metric">0.186</td>
-                        <td class="metric">0.108</td>
-                        <td class="metric">0.667</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-27</td>
-                        <td>pressure_combined</td>
-                        <td class="metric">0.116</td>
-                        <td class="metric">0.063</td>
-                        <td class="metric">0.714</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-26</td>
-                        <td>ha_live_replica</td>
-                        <td class="metric">0.239</td>
-                        <td class="metric">0.143</td>
-                        <td class="metric">0.727</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-25</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.308</td>
-                        <td class="metric">0.200</td>
-                        <td class="metric">0.667</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-24</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.537</td>
-                        <td class="metric">0.400</td>
-                        <td class="metric">0.815</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-23</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.512</td>
-                        <td class="metric">0.373</td>
-                        <td class="metric">0.815</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-22</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.467</td>
-                        <td class="metric">0.352</td>
-                        <td class="metric">0.694</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-21</td>
-                        <td>pressure_lagged</td>
-                        <td class="metric">0.557</td>
-                        <td class="metric">0.478</td>
-                        <td class="metric">0.667</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-20</td>
-                        <td>pressure_combined</td>
-                        <td class="metric">0.606</td>
-                        <td class="metric">0.476</td>
-                        <td class="metric">0.833</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-19</td>
-                        <td>pressure_lagged</td>
-                        <td class="metric">0.652</td>
-                        <td class="metric">0.556</td>
-                        <td class="metric">0.789</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-18</td>
-                        <td>pressure_lagged</td>
-                        <td class="metric">0.833</td>
-                        <td class="metric">0.750</td>
-                        <td class="metric">0.938</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-17</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-16</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-15</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-14</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-13</td>
-                        <td>tuned</td>
-                        <td class="metric">0.273</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.214</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-12</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.364</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.353</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-11</td>
-                        <td>tuned</td>
-                        <td class="metric">0.240</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.176</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-10</td>
-                        <td>tuned</td>
-                        <td class="metric">0.353</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.333</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-09</td>
-                        <td>tuned</td>
-                        <td class="metric">0.300</td>
-                        <td class="metric">0.273</td>
-                        <td class="metric">0.333</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-08</td>
-                        <td>pressure_absolute</td>
-                        <td class="metric">0.400</td>
-                        <td class="metric">0.385</td>
-                        <td class="metric">0.417</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-07</td>
-                        <td>pressure_absolute</td>
-                        <td class="metric">0.357</td>
-                        <td class="metric">0.385</td>
-                        <td class="metric">0.333</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-06</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-05</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-04</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-03</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-02</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.312</td>
-                        <td class="metric">0.500</td>
-                        <td class="metric">0.227</td>
-                    </tr>
-                    <tr>
-                        <td>2026-08-01</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.345</td>
-                        <td class="metric">0.500</td>
-                        <td class="metric">0.263</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-31</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.375</td>
-                        <td class="metric">0.375</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-30</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.346</td>
-                        <td class="metric">0.304</td>
-                        <td class="metric">0.400</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-29</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.344</td>
-                        <td class="metric">0.302</td>
-                        <td class="metric">0.400</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-28</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.425</td>
-                        <td class="metric">0.387</td>
-                        <td class="metric">0.471</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-27</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.425</td>
-                        <td class="metric">0.680</td>
-                        <td class="metric">0.309</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-26</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.320</td>
-                        <td class="metric">0.600</td>
-                        <td class="metric">0.218</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-25</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.469</td>
-                        <td class="metric">0.435</td>
-                        <td class="metric">0.508</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-24</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.508</td>
-                        <td class="metric">0.432</td>
-                        <td class="metric">0.615</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-23</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.649</td>
-                        <td class="metric">0.522</td>
-                        <td class="metric">0.857</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-22</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.681</td>
-                        <td class="metric">0.552</td>
-                        <td class="metric">0.889</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-21</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.575</td>
-                        <td class="metric">0.447</td>
-                        <td class="metric">0.808</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-20</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.566</td>
-                        <td class="metric">0.536</td>
-                        <td class="metric">0.600</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-19</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.278</td>
-                        <td class="metric">0.357</td>
-                        <td class="metric">0.227</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-18</td>
-                        <td>pressure_primary</td>
-                        <td class="metric">0.103</td>
-                        <td class="metric">0.118</td>
-                        <td class="metric">0.091</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-17</td>
-                        <td>None</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                        <td class="metric">—</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-16</td>
-                        <td>original</td>
-                        <td class="metric">0.122</td>
-                        <td class="metric">0.125</td>
-                        <td class="metric">0.119</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-15</td>
-                        <td>ha_live_replica</td>
-                        <td class="metric">0.202</td>
-                        <td class="metric">0.204</td>
-                        <td class="metric">0.200</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-14</td>
-                        <td>trend_dominant</td>
-                        <td class="metric">0.175</td>
-                        <td class="metric">0.700</td>
-                        <td class="metric">0.100</td>
-                    </tr>
-                    <tr>
-                        <td>2026-07-13</td>
-                        <td>ha_live_replica</td>
-                        <td class="metric">0.453</td>
-                        <td class="metric">0.472</td>
-                        <td class="metric">0.436</td>
-                    </tr>
+<tr><td><code>pressure_primary</code></td><td>13/29</td><td>1.42</td><td>18</td><td>0.69 (0.64–0.75)</td><td>✅</td></tr>
+<tr><td><code>onset_gate</code></td><td>8/29</td><td>0.92</td><td>17</td><td>0.62 (0.56–0.67)</td><td>◐</td></tr>
+<tr><td><code>combined</code></td><td>8/29</td><td>0.78</td><td>21</td><td>0.56 (0.49–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_combined</code></td><td>6/29</td><td>0.64</td><td>19</td><td>0.55 (0.49–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_absolute</code></td><td>6/29</td><td>0.75</td><td>16</td><td>0.55 (0.48–0.61)</td><td>—</td></tr>
+<tr><td><code>pressure_lagged</code></td><td>5/29</td><td>0.71</td><td>14</td><td>0.55 (0.48–0.60)</td><td>—</td></tr>
+<tr><td><code>pressure_long_window</code></td><td>5/29</td><td>0.71</td><td>14</td><td>0.54 (0.48–0.60)</td><td>—</td></tr>
+<tr><td><code>pressure_aware</code></td><td>6/29</td><td>0.65</td><td>18</td><td>0.54 (0.47–0.60)</td><td>—</td></tr>
+<tr><td><code>tuned</code></td><td>6/29</td><td>0.65</td><td>19</td><td>0.54 (0.47–0.59)</td><td>—</td></tr>
+<tr><td><code>original</code></td><td>10/29</td><td>0.87</td><td>24</td><td>0.53 (0.47–0.60)</td><td>—</td></tr>
+<tr><td><code>ha_live_replica</code></td><td>10/29</td><td>1.13</td><td>18</td><td>0.52 (0.45–0.59)</td><td>—</td></tr>
+<tr><td><code>trend_dominant</code></td><td>7/29</td><td>0.79</td><td>18</td><td>0.52 (0.45–0.58)</td><td>—</td></tr>
+<tr><td><code>ha_live_actual</code></td><td>11/29</td><td>1.13</td><td>20</td><td>0.50 (0.41–0.58)</td><td>—</td></tr>
+<tr><td><code>always_alert</code></td><td>29/29</td><td>1.00</td><td>154</td><td>0.50 (0.50–0.50)</td><td>—</td></tr>
+<tr><td><code>persistence</code></td><td>2/29</td><td>0.67</td><td>5</td><td>0.49 (0.48–0.51)</td><td>—</td></tr>
                 </tbody>
             </table>
-
-            <p><em>Last updated: 2026-09-05 11:07 UTC</em></p>
         </section>
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
+        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a></p>
+        <p>Data: <a href="data.json">data.json</a> · generated 2026-09-15T00:20:30Z</p>
     </footer>
 
     <script>
-        const cfg = {"f1_traces":[{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.0,0.0,0.0,0.0,0.444,0.286,0.333,0.333,0.373,0.259,0.276,0.219,0.219,0.145,0.163,0.213,0.231,0.226,0.196,0.19,0.19,0.346],"type":"scatter","mode":"lines+markers","name":"ha_live_actual","line":{"width":3,"color":"#27ae60"},"marker":{"size":6,"color":"#27ae60"},"hovertemplate":"ha_live_actual<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.412,0.263,0.178,0.114,0.074,0.103,0.278,0.566,0.575,0.681,0.649,0.508,0.469,0.4,0.444,0.425,0.344,0.346,0.375,0.231,0.077,0.111,0.222,0.133,0.125,0.308,0.229,0.214,0.333,0.4,0.364,0.438,0.385,0.5,0.286,0.051,0.411,0.387,0.374,0.439,0.467,0.512,0.537,0.308,0.305,0.208,0.233,0.308,0.219,0.182,0.154,0.155,0.143,0.315],"type":"scatter","mode":"lines+markers","name":"pressure_primary","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"pressure_primary<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.468,0.347,0.23,0.172,0.141,0.122,0.25,0.455,0.566,0.623,0.563,0.504,0.403,0.406,0.397,0.359,0.25,0.241,0.143,0.186,0.267,0.121,0.129,0.19,0.211,0.37,0.417,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.625,0.58,0.548,0.535,0.371,0.381,0.187,0.204,0.114,0.127,0.208,0.2,0.188,0.156,0.139,0.133,0.34],"type":"scatter","mode":"lines+markers","name":"combined","line":{"width":1.5,"color":"#2ca02c"},"marker":{"size":4,"color":"#2ca02c"},"hovertemplate":"combined<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.446,0.317,0.22,0.157,0.147,0.089,0.222,0.488,0.56,0.622,0.511,0.462,0.375,0.368,0.378,0.351,0.237,0.225,0.113,0.15,0.238,0.125,0.133,0.19,0.211,0.37,0.417,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.638,0.606,0.55,0.547,0.387,0.397,0.196,0.208,0.116,0.128,0.213,0.214,0.19,0.164,0.141,0.141,0.351],"type":"scatter","mode":"lines+markers","name":"pressure_combined","line":{"width":1.5,"color":"#7f8c8d"},"marker":{"size":4,"color":"#7f8c8d"},"hovertemplate":"pressure_combined<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.446,0.315,0.217,0.154,0.143,0.125,0.256,0.359,0.478,0.571,0.517,0.435,0.349,0.352,0.362,0.333,0.215,0.2,0.111,0.143,0.222,0.118,0.129,0.182,0.2,0.357,0.4,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.625,0.597,0.568,0.562,0.383,0.393,0.194,0.208,0.116,0.128,0.174,0.179,0.19,0.159,0.141,0.139,0.312],"type":"scatter","mode":"lines+markers","name":"pressure_absolute","line":{"width":1.5,"color":"#2c3e50"},"marker":{"size":4,"color":"#2c3e50"},"hovertemplate":"pressure_absolute<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.448,0.319,0.222,0.159,0.149,0.091,0.176,0.286,0.409,0.529,0.483,0.435,0.349,0.352,0.362,0.333,0.22,0.205,0.115,0.15,0.233,0.125,0.138,0.182,0.2,0.357,0.4,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.652,0.625,0.557,0.547,0.39,0.4,0.198,0.211,0.118,0.13,0.213,0.218,0.207,0.179,0.152,0.143,0.351],"type":"scatter","mode":"lines+markers","name":"pressure_long_window","line":{"width":1.5,"color":"#16a085"},"marker":{"size":4,"color":"#16a085"},"hovertemplate":"pressure_long_window<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.446,0.315,0.217,0.154,0.143,0.085,0.162,0.316,0.444,0.551,0.5,0.448,0.362,0.352,0.362,0.33,0.215,0.2,0.111,0.143,0.222,0.118,0.129,0.182,0.2,0.357,0.4,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.652,0.625,0.557,0.547,0.387,0.397,0.196,0.208,0.116,0.128,0.174,0.182,0.172,0.143,0.121,0.116,0.316],"type":"scatter","mode":"lines+markers","name":"pressure_lagged","line":{"width":1.5,"color":"#d35400"},"marker":{"size":4,"color":"#d35400"},"hovertemplate":"pressure_lagged<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.446,0.315,0.217,0.154,0.143,0.085,0.162,0.27,0.409,0.529,0.483,0.435,0.349,0.352,0.362,0.333,0.215,0.2,0.111,0.143,0.222,0.118,0.129,0.182,0.2,0.357,0.4,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.638,0.615,0.575,0.562,0.383,0.393,0.194,0.208,0.116,0.128,0.174,0.182,0.172,0.143,0.121,0.116,0.316],"type":"scatter","mode":"lines+markers","name":"pressure_aware","line":{"width":1.5,"color":"#8e44ad"},"marker":{"size":4,"color":"#8e44ad"},"hovertemplate":"pressure_aware<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.446,0.315,0.217,0.154,0.143,0.085,0.162,0.27,0.409,0.529,0.483,0.435,0.349,0.352,0.362,0.33,0.213,0.198,0.109,0.14,0.217,0.114,0.129,0.182,0.2,0.357,0.4,0.3,0.353,0.24,0.24,0.273,0.0,0.0,0.0,0.0,0.833,0.638,0.615,0.575,0.562,0.383,0.393,0.194,0.208,0.116,0.128,0.174,0.182,0.172,0.143,0.121,0.116,0.316],"type":"scatter","mode":"lines+markers","name":"tuned","line":{"width":1.5,"color":"#e67e22"},"marker":{"size":4,"color":"#e67e22"},"hovertemplate":"tuned<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.4,0.273,0.17,0.122,0.092,0.091,0.118,0.176,0.341,0.469,0.444,0.389,0.322,0.322,0.35,0.318,0.207,0.162,0.12,0.154,0.19,0.062,0.071,0.1,0.105,0.24,0.273,0.222,0.267,0.174,0.174,0.2,0.0,0.0,0.0,0.0,0.769,0.571,0.549,0.462,0.469,0.438,0.447,0.246,0.267,0.16,0.186,0.19,0.204,0.16,0.16,0.131,0.129,0.296],"type":"scatter","mode":"lines+markers","name":"original","line":{"width":1.5,"color":"#3498db"},"marker":{"size":4,"color":"#3498db"},"hovertemplate":"original<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.453,0.316,0.202,0.14,0.087,0.122,0.195,0.233,0.367,0.479,0.455,0.431,0.372,0.339,0.371,0.336,0.239,0.22,0.107,0.14,0.16,0.05,0.057,0.074,0.083,0.138,0.148,0.095,0.118,0.074,0.071,0.077,0.0,0.0,0.0,0.0,0.71,0.564,0.536,0.464,0.465,0.425,0.424,0.219,0.239,0.143,0.163,0.208,0.226,0.222,0.196,0.19,0.19,0.346],"type":"scatter","mode":"lines+markers","name":"ha_live_replica","line":{"width":1.5,"color":"#2ecc71"},"marker":{"size":4,"color":"#2ecc71"},"hovertemplate":"ha_live_replica<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.15,0.15,0.0,0.0,0.39,0.372,0.409,0.451,0.524,0.389,0.426,0.179,0.206,0.136,0.25,0.098,0.107,0.167,0.116,0.152,0.146,0.306],"type":"scatter","mode":"lines+markers","name":"onset_gate","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"onset_gate<br>F1: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.18,0.175,0.129,0.125,0.0,0.148,0.148,0.133,0.343,0.298,0.305,0.351,0.304,0.32,0.425,0.351,0.387,0.377,0.324,0.345,0.312,0.0,0.0,0.0,0.0,0.095,0.105,0.125,0.125,0.222,0.222,0.25,0.2,0.235,0.125,0.125,0.154,0.148,0.25,0.293,0.255,0.229,0.211,0.182,0.211,0.0,0.0,0.471,0.471,0.533,0.471,0.333,0.348,0.368],"type":"scatter","mode":"lines+markers","name":"trend_dominant","line":{"width":1.5,"color":"#c0392b"},"marker":{"size":4,"color":"#c0392b"},"hovertemplate":"trend_dominant<br>F1: %{y:.3f}<br>%{x}<extra></extra>"}],"prec_traces":[{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.0,0.0,0.0,0.0,0.4,0.286,0.278,0.333,0.324,0.184,0.19,0.14,0.132,0.082,0.093,0.125,0.133,0.13,0.114,0.118,0.118,0.237],"type":"scatter","mode":"lines+markers","name":"ha_live_actual","line":{"width":3,"color":"#27ae60"},"marker":{"size":6,"color":"#27ae60"},"hovertemplate":"ha_live_actual<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.483,0.341,0.229,0.143,0.105,0.118,0.357,0.536,0.447,0.552,0.522,0.432,0.435,0.383,0.394,0.387,0.302,0.304,0.375,0.429,0.25,0.167,0.167,0.087,0.167,0.364,0.174,0.158,0.333,0.462,0.375,0.389,0.357,0.4,0.182,0.03,0.259,0.24,0.238,0.305,0.352,0.373,0.4,0.2,0.191,0.122,0.139,0.194,0.125,0.101,0.083,0.088,0.081,0.202],"type":"scatter","mode":"lines+markers","name":"pressure_primary","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"pressure_primary<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.43,0.325,0.209,0.157,0.139,0.111,0.278,0.526,0.556,0.585,0.5,0.437,0.36,0.346,0.342,0.318,0.214,0.208,0.125,0.167,0.261,0.095,0.091,0.143,0.222,0.417,0.417,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.517,0.444,0.451,0.422,0.24,0.245,0.109,0.116,0.062,0.069,0.125,0.115,0.107,0.088,0.083,0.079,0.224],"type":"scatter","mode":"lines+markers","name":"combined","line":{"width":1.5,"color":"#2ca02c"},"marker":{"size":4,"color":"#2ca02c"},"hovertemplate":"combined<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.42,0.307,0.206,0.149,0.152,0.087,0.286,0.625,0.583,0.605,0.479,0.415,0.348,0.329,0.333,0.317,0.208,0.2,0.103,0.143,0.25,0.1,0.095,0.143,0.222,0.417,0.417,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.536,0.476,0.468,0.448,0.253,0.258,0.115,0.119,0.063,0.07,0.128,0.125,0.109,0.093,0.085,0.085,0.233],"type":"scatter","mode":"lines+markers","name":"pressure_combined","line":{"width":1.5,"color":"#7f8c8d"},"marker":{"size":4,"color":"#7f8c8d"},"hovertemplate":"pressure_combined<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.42,0.303,0.2,0.143,0.143,0.115,0.294,0.5,0.55,0.588,0.489,0.397,0.328,0.314,0.319,0.302,0.189,0.178,0.1,0.13,0.217,0.091,0.091,0.133,0.2,0.385,0.385,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.517,0.465,0.479,0.458,0.25,0.255,0.114,0.119,0.063,0.07,0.105,0.104,0.109,0.089,0.085,0.083,0.208],"type":"scatter","mode":"lines+markers","name":"pressure_absolute","line":{"width":1.5,"color":"#2c3e50"},"marker":{"size":4,"color":"#2c3e50"},"hovertemplate":"pressure_absolute<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.425,0.311,0.21,0.152,0.156,0.091,0.25,0.5,0.5,0.562,0.467,0.397,0.328,0.314,0.319,0.302,0.196,0.186,0.107,0.143,0.238,0.1,0.1,0.133,0.2,0.385,0.385,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.556,0.5,0.478,0.448,0.256,0.261,0.116,0.12,0.064,0.071,0.128,0.128,0.12,0.102,0.093,0.086,0.233],"type":"scatter","mode":"lines+markers","name":"pressure_long_window","line":{"width":1.5,"color":"#16a085"},"marker":{"size":4,"color":"#16a085"},"hovertemplate":"pressure_long_window<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.42,0.303,0.2,0.143,0.143,0.08,0.2,0.462,0.526,0.576,0.478,0.406,0.338,0.314,0.319,0.297,0.189,0.178,0.1,0.13,0.217,0.091,0.091,0.133,0.2,0.385,0.385,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.556,0.5,0.478,0.448,0.253,0.258,0.115,0.119,0.063,0.07,0.105,0.106,0.1,0.082,0.074,0.07,0.211],"type":"scatter","mode":"lines+markers","name":"pressure_lagged","line":{"width":1.5,"color":"#d35400"},"marker":{"size":4,"color":"#d35400"},"hovertemplate":"pressure_lagged<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.42,0.303,0.2,0.143,0.143,0.08,0.2,0.417,0.5,0.562,0.467,0.397,0.328,0.314,0.319,0.302,0.189,0.178,0.1,0.13,0.217,0.091,0.091,0.133,0.2,0.385,0.385,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.536,0.488,0.489,0.458,0.25,0.255,0.114,0.119,0.063,0.07,0.105,0.106,0.1,0.082,0.074,0.07,0.211],"type":"scatter","mode":"lines+markers","name":"pressure_aware","line":{"width":1.5,"color":"#8e44ad"},"marker":{"size":4,"color":"#8e44ad"},"hovertemplate":"pressure_aware<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.42,0.303,0.2,0.143,0.143,0.08,0.2,0.417,0.5,0.562,0.467,0.397,0.328,0.314,0.319,0.297,0.185,0.174,0.097,0.125,0.208,0.087,0.091,0.133,0.2,0.385,0.385,0.273,0.375,0.375,0.375,0.375,0.0,0.0,0.0,0.0,0.75,0.536,0.488,0.489,0.458,0.25,0.255,0.114,0.119,0.063,0.07,0.105,0.106,0.1,0.082,0.074,0.07,0.211],"type":"scatter","mode":"lines+markers","name":"tuned","line":{"width":1.5,"color":"#e67e22"},"marker":{"size":4,"color":"#e67e22"},"hovertemplate":"tuned<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.417,0.29,0.176,0.125,0.1,0.091,0.167,0.333,0.467,0.536,0.462,0.375,0.317,0.302,0.323,0.304,0.191,0.15,0.115,0.15,0.2,0.05,0.053,0.077,0.111,0.3,0.3,0.222,0.333,0.333,0.333,0.333,0.0,0.0,0.0,0.0,0.667,0.476,0.438,0.405,0.388,0.308,0.315,0.157,0.163,0.091,0.108,0.118,0.122,0.093,0.093,0.082,0.08,0.203],"type":"scatter","mode":"lines+markers","name":"original","line":{"width":1.5,"color":"#3498db"},"marker":{"size":4,"color":"#3498db"},"hovertemplate":"original<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.472,0.333,0.204,0.136,0.088,0.111,0.211,0.278,0.391,0.486,0.435,0.391,0.343,0.304,0.333,0.306,0.212,0.191,0.094,0.125,0.143,0.036,0.038,0.05,0.071,0.143,0.133,0.083,0.125,0.1,0.091,0.083,0.0,0.0,0.0,0.0,0.579,0.458,0.417,0.4,0.377,0.298,0.29,0.136,0.143,0.08,0.093,0.125,0.133,0.13,0.114,0.118,0.118,0.237],"type":"scatter","mode":"lines+markers","name":"ha_live_replica","line":{"width":1.5,"color":"#2ecc71"},"marker":{"size":4,"color":"#2ecc71"},"hovertemplate":"ha_live_replica<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.107,0.097,0.0,0.0,0.242,0.239,0.275,0.333,0.409,0.263,0.303,0.111,0.125,0.077,0.16,0.061,0.062,0.094,0.063,0.087,0.086,0.203],"type":"scatter","mode":"lines+markers","name":"onset_gate","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"onset_gate<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.727,0.7,0.571,0.5,0.0,0.4,0.4,0.4,0.667,0.636,0.529,0.591,0.6,0.6,0.68,0.565,0.545,0.556,0.462,0.5,0.5,0.0,0.0,0.0,0.0,0.167,0.143,0.143,0.143,0.3,0.3,0.3,0.25,0.25,0.1,0.1,0.2,0.25,0.5,0.75,0.6,0.571,0.4,0.286,0.286,0.0,0.0,0.444,0.444,0.571,0.4,0.333,0.364,0.5],"type":"scatter","mode":"lines+markers","name":"trend_dominant","line":{"width":1.5,"color":"#c0392b"},"marker":{"size":4,"color":"#c0392b"},"hovertemplate":"trend_dominant<br>Precision: %{y:.3f}<br>%{x}<extra></extra>"}],"rec_traces":[{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.0,0.0,0.0,0.0,0.5,0.286,0.417,0.333,0.44,0.438,0.5,0.5,0.636,0.667,0.667,0.714,0.857,0.857,0.714,0.5,0.5,0.636],"type":"scatter","mode":"lines+markers","name":"ha_live_actual","line":{"width":3,"color":"#27ae60"},"marker":{"size":6,"color":"#27ae60"},"hovertemplate":"ha_live_actual<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.359,0.214,0.145,0.095,0.057,0.091,0.227,0.6,0.808,0.889,0.857,0.615,0.508,0.418,0.509,0.471,0.4,0.4,0.375,0.158,0.045,0.083,0.333,0.286,0.1,0.267,0.333,0.333,0.333,0.353,0.353,0.5,0.417,0.667,0.667,0.167,1.0,1.0,0.87,0.781,0.694,0.815,0.815,0.667,0.75,0.714,0.714,0.75,0.875,0.875,1.0,0.667,0.583,0.708],"type":"scatter","mode":"lines+markers","name":"pressure_primary","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"pressure_primary<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.513,0.371,0.255,0.19,0.143,0.136,0.227,0.4,0.577,0.667,0.643,0.596,0.458,0.491,0.473,0.412,0.3,0.286,0.167,0.211,0.273,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.697,0.73,0.821,0.857,0.667,0.833,0.714,0.714,0.625,0.75,0.75,0.714,0.417,0.417,0.708],"type":"scatter","mode":"lines+markers","name":"combined","line":{"width":1.5,"color":"#2ca02c"},"marker":{"size":4,"color":"#2ca02c"},"hovertemplate":"combined<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.091,0.182,0.4,0.538,0.639,0.548,0.519,0.407,0.418,0.436,0.392,0.275,0.257,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.667,0.703,0.821,0.857,0.667,0.833,0.714,0.714,0.625,0.75,0.75,0.714,0.417,0.417,0.708],"type":"scatter","mode":"lines+markers","name":"pressure_combined","line":{"width":1.5,"color":"#7f8c8d"},"marker":{"size":4,"color":"#7f8c8d"},"hovertemplate":"pressure_combined<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.136,0.227,0.28,0.423,0.556,0.548,0.481,0.373,0.4,0.418,0.373,0.25,0.229,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.697,0.73,0.821,0.857,0.667,0.833,0.714,0.714,0.5,0.625,0.75,0.714,0.417,0.417,0.625],"type":"scatter","mode":"lines+markers","name":"pressure_absolute","line":{"width":1.5,"color":"#2c3e50"},"marker":{"size":4,"color":"#2c3e50"},"hovertemplate":"pressure_absolute<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.091,0.136,0.2,0.346,0.5,0.5,0.481,0.373,0.4,0.418,0.373,0.25,0.229,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.667,0.703,0.821,0.857,0.667,0.833,0.714,0.714,0.625,0.75,0.75,0.714,0.417,0.417,0.708],"type":"scatter","mode":"lines+markers","name":"pressure_long_window","line":{"width":1.5,"color":"#16a085"},"marker":{"size":4,"color":"#16a085"},"hovertemplate":"pressure_long_window<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.091,0.136,0.24,0.385,0.528,0.524,0.5,0.39,0.4,0.418,0.373,0.25,0.229,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.667,0.703,0.821,0.857,0.667,0.833,0.714,0.714,0.5,0.625,0.625,0.571,0.333,0.333,0.625],"type":"scatter","mode":"lines+markers","name":"pressure_lagged","line":{"width":1.5,"color":"#d35400"},"marker":{"size":4,"color":"#d35400"},"hovertemplate":"pressure_lagged<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.091,0.136,0.2,0.346,0.5,0.5,0.481,0.373,0.4,0.418,0.373,0.25,0.229,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.697,0.73,0.821,0.857,0.667,0.833,0.714,0.714,0.5,0.625,0.625,0.571,0.333,0.333,0.625],"type":"scatter","mode":"lines+markers","name":"pressure_aware","line":{"width":1.5,"color":"#8e44ad"},"marker":{"size":4,"color":"#8e44ad"},"hovertemplate":"pressure_aware<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.474,0.329,0.236,0.167,0.143,0.091,0.136,0.2,0.346,0.5,0.5,0.481,0.373,0.4,0.418,0.373,0.25,0.229,0.125,0.158,0.227,0.167,0.222,0.286,0.2,0.333,0.417,0.333,0.333,0.176,0.176,0.214,0.0,0.0,0.0,0.0,0.938,0.789,0.833,0.697,0.73,0.821,0.857,0.667,0.833,0.714,0.714,0.5,0.625,0.625,0.571,0.333,0.333,0.625],"type":"scatter","mode":"lines+markers","name":"tuned","line":{"width":1.5,"color":"#e67e22"},"marker":{"size":4,"color":"#e67e22"},"hovertemplate":"tuned<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.385,0.257,0.164,0.119,0.086,0.091,0.091,0.12,0.269,0.417,0.429,0.404,0.328,0.345,0.382,0.333,0.225,0.176,0.125,0.158,0.182,0.083,0.111,0.143,0.1,0.2,0.25,0.222,0.222,0.118,0.118,0.143,0.0,0.0,0.0,0.0,0.909,0.714,0.737,0.536,0.594,0.762,0.773,0.571,0.727,0.667,0.667,0.5,0.625,0.571,0.571,0.333,0.333,0.545],"type":"scatter","mode":"lines+markers","name":"original","line":{"width":1.5,"color":"#3498db"},"marker":{"size":4,"color":"#3498db"},"hovertemplate":"original<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.436,0.3,0.2,0.143,0.086,0.136,0.182,0.2,0.346,0.472,0.476,0.481,0.407,0.382,0.418,0.373,0.275,0.257,0.125,0.158,0.182,0.083,0.111,0.143,0.1,0.133,0.167,0.111,0.111,0.059,0.059,0.071,0.0,0.0,0.0,0.0,0.917,0.733,0.75,0.552,0.606,0.739,0.783,0.571,0.727,0.667,0.667,0.625,0.75,0.75,0.714,0.5,0.5,0.636],"type":"scatter","mode":"lines+markers","name":"ha_live_replica","line":{"width":1.5,"color":"#2ecc71"},"marker":{"size":4,"color":"#2ecc71"},"hovertemplate":"ha_live_replica<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.25,0.333,0.0,0.0,1.0,0.842,0.792,0.697,0.73,0.75,0.714,0.467,0.583,0.571,0.571,0.25,0.375,0.75,0.714,0.583,0.5,0.625],"type":"scatter","mode":"lines+markers","name":"onset_gate","line":{"width":1.5,"color":"#ff7f0e"},"marker":{"size":4,"color":"#ff7f0e"},"hovertemplate":"onset_gate<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0.103,0.1,0.073,0.071,0.0,0.091,0.091,0.08,0.231,0.194,0.214,0.25,0.203,0.218,0.309,0.255,0.3,0.286,0.25,0.263,0.227,0.0,0.0,0.0,0.0,0.067,0.083,0.111,0.111,0.176,0.176,0.214,0.167,0.222,0.167,0.167,0.125,0.105,0.167,0.182,0.162,0.143,0.143,0.133,0.167,0.0,0.0,0.5,0.5,0.5,0.571,0.333,0.333,0.292],"type":"scatter","mode":"lines+markers","name":"trend_dominant","line":{"width":1.5,"color":"#c0392b"},"marker":{"size":4,"color":"#c0392b"},"hovertemplate":"trend_dominant<br>Recall: %{y:.3f}<br>%{x}<extra></extra>"}],"bar_labels":["ha_live_actual","pressure_primary","combined","pressure_combined","pressure_absolute","pressure_long_window","pressure_lagged","pressure_aware","tuned","original","ha_live_replica","onset_gate","trend_dominant"],"bar_f1":[0.346,0.315,0.34,0.351,0.312,0.351,0.316,0.316,0.316,0.296,0.346,0.306,0.368],"bar_prec":[0.237,0.202,0.224,0.233,0.208,0.233,0.211,0.211,0.211,0.203,0.237,0.203,0.5],"bar_rec":[0.636,0.708,0.708,0.708,0.625,0.708,0.625,0.625,0.625,0.545,0.636,0.625,0.292],"bar_colors":["#27ae60","#ff7f0e","#2ca02c","#7f8c8d","#2c3e50","#16a085","#d35400","#8e44ad","#e67e22","#3498db","#2ecc71","#ff7f0e","#c0392b"],"source_traces":[{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[78,70,55,42,35,22,22,25,26,36,42,52,59,55,55,51,40,35,24,19,22,12,9,7,10,15,12,9,9,17,17,14,12,9,6,6,16,19,24,33,37,28,28,15,12,7,7,8,8,8,7,12,12,24],"type":"bar","name":"OM","marker":{"color":"#3498db"},"hovertemplate":"OM<br>Rain hours: %{y}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[64,42,25,12,12,6,3,13,27,37,39,47,45,44,45,31,21,19,11,14,14,3,3,3,6,9,6,6,6,9,9,6,5,3,3,3,20,20,28,28,34,37,37,17,17,9,9,3,3,8,22,22,22,37],"type":"bar","name":"MS","marker":{"color":"#e67e22"},"hovertemplate":"MS<br>Rain hours: %{y}<br>%{x}<extra></extra>"},{"x":["2026-07-13","2026-07-14","2026-07-15","2026-07-16","2026-07-17","2026-07-18","2026-07-19","2026-07-20","2026-07-21","2026-07-22","2026-07-23","2026-07-24","2026-07-25","2026-07-26","2026-07-27","2026-07-28","2026-07-29","2026-07-30","2026-07-31","2026-08-01","2026-08-02","2026-08-03","2026-08-04","2026-08-05","2026-08-06","2026-08-07","2026-08-08","2026-08-09","2026-08-10","2026-08-11","2026-08-12","2026-08-13","2026-08-14","2026-08-15","2026-08-16","2026-08-17","2026-08-18","2026-08-19","2026-08-20","2026-08-21","2026-08-22","2026-08-23","2026-08-24","2026-08-25","2026-08-26","2026-08-27","2026-08-28","2026-08-29","2026-08-30","2026-08-31","2026-09-01","2026-09-02","2026-09-03","2026-09-04"],"y":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,5,5,19,22,29,0,27,34,35,20,18,10,10,8,8,7,11,13,15,25],"type":"bar","name":"YX","marker":{"color":"#2ecc71"},"hovertemplate":"YX<br>Rain hours: %{y}<br>%{x}<extra></extra>"}],"source_has_data":true,"last_date":"2026-09-04"};
-
-        // Common layout options
-        const layoutBase = {
-            hovermode: "x unified",
-            legend: { orientation: "h", y: -0.3, font: { size: 11 } },
-            margin: { l: 50, r: 20, t: 20, b: 50 },
-            plot_bgcolor: "#fafafa",
-            paper_bgcolor: "#fff",
-            xaxis: { gridcolor: "#eee", tickangle: -30, automargin: true },
-            yaxis: { gridcolor: "#eee", rangemode: "tozero" },
-        };
-
-        function renderChart(id, traces, extraLayout) {
-            const layout = Object.assign({}, layoutBase, extraLayout);
-            // A blocked or failed CDN leaves Plotly undefined; without this the
-            // first newPlot throws and every chart stays an empty box with no
-            // explanation. The data table below the charts still has the numbers.
-            if (typeof Plotly === "undefined") {
-                document.getElementById(id).innerHTML =
-                    '<p style="padding:2em;text-align:center;color:#666">' +
-                    'Charts could not load. The full data is in the table below.</p>';
-                return;
-            }
-            if (traces && traces.length > 0) {
-                Plotly.newPlot(id, traces, layout, {
-                    responsive: true,
-                    displayModeBar: true,
-                    modeBarButtonsToRemove: ["lasso2d", "select2d"],
-                    displaylogo: false,
-                });
-            } else {
-                document.getElementById(id).innerHTML =
-                    '<p style="padding:2em;text-align:center;color:#666">No data available yet.</p>';
-            }
-        }
-
-        // Defer all chart rendering until after CSS layout is computed.
-        // Prevents Plotly responsive mode from getting 0-width containers
-        // inside CSS grid layouts.
-        window.addEventListener('load', function() {
-            // F1 timeline
-            renderChart("chart-f1", cfg.f1_traces, {
-                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
-            });
-
-            // Precision timeline
-            renderChart("chart-precision", cfg.prec_traces, {
-                yaxis: { title: "Precision", gridcolor: "#eee", rangemode: "tozero" },
-            });
-
-            // Recall timeline
-            renderChart("chart-recall", cfg.rec_traces, {
-                yaxis: { title: "Recall", gridcolor: "#eee", rangemode: "tozero" },
-            });
-
-            // Bar: F1 comparison
-            const f1BarTrace = {
-                x: cfg.bar_labels,
-                y: cfg.bar_f1,
-                type: "bar",
-                name: "F1 Score",
-                marker: { color: cfg.bar_colors },
-                hovertemplate: "%{x}<br>F1: %{y:.3f}<extra></extra>",
-            };
-            renderChart("chart-bar-f1", [f1BarTrace], {
-                yaxis: { title: "F1 Score", gridcolor: "#eee", rangemode: "tozero" },
-            });
-
-            // Bar: Precision + Recall comparison
-            const precBarTrace = {
-                x: cfg.bar_labels,
-                y: cfg.bar_prec,
-                type: "bar",
-                name: "Precision",
-                marker: { color: "#3498db" },
-                hovertemplate: "%{x}<br>Precision: %{y:.3f}<extra></extra>",
-            };
-            const recBarTrace = {
-                x: cfg.bar_labels,
-                y: cfg.bar_rec,
-                type: "bar",
-                name: "Recall",
-                marker: { color: "#e67e22" },
-                hovertemplate: "%{x}<br>Recall: %{y:.3f}<extra></extra>",
-            };
-            renderChart("chart-bar-prec-rec", [precBarTrace, recBarTrace], {
-                yaxis: { title: "Score", gridcolor: "#eee", rangemode: "tozero" },
-                barmode: "group",
-            });
-
-            // Precipitation sources
-            if (cfg.source_has_data) {
-                renderChart("chart-sources", cfg.source_traces, {
-                    yaxis: { title: "Rain Hours", gridcolor: "#eee" },
-                    barmode: "group",
-                });
-            } else {
-                document.getElementById("chart-sources").innerHTML =
-                    '<p style="padding:2em;text-align:center;color:#666">Precipitation source data will appear as more reports accumulate.</p>';
-            }
-        });
+    const layout = (title, yTitle, refLine) => ({
+        margin: {t: 10, r: 10, b: 40, l: 50},
+        height: 340,
+        xaxis: {title: '', type: 'date'},
+        yaxis: {title: yTitle},
+        legend: {orientation: 'h', y: -0.2},
+        shapes: refLine === null ? [] : [{
+            type: 'line', xref: 'paper', x0: 0, x1: 1,
+            y0: refLine, y1: refLine,
+            line: {dash: 'dash', width: 1, color: '#8a8f98'}
+        }],
+        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
+    });
+    const config = {responsive: true, displayModeBar: false};
+    Plotly.newPlot('auc-chart', [{"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [0.99, 0.84, 0.84, 0.73, 0.7, 0.72, 0.7, 0.77, 0.67, 0.68, 0.69, 0.7, 0.71, 0.72, 0.73, 0.69, 0.7, 0.67, 0.67, 0.68, 0.68, 0.68, 0.67, 0.68, 0.68, 0.69, 0.69, 0.7, 0.69, 0.71, 0.72, 0.72, 0.71, 0.73, 0.71, 0.71, 0.7, 0.7, 0.71, 0.71, 0.7, 0.7, 0.7, 0.69, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.71, 0.69], "name": "pressure_primary", "type": "scatter", "mode": "lines+markers", "line": {"color": "#2a78d6", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [0.9, 0.75, 0.79, 0.75, 0.72, 0.72, 0.73, 0.63, 0.59, 0.61, 0.63, 0.65, 0.66, 0.67, 0.68, 0.62, 0.62, 0.59, 0.59, 0.6, 0.6, 0.6, 0.61, 0.62, 0.62, 0.63, 0.63, 0.62, 0.62, 0.64, 0.65, 0.67, 0.66, 0.67, 0.64, 0.64, 0.64, 0.64, 0.65, 0.65, 0.64, 0.64, 0.64, 0.63, 0.64, 0.64, 0.65, 0.64, 0.64, 0.64, 0.64, 0.64, 0.62, 0.62, 0.62, 0.63, 0.62], "name": "onset_gate", "type": "scatter", "mode": "lines+markers", "line": {"color": "#eb6834", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0.37, 0.53, 0.48, 0.45, 0.45, 0.52, 0.48, 0.54, 0.49, 0.49, 0.5, 0.5, 0.5, 0.49, 0.49, 0.5, 0.5, 0.49, 0.45, 0.45, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5], "name": "ha_live_actual (deployed)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#1baf7a", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [0.49, 0.47, 0.46, 0.46, 0.47, 0.47, 0.48, 0.51, 0.5, 0.5, 0.5, 0.5, 0.51, 0.51, 0.51, 0.51, 0.51, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.49, 0.5, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.5, 0.5, 0.5, 0.5, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49, 0.49], "name": "persistence (control)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#8a8f98", "width": 2}, "marker": {"size": 5}, "connectgaps": false}], layout('', 'front AUC', 0.5), config);
+    Plotly.newPlot('lift-chart', [{"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [12.34, 2.59, 2.22, 1.97, 2.3, 2.63, 2.97, 2.13, 1.98, 2.15, 2.33, 2.5, 2.68, 2.85, 3.03, 2.8, 2.95, 2.75, 2.87, 3.0, 3.14, 2.94, 2.77, 2.88, 2.99, 3.1, 3.22, 1.94, 1.71, 1.7, 1.54, 1.42, 1.58, 1.62, 1.56, 1.28, 1.24, 1.26, 1.29, 1.32, 1.26, 1.25, 1.27, 1.33, 1.48, 1.51, 1.48, 1.38, 1.35, 1.38, 1.4, 1.42, 1.38, 1.4, 1.42, 1.45, 1.42], "name": "pressure_primary", "type": "scatter", "mode": "lines+markers", "line": {"color": "#2a78d6", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [2.77, 0.0, 2.49, 2.24, 1.68, 1.32, 1.2, 0.74, 0.69, 0.75, 0.82, 0.8, 0.85, 0.91, 0.92, 0.98, 0.98, 0.88, 0.88, 0.89, 0.9, 0.81, 0.75, 0.77, 0.79, 0.82, 0.82, 0.73, 0.73, 0.85, 0.95, 1.03, 1.13, 1.31, 1.26, 1.21, 0.95, 0.96, 0.97, 0.98, 0.92, 1.16, 0.93, 1.12, 0.9, 0.9, 0.96, 0.96, 1.01, 1.01, 1.01, 0.99, 0.92, 0.94, 0.95, 0.95, 0.92], "name": "onset_gate", "type": "scatter", "mode": "lines+markers", "line": {"color": "#eb6834", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0.0, 2.75, 1.67, 2.69, 1.58, 1.42, 1.18, 1.32, 1.41, 1.36, 1.27, 1.16, 1.09, 0.98, 1.04, 0.82, 0.79, 1.21, 1.41, 1.35, 1.24, 1.17, 1.3, 1.25, 1.23, 1.26, 1.24, 1.23, 1.2, 1.18, 1.13], "name": "ha_live_actual (deployed)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#1baf7a", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.29, 1.01, 1.1, 1.2, 1.29, 1.39, 1.49, 1.58, 1.35, 1.43, 1.24, 1.21, 1.27, 1.33, 1.25, 0.99, 1.03, 1.07, 1.11, 1.15, 1.09, 1.07, 0.95, 0.83, 0.73, 0.75, 0.69, 0.64, 0.62, 0.56, 0.58, 0.59, 0.61, 0.57, 0.57, 0.58, 0.53, 0.9, 0.92, 0.84, 0.79, 0.69, 0.71, 0.72, 0.73, 0.66, 0.68, 0.69, 0.7, 0.67], "name": "persistence (control)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#8a8f98", "width": 2}, "marker": {"size": 5}, "connectgaps": false}], layout('', 'lift over random', 1.0), config);
+    Plotly.newPlot('cost-chart', [{"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [5.0, 10.0, 17.0, 14.0, 12.0, 10.0, 9.0, 18.0, 16.0, 15.0, 14.0, 13.0, 12.0, 11.0, 11.0, 10.0, 10.0, 9.0, 9.0, 8.0, 8.0, 8.0, 7.0, 7.0, 7.0, 6.0, 6.0, 12.0, 14.0, 16.0, 19.0, 23.0, 17.0, 18.0, 18.0, 24.0, 23.0, 23.0, 22.0, 22.0, 21.0, 22.0, 21.0, 17.0, 17.0, 17.0, 18.0, 19.0, 20.0, 20.0, 19.0, 19.0, 20.0, 19.0, 19.0, 19.0, 18.0], "name": "pressure_primary", "type": "scatter", "mode": "lines+markers", "line": {"color": "#2a78d6", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [23.0, 7.0, 7.0, 6.0, 8.0, 10.0, 12.0, 13.0, 11.0, 10.0, 10.0, 10.0, 9.0, 9.0, 9.0, 24.0, 24.0, 23.0, 23.0, 23.0, 23.0, 23.0, 22.0, 22.0, 21.0, 20.0, 20.0, 21.0, 21.0, 22.0, 23.0, 24.0, 13.0, 14.0, 13.0, 13.0, 23.0, 23.0, 23.0, 23.0, 23.0, 12.0, 23.0, 12.0, 17.0, 17.0, 18.0, 17.0, 18.0, 17.0, 18.0, 18.0, 18.0, 18.0, 17.0, 17.0, 17.0], "name": "onset_gate", "type": "scatter", "mode": "lines+markers", "line": {"color": "#eb6834", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, null, 0.0, 2.0, 3.0, 3.0, 7.0, 10.0, 13.0, 13.0, 14.0, 17.0, 20.0, 22.0, 24.0, 23.0, 23.0, 22.0, 23.0, 11.0, 12.0, 13.0, 13.0, 14.0, 15.0, 16.0, 16.0, 16.0, 18.0, 18.0, 19.0, 19.0, 20.0], "name": "ha_live_actual (deployed)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#1baf7a", "width": 2}, "marker": {"size": 5}, "connectgaps": false}, {"x": ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-01", "2026-08-02", "2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07", "2026-08-08", "2026-08-09", "2026-08-10", "2026-08-11", "2026-08-12", "2026-08-13", "2026-08-14", "2026-08-15", "2026-08-16", "2026-08-17", "2026-08-18", "2026-08-19", "2026-08-20", "2026-08-21", "2026-08-22", "2026-08-23", "2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-05", "2026-09-06", "2026-09-07", "2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-12", "2026-09-13", "2026-09-14"], "y": [2.0, 10.0, 11.0, 10.0, 9.0, 8.0, 7.0, 7.0, 8.0, 7.0, 6.0, 6.0, 6.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 4.0, 5.0, 5.0, 5.0, 4.0, 4.0, 4.0, 4.0, 4.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 6.0, 5.0, 5.0], "name": "persistence (control)", "type": "scatter", "mode": "lines+markers", "line": {"color": "#8a8f98", "width": 2}, "marker": {"size": 5}, "connectgaps": false}], layout('', 'alert-hours / week', null), config);
     </script>
 </body>
 </html>

@@ -60,6 +60,78 @@ nothing.
 station&#x27;s own recent median removes the elevation offset without needing to know<br>
 the elevation, and tracks the seasonal drift for free.</p>
 
+<h2>Re-measured on the onset target, 2026-09-15</h2>
+
+<p>The table below scores this rule on the <em>warning</em> target — rain in any of the<br>
+next three hours — which counts every hour of ongoing rain as a success. On the<br>
+target the project now selects by, &quot;from a dry hour, does rain <em>begin</em> within<br>
+three hours&quot;, over 59 days and 29 onsets:</p>
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>rule (as it actually runs)</th>
+<th>catches</th>
+<th>if random</th>
+<th>lift</th>
+<th>alert h/week</th>
+<th>lead</th>
+</tr></thead><tbody>
+<tr>
+<td><code>Possible rain</code> — spread &lt; 4 &amp; trend &lt; −0.5</td>
+<td>7/29</td>
+<td>6.9</td>
+<td><strong>1.02</strong></td>
+<td>13</td>
+<td>2 h</td>
+</tr>
+<tr>
+<td><code>Rain likely</code> — anomaly &lt; −3 &amp; humidity &gt; 75</td>
+<td>8/29</td>
+<td>6.0</td>
+<td><strong>1.33</strong></td>
+<td>12</td>
+<td>3 h</td>
+</tr>
+<tr>
+<td>both, as they run together today</td>
+<td>11/29</td>
+<td>10.3</td>
+<td><strong>1.06</strong></td>
+<td>21</td>
+<td>3 h</td>
+</tr>
+<tr>
+<td><code>pressure_primary</code> ≥ 80 (proposed)</td>
+<td>13/29</td>
+<td>9.2</td>
+<td><strong>1.42</strong></td>
+<td>18</td>
+<td>3 h</td>
+</tr>
+</tbody></table></div>
+
+<p>&quot;If random&quot; is what the same number of alert-hours would catch scattered at<br>
+random; lift is the ratio. Two things follow, and the second is the reason this<br>
+section exists:</p>
+
+<ul>
+<li><strong>The humidity rule is indistinguishable from noise</strong> (1.02). It spends 13</li>
+</ul>
+  alert-hours a week to catch what 13 random alert-hours would catch. That is
+  consistent with the reanalysis result, where every spread-derivative model
+  sits at chance over 1,463 onsets.
+<ul>
+<li><strong>Running both is worse than running the pressure rule alone.</strong> The pair</li>
+</ul>
+  catches 11 of 29 for 21 alert-hours a week at lift 1.06; the pressure rule by
+  itself catches 8 for 12 hours at 1.33. The humidity rule is not adding
+  warnings so much as diluting them.
+
+<p>Reproduce with <code>python analysis/score_alert_rules.py</code>. The intervals are wide —<br>
+28–62% for the best row — so treat the ordering as the finding and the exact<br>
+numbers as provisional.</p>
+
 <h2>What it scores</h2>
 
 <p>Ground truth is Open-Meteo precipitation ≥ 0.1 mm/h; the target is rain in any of<br>
@@ -282,7 +354,7 @@ Open-Meteo archive; see <code>plans/model-improvements.md</code> for the method.
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-05 11:07 UTC</p>
+        <p>Generated: 2026-09-15 00:20 UTC</p>
     </footer>
 </body>
 </html>

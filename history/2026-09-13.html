@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>2026/07/28 — Rain Analysis</title>
+    <title>2026/09/13 — Rain Analysis</title>
     <meta name="description" content="Daily rain prediction model analysis report.">
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
@@ -24,9 +24,9 @@
 
     <main>
         <section class="report-content">
-<h1>Rain Onset Report — 2026-07-28</h1>
+<h1>Rain Onset Report — 2026-09-13</h1>
 
-<strong>Generated:</strong> 2026-09-14T23:11:39.990968+00:00
+<strong>Generated:</strong> 2026-09-14T23:47:25.591112+00:00
 
 <p>&gt; <strong>Regenerated 2026-09-15 with the onset-first harness.</strong> Every report in this series scores one question — does anything warn before rain <em>starts</em> — over the whole record up to its own date, against the Open-Meteo forecast series with the Meteostat station as an independent check. Earlier reports (2026-07-13..17) predate that series and remain in the previous format.</p>
 
@@ -34,13 +34,21 @@
 <hr>
 <h2>Verdict</h2>
 
-<strong>Too early to say.</strong> The record holds 7 rain starts; below 15 the confidence intervals are wider than any difference between candidates, so this report names no winner. The scoreboard below is shown for continuity, not for acting on.
-<hr>
-<h2>Onset scoreboard</h2>
+<strong>Run <code>pressure_primary</code> at 80%.</strong> It warns before 13 of 28 rain starts (46%, 95% CI 30–64%), costs 19 alert-hours a week, and gives 3.0 h of warning.
+
+<p>Spreading the same 19 alert-hours at random would have caught 9.0 of them, so this is <strong>1.45× better than noise</strong> — real, and not more than that.</p>
+
+<p>Front AUC 0.71 (95% CI 0.65–0.76), 0.69 against the independent Meteostat label.</p>
+
+<strong>The deployed sensor <code>rain_probability</code> is not distinguishable from a coin</strong> — front AUC 0.50 (95% CI 0.40–0.59). It reaches 11 of 28 starts, but alerting at random for as many hours (19 h/week) would have reached 9.3.
+
+<p>The other 12 candidates are indistinguishable from chance on 28 onsets; differences between them are smaller than their error bars and should not be acted on.<br>
+<hr><br>
+<h2>Onset scoreboard</h2></p>
 
 <p>From a known-dry hour: does rain <em>begin</em> within 3 h? Hours during rain are excluded, so recognising ongoing rain earns nothing. An onset is a rain hour after ≥3 known-dry hours.</p>
 
-<strong>Window:</strong> 11.0 days · <strong>onsets:</strong> 7 (Open-Meteo) / 8 (Meteostat) · <strong>alert budget:</strong> 24 h/week
+<strong>Window:</strong> 58.0 days · <strong>onsets:</strong> 28 (Open-Meteo) / 20 (Meteostat) · <strong>alert budget:</strong> 24 h/week
 
 <div class="table-wrap">
 <table>
@@ -57,168 +65,168 @@
 </tr></thead><tbody>
 <tr>
 <td><code>pressure_primary</code></td>
-<td>4/7</td>
-<td>2.0</td>
-<td>1.98</td>
-<td>16</td>
+<td>13/28</td>
+<td>9.0</td>
+<td>1.45</td>
+<td>19</td>
 <td>3.0</td>
-<td>0.67 (0.51–0.82)</td>
-<td>0.59</td>
-<td>…</td>
+<td>0.71 (0.65–0.76)</td>
+<td>0.69</td>
+<td>✅</td>
 </tr>
 <tr>
 <td><code>onset_gate</code></td>
-<td>1/7</td>
-<td>1.4</td>
-<td>0.69</td>
-<td>11</td>
-<td>1.0</td>
-<td>0.59 (0.46–0.70)</td>
-<td>0.68</td>
-<td>…</td>
-</tr>
-<tr>
-<td><code>original</code></td>
-<td>2/7</td>
-<td>2.6</td>
-<td>0.76</td>
-<td>22</td>
-<td>2.0</td>
-<td>0.48 (0.34–0.64)</td>
-<td>0.50</td>
-<td>…</td>
-</tr>
-<tr>
-<td><code>ha_live_replica</code></td>
-<td>1/7</td>
-<td>1.4</td>
-<td>0.69</td>
-<td>11</td>
+<td>8/28</td>
+<td>8.4</td>
+<td>0.95</td>
+<td>17</td>
 <td>3.0</td>
-<td>0.48 (0.37–0.62)</td>
-<td>0.47</td>
-<td>…</td>
+<td>0.63 (0.57–0.69)</td>
+<td>0.64</td>
+<td>◐</td>
 </tr>
 <tr>
 <td><code>combined</code></td>
-<td>2/7</td>
-<td>2.6</td>
-<td>0.76</td>
-<td>22</td>
+<td>8/28</td>
+<td>10.1</td>
+<td>0.79</td>
+<td>21</td>
 <td>3.0</td>
-<td>0.47 (0.32–0.63)</td>
-<td>0.52</td>
-<td>…</td>
-</tr>
-<tr>
-<td><code>pressure_absolute</code></td>
-<td>1/7</td>
-<td>0.5</td>
-<td>1.97</td>
-<td>4</td>
-<td>3.0</td>
-<td>0.46 (0.31–0.63)</td>
-<td>0.51</td>
-<td>…</td>
-</tr>
-<tr>
-<td><code>trend_dominant</code></td>
-<td>2/7</td>
-<td>2.0</td>
-<td>0.99</td>
-<td>16</td>
-<td>3.0</td>
-<td>0.46 (0.32–0.60)</td>
-<td>0.41</td>
-<td>…</td>
-</tr>
-<tr>
-<td><code>pressure_lagged</code></td>
-<td>1/7</td>
-<td>0.8</td>
-<td>1.20</td>
-<td>6</td>
-<td>3.0</td>
-<td>0.45 (0.29–0.62)</td>
-<td>0.51</td>
-<td>…</td>
+<td>0.57 (0.50–0.63)</td>
+<td>0.54</td>
+<td>◐</td>
 </tr>
 <tr>
 <td><code>pressure_combined</code></td>
-<td>1/7</td>
-<td>0.5</td>
-<td>1.97</td>
-<td>4</td>
+<td>6/28</td>
+<td>9.2</td>
+<td>0.65</td>
+<td>19</td>
 <td>3.0</td>
-<td>0.45 (0.30–0.61)</td>
-<td>0.52</td>
-<td>…</td>
+<td>0.56 (0.50–0.62)</td>
+<td>0.54</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>pressure_absolute</code></td>
+<td>6/28</td>
+<td>7.8</td>
+<td>0.76</td>
+<td>16</td>
+<td>3.0</td>
+<td>0.56 (0.49–0.62)</td>
+<td>0.53</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>pressure_lagged</code></td>
+<td>5/28</td>
+<td>6.9</td>
+<td>0.73</td>
+<td>14</td>
+<td>3.0</td>
+<td>0.56 (0.50–0.62)</td>
+<td>0.53</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>pressure_long_window</code></td>
-<td>1/7</td>
-<td>1.0</td>
-<td>1.01</td>
-<td>8</td>
+<td>5/28</td>
+<td>6.9</td>
+<td>0.73</td>
+<td>14</td>
 <td>3.0</td>
-<td>0.45 (0.29–0.61)</td>
-<td>0.51</td>
-<td>…</td>
+<td>0.56 (0.49–0.62)</td>
+<td>0.53</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>pressure_aware</code></td>
-<td>1/7</td>
-<td>1.0</td>
-<td>1.01</td>
-<td>8</td>
+<td>6/28</td>
+<td>9.0</td>
+<td>0.67</td>
+<td>19</td>
 <td>3.0</td>
-<td>0.44 (0.29–0.61)</td>
-<td>0.51</td>
-<td>…</td>
+<td>0.55 (0.48–0.61)</td>
+<td>0.52</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>tuned</code></td>
-<td>1/7</td>
-<td>1.0</td>
-<td>1.01</td>
-<td>8</td>
+<td>6/28</td>
+<td>9.0</td>
+<td>0.66</td>
+<td>19</td>
 <td>3.0</td>
-<td>0.44 (0.29–0.60)</td>
+<td>0.55 (0.48–0.61)</td>
 <td>0.51</td>
-<td>…</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>original</code></td>
+<td>10/28</td>
+<td>11.1</td>
+<td>0.90</td>
+<td>24</td>
+<td>2.5</td>
+<td>0.54 (0.47–0.60)</td>
+<td>0.54</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>ha_live_replica</code></td>
+<td>10/28</td>
+<td>8.5</td>
+<td>1.18</td>
+<td>17</td>
+<td>3.0</td>
+<td>0.52 (0.46–0.59)</td>
+<td>0.52</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>trend_dominant</code></td>
+<td>6/28</td>
+<td>8.6</td>
+<td>0.70</td>
+<td>18</td>
+<td>3.0</td>
+<td>0.51 (0.44–0.58)</td>
+<td>0.48</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>ha_live_actual</code></td>
+<td>11/28</td>
+<td>9.3</td>
+<td>1.18</td>
+<td>19</td>
+<td>2.0</td>
+<td>0.50 (0.40–0.59)</td>
+<td>0.48</td>
 <td>—</td>
-<td>—</td>
-<td>—</td>
-<td>—</td>
-<td>—</td>
-<td>— (—)</td>
-<td>—</td>
-<td>?</td>
 </tr>
 <tr>
 <td><code>always_alert</code> <em>(control)</em></td>
-<td>7/7</td>
-<td>7.0</td>
+<td>28/28</td>
+<td>28.0</td>
 <td>1.00</td>
-<td>153</td>
+<td>154</td>
 <td>3.0</td>
 <td>0.50 (0.50–0.50)</td>
 <td>0.50</td>
-<td>…</td>
+<td>—</td>
 </tr>
 <tr>
 <td><code>persistence</code> <em>(control)</em></td>
-<td>1/7</td>
-<td>1.0</td>
-<td>1.01</td>
-<td>8</td>
+<td>2/28</td>
+<td>2.8</td>
+<td>0.70</td>
+<td>5</td>
 <td>3.0</td>
-<td>0.50 (0.46–0.56)</td>
-<td>0.54</td>
-<td>…</td>
+<td>0.49 (0.48–0.51)</td>
+<td>0.55</td>
+<td>—</td>
 </tr>
 </tbody></table></div>
 
@@ -226,17 +234,15 @@
 <hr>
 <h2>Last 24 hours</h2>
 
-<ul>
-<li><strong>14:00 UTC</strong> — rain started. <code>pressure_primary</code> <em>(leading candidate, not yet proven)</em>: ❌ no warning.</li>
-</ul>
+<p>No rain started in this window.</p>
 
 <code>pressure_primary</code> held the alert for 0 of 24 hours at its 80% threshold.
 <hr>
 <h2>Data health</h2>
 
-<p>Coverage over the window: local sensors 100%, Open-Meteo 100%, Meteostat 100%, Yandex 0% — absent.</p>
+<p>Coverage over the window: local sensors 98%, Open-Meteo 100%, Meteostat 100%, Yandex 0% — absent.</p>
 
-<p>Ground truth: 23 rain hours of 262 labelled (8.8% of the window), source <code>open-meteo</code>.</p>
+<p>Ground truth: 112 rain hours of 1390 labelled (8.1% of the window), source <code>open-meteo</code>.</p>
 
 <em>A local shower can be invisible to every source here: on 2026-08-24 rain seen from the window, and plain in the sensors, was logged as 0.0 mm by both Open-Meteo and the Meteostat gauge. Precision figures are therefore a floor, not an estimate.</em>
 <hr>

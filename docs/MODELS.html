@@ -28,6 +28,22 @@
 
 <p>Complete documentation of all rain prediction models in this analysis framework.</p>
 
+<p>&gt; <strong>Read the table below as history, not as a ranking.</strong> Every F1 in it scores<br>
+&gt; the nowcast target — &quot;is it raining this hour&quot; — which the project no longer<br>
+&gt; selects on. On the target that matters, *does anything warn before rain<br>
+&gt; starts*, the ordering is different and most of these models are<br>
+&gt; indistinguishable from a coin toss. Measured over 2026-07-18..09-14, 59 days,<br>
+&gt; 29 rain starts:<br>
+&gt;<br>
+&gt; | Model | catches | lift over random | front AUC (95% CI) | verdict |<br>
+&gt; |---|:---:|:---:|:---:|---|<br>
+&gt; | <code>pressure_primary</code> | 13/29 | 1.42× | 0.69 (0.64–0.75) | the only one that holds |<br>
+&gt; | <code>onset_gate</code> | 8/29 | 0.92× | 0.62 (0.56–0.67) | ranks, but no usable threshold |<br>
+&gt; | <code>ha_live</code> / <code>ha_live_actual</code> | 11/29 | 1.13× | 0.50–0.52 | chance |<br>
+&gt; | everything else | — | &lt;1.0 | 0.51–0.56 | chance |<br>
+&gt;<br>
+&gt; See the daily reports and <code>docs_site/CHANGELOG.md</code> (2026-09-15).</p>
+
 <h2>Model Comparison Table</h2>
 
 <div class="table-wrap">
@@ -426,8 +442,12 @@ if rain_probability &gt;= threshold:
 <hr>
 <h2>2. ha_live (Production Model)</h2>
 
-<strong>Status:</strong> ✅ Current production (deployed in Home Assistant)  
-<strong>F1:</strong> 0.484 | <strong>Precision:</strong> 0.519 | <strong>Recall:</strong> 0.455
+<strong>Status:</strong> ✅ Deployed in Home Assistant as <code>sensor.rain_probability</code> —
+and measured at chance for predicting the start of rain (front AUC 0.50,
+95% CI 0.41–0.58, over 29 onsets). It is good at noticing that the air is
+already saturated, which is what the F1 below rewards and what an alert
+cannot use.  
+<strong>F1 (nowcast target):</strong> 0.484 | <strong>Precision:</strong> 0.519 | <strong>Recall:</strong> 0.455
 
 <h3>Algorithm</h3>
 
@@ -1337,7 +1357,7 @@ Override via <code>AnalysisConfig</code> in <code>run_analysis.py</code>.
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-05 11:07 UTC</p>
+        <p>Generated: 2026-09-15 00:20 UTC</p>
     </footer>
 </body>
 </html>

@@ -301,12 +301,139 @@ models. Benchmarks published before this date are superseded — see
 <li><strong>Precipitation forward-fill removed</strong> (<code>rainlib.py::build_grid()</code>). Previously, precipitation columns were forward-filled during grid construction, inflating rain-hour counts by approximately 80%. The fix restricts forward-fill to temperature/humidity/pressure columns only.</li>
 <li>See <a href="DATA_SOURCES.html">DATA_SOURCES.md</a> for updated forward-fill behavior description.</li>
 </ul>
+
+<h2>2026-09-15 — The report answers one question now</h2>
+
+<strong>What changed.</strong> Daily reports scored &quot;is it raining right now&quot; in eleven
+sections and mentioned rain <em>starts</em> in the ninth. Since the product is a
+notification that has to speak before the first drop, the target was the one
+thing the report never led with. The report is now ~60 lines: a verdict, one
+scoreboard on onsets, what happened in the last day, and data health. Nothing
+was deleted — every old section is still computed into <code>analysis_report.json</code>
+beside each report.
+
+<strong>Scoring changes, and what each one revealed.</strong>
+
+<ul>
+<li><strong>One window instead of three.</strong> Reports ran 7d/14d/28d in parallel; a 7-day</li>
+</ul>
+  window holds three or four onsets, so &quot;best model&quot; was a coin toss dressed as
+  a ranking. Each report now scores the whole record up to its own date.
+<ul>
+<li><strong>Error bars, and a floor under them.</strong> Wilson intervals on catch counts,</li>
+</ul>
+  bootstrap intervals on AUC. On 29 onsets an interval spans ±0.06 AUC, so
+  most of the leaderboard&#x27;s ordering was never real. Below 15 onsets the report
+  refuses to name a winner at all.
+<ul>
+<li><strong>A second, independent yardstick.</strong> Every candidate is re-scored against the</li>
+</ul>
+  Meteostat station label. Measured: <code>pressure_primary</code> clears chance under
+  all six label variants tried; nothing else does.
+<ul>
+<li><strong>Meteostat condition codes are loaded.</strong> They were fetched and dropped.</li>
+</ul>
+  Fog codes (5, 6) are deliberately <em>not</em> counted as rain — including them
+  lifts the deployed sensor&#x27;s onset AUC from 0.48 to 0.68 against a target
+  that is really &quot;is it damp out&quot;.
+<ul>
+<li><strong>Lift over random.</strong> For each candidate, how many onsets it caught divided</li>
+</ul>
+  by how many the same alert-hours would catch scattered at random. This is the
+  number that separates aiming from yelling, and it demoted most of the board.
+<ul>
+<li><strong>Alert budget in hours, not episodes.</strong> Thresholds are chosen to catch the</li>
+</ul>
+  most onsets within 24 alert-hours a week. Counting episodes instead let a
+  model that never switches off score as &quot;5.6 alerts a week&quot; while catching
+  every onset by construction.
+
+<strong>What the numbers say</strong> (2026-07-18..09-14, 59 days, 29 onsets):
+
+<ul>
+<li><code>pressure_primary</code> @ 80% — catches 13 of 29 (45%, CI 28–62%), 18 alert-hours</li>
+</ul>
+  a week, 3 h median warning, front AUC 0.69 (0.64–0.75), 0.69 on Meteostat,
+  1.42× better than random. Holds on both halves of the record (0.69 / 0.65).
+<ul>
+<li>The deployed sensor <code>rain_probability</code> — front AUC 0.50 (0.41–0.58), 0.48 on</li>
+</ul>
+  Meteostat. It is not distinguishable from a coin at predicting rain starts.
+<ul>
+<li>Everything else, including every other pressure variant, sits at chance.</li>
+</ul>
+
+<strong>Checked against 50x more events.</strong> <code>analysis/validate_on_reanalysis.py</code>
+scores the same candidates on 5.5 years of Open-Meteo reanalysis at the
+project&#x27;s coordinates — 1,463 onsets over 39,201 dry hours, against the local
+record&#x27;s 29. Reanalysis is not these sensors (an ~11 km cell smooths exactly
+the convective showers this site cares about), so it answers &quot;is the skill
+real&quot;, not &quot;what would the alert have done here&quot;. It is unambiguous:
+
+<div class="table-wrap">
+<table>
+<thead><tr>
+<th>candidate</th>
+<th>front AUC</th>
+<th>95% CI</th>
+<th>per-year range</th>
+</tr></thead><tbody>
+<tr>
+<td><code>onset_gate</code></td>
+<td>0.711</td>
+<td>0.703–0.717</td>
+<td>0.690–0.736</td>
+</tr>
+<tr>
+<td><code>pressure_primary</code></td>
+<td>0.627</td>
+<td>0.617–0.634</td>
+<td>0.576–0.642</td>
+</tr>
+<tr>
+<td><code>ha_live</code> (deployed formula)</td>
+<td>0.513</td>
+<td>0.503–0.522</td>
+<td>0.472–0.537</td>
+</tr>
+<tr>
+<td>persistence (control)</td>
+<td>0.486</td>
+<td>0.483–0.489</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>trend_dominant</code></td>
+<td>0.426</td>
+<td>0.416–0.432</td>
+<td>—</td>
+</tr>
+</tbody></table></div>
+
+<p>Two things follow. The deployed formula&#x27;s inability to predict rain starts is<br>
+not a small-sample artifact — it holds over 1,463 events and every year<br>
+separately. And <code>onset_gate</code> ranks hours better than <code>pressure_primary</code> here,<br>
+while on the local record it has no threshold that beats random alerting inside<br>
+the alert budget (lift 0.92 vs 1.42); a quantile sweep instead of the fixed<br>
+5..95 grid does not change that. So <code>pressure_primary</code> is what to deploy today<br>
+and <code>onset_gate</code> is what to re-check as the local record grows past a hundred<br>
+onsets.</p>
+
+<strong>Ground truth is the weak link and the report says so.</strong> On 2026-08-24 rain
+seen from the window, and unmistakable in the local sensors (−4.7 °C in two
+hours, +24 pp humidity), was logged as 0.0 mm by Open-Meteo <em>and</em> by the
+Meteostat gauge. Precision figures are a floor, not an estimate.
+
+<strong>Pipeline.</strong> <code>scripts_utils/make_onset_report.py</code> renders one report;
+<code>scripts_utils/daily_pipeline.sh</code> is the cron entry point that refreshes data,
+renders, and pushes to the backend. The openclaw runner is gone and is not
+coming back.
         </section>
     </main>
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-05 11:07 UTC</p>
+        <p>Generated: 2026-09-15 00:20 UTC</p>
     </footer>
 </body>
 </html>

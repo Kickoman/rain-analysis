@@ -72,6 +72,52 @@
 </tr>
 </tbody></table></div>
 
+<h2>How good is the ground truth, really?</h2>
+
+<p>Badly enough that it limits every conclusion, and the reports say so.</p>
+
+<strong>Sources disagree on most rain hours.</strong> Over 2026-07-18..09-14, Open-Meteo&#x27;s
+forecast series and the Meteostat gauge between them called 205 hours rainy.
+They agreed on 58 of those — 28%. Open-Meteo alone claimed 56, Meteostat alone
+91. Two &quot;ground truths&quot; at the same coordinates, differing on nearly three
+quarters of the events they are used to score.
+
+<strong>A local shower can be invisible to all of them.</strong> On 2026-08-24 rain started
+at about 15:30 UTC and was watched from the window. The local sensors record it
+without ambiguity — temperature fell 18.7 → 14.0 °C in three hours, humidity
+rose 54 → 78%. Open-Meteo reports 0.0 mm for every hour of that day. The
+Meteostat gauge reports 0.0 mm. The Meteostat condition code, which on
+2026-08-25 read 18 (heavy shower) for 16:00, has since been revised to 3
+(cloudy). The event is absent from every yardstick the project can check
+against, so no model could have been credited for predicting it.
+
+<p>Consequences, stated once and referenced from the reports:</p>
+
+<ul>
+<li><strong>Precision figures are a floor, not an estimate.</strong> An alert before a real</li>
+</ul>
+  but unrecorded shower is counted as a false alarm.
+<ul>
+<li><strong>The endpoint matters more than the model.</strong> Open-Meteo&#x27;s ERA5 archive</li>
+</ul>
+  (~11 km cell) reports roughly three times as many rain hours as its forecast
+  series (~2 km) over the same window, and swapping one for the other inverts
+  model rankings. Reports up to 2026-08-13 used ERA5; everything from
+  2026-07-18 in the regenerated series uses the forecast endpoint. Never pass
+  both to <code>--om-sources</code> for the same window.
+<ul>
+<li><strong>Fog is not rain.</strong> Meteostat condition codes 5 and 6 are fog; including</li>
+</ul>
+  them in a rain label lifts the deployed humidity-based sensor&#x27;s onset AUC
+  from 0.48 to 0.68, because the target has quietly become &quot;is it damp out&quot;.
+  <code>rainlib.MS_RAIN_CODES</code> excludes them.
+<ul>
+<li><strong>The fix is a local sensor.</strong> Any rain-wetted contact outside — a spare</li>
+</ul>
+  Zigbee leak sensor will do — would give this project ground truth that is
+  actually about this roof, and would make every measurement above sharper
+  than a station kilometres away can.
+
 <h2>Retention: what you can still get, and for how long</h2>
 
 <p>This is the constraint that shapes the whole dataset.</p>
@@ -446,7 +492,7 @@ rainlib forward-fills temperature/humidity/pressure columns — precipitation co
 
     <footer>
         <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-05 11:07 UTC</p>
+        <p>Generated: 2026-09-15 00:20 UTC</p>
     </footer>
 </body>
 </html>
