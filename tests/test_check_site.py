@@ -227,3 +227,27 @@ def test_series_loss_within_one_schema_still_blocks(tmp_path):
 
     problems = check_site.check_metrics(tmp_path, old)
     assert any("onset_gate" in p for p in problems)
+
+
+def test_dropped_dates_before_the_cutoff_are_allowed(tmp_path):
+    """Reports scored on a superseded target leave the timeline on purpose.
+
+    The onset metrics page plots only reports measured on rain starts, so the
+    seven earlier days legitimately vanish from the series. Later losses are
+    still breakage, and the cutoff records the intent in the workflow diff.
+    """
+    build_site(tmp_path, dates=["2026-07-20", "2026-07-21"], models=["combined"])
+    baseline = data_json(["2026-07-13", "2026-07-19", "2026-07-20", "2026-07-21"],
+                         ["combined"])
+
+    assert check_site.check_metrics(tmp_path, baseline,
+                                    allow_dates_before="2026-07-20") == []
+
+
+def test_dropped_dates_after_the_cutoff_still_block(tmp_path):
+    build_site(tmp_path, dates=["2026-07-20"], models=["combined"])
+    baseline = data_json(["2026-07-13", "2026-07-20", "2026-08-01"], ["combined"])
+
+    problems = check_site.check_metrics(tmp_path, baseline,
+                                        allow_dates_before="2026-07-20")
+    assert any("2026-08-01" in p for p in problems)
