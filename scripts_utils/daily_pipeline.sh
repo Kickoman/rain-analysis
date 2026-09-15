@@ -62,7 +62,9 @@ rm -f /tmp/rain_om_$$.json
 "$PY" scripts_utils/make_onset_report.py --date "$DAY" --push
 
 # 4. Optional: keep the repo as the durable copy. Off by default so a server
-#    without push rights still produces reports.
+#    without push rights still produces reports — in that mode the backend is
+#    the store of record and this checkout simply stays dirty between runs,
+#    which is why deploy/update.sh pulls with --autostash.
 if [[ "${RAIN_GIT_PUSH:-0}" == "1" ]]; then
     git add reports/ data/archive/ >/dev/null
     if git diff --cached --quiet; then

@@ -9,7 +9,12 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=(docker compose -f "$REPO_DIR/deploy/docker-compose.yml")
 
 cd "$REPO_DIR"
-git pull --ff-only
+# --autostash: the daily pipeline writes into this same checkout (the report it
+# just rendered, and the growing data/archive it merges into), so the working
+# tree is legitimately dirty between runs. Without this a routine update stops
+# on "local changes would be overwritten" for files the pipeline is supposed to
+# be changing.
+git pull --ff-only --autostash
 
 "${COMPOSE[@]}" build
 "${COMPOSE[@]}" run --rm backend python -m alembic upgrade head
