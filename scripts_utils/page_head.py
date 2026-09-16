@@ -2,11 +2,10 @@
 page_head.py — the ``<head>`` tags every generated page should carry.
 =====================================================================
 
-Six generators build their own ``<!DOCTYPE html> … <head>`` block, so anything
-that belongs on every page has to be added in six places — which is why none of
-them had a description or a favicon. This is the shared piece; a full page-shell
-refactor (one ``render_page()`` for header, nav and footer too) is still worth
-doing, but this covers what was actually missing.
+The two tags that are page-specific but boilerplate: the meta description and
+the favicon. ``page_shell.render_page()`` composes them into the full document
+along with the stylesheet, the theme snippet and ``site.js``; this module just
+owns the two bits that take an argument.
 
 The favicon is an inline SVG data URI: no extra request, no file to copy to
 gh-pages, and no 404 in the console on every page load.
@@ -16,11 +15,15 @@ from __future__ import annotations
 
 import html
 
-# 🌧️ as an SVG document, URL-escaped just enough to sit inside an attribute.
+# A black square with a green "~", the design system's wordmark glyph. It used
+# to be the rain-cloud emoji; the design has no emoji in it anywhere, and a tab
+# strip is the one place the rule is hardest to walk back later.
 FAVICON = (
     "data:image/svg+xml,"
-    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E"
-    "%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E"
+    "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E"
+    "%3Crect width='16' height='16' fill='%23000'/%3E"
+    "%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E"
+    "%3C/svg%3E"
 )
 
 
