@@ -31,6 +31,15 @@ def build_site(root: Path, cards: int = 3, dates=None, models=None) -> Path:
         filler + '<div class="card">c</div>' * cards, encoding="utf-8")
     (root / "metrics/index.html").write_text(filler, encoding="utf-8")
     (root / "metrics/data.json").write_text(data_json(dates, models), encoding="utf-8")
+    (root / "404.html").write_text(filler, encoding="utf-8")
+
+    # The stylesheet and the two scripts are copied from master rather than
+    # generated, which is exactly why they are worth checking: nothing else in
+    # the pipeline notices when the copy step is skipped and every page ships
+    # as unstyled markup.
+    (root / "assets").mkdir(parents=True, exist_ok=True)
+    for asset in ("style.css", "site.js", "metrics-charts.js"):
+        (root / "assets" / asset).write_text("/* " + "x" * 2200 + " */", encoding="utf-8")
     return root
 
 

@@ -3,8 +3,9 @@ page_shell.py — the one page every generator renders into.
 ==========================================================
 
 Until now each of the five generators built its own ``<!DOCTYPE html>`` from an
-f-string, so the header, the nav and the footer existed in six copies (seven,
-counting the static ``site/404.html``). That is why the nav drifted: history
+f-string, so the header, the nav and the footer existed in six copies — seven
+with the static ``site/404.html``, which is now generated too. That is why the
+nav drifted: history
 pages highlighted "Latest Report", every documentation page highlighted
 "Glossary", and the metrics page called the same destination "Metrics" while
 everyone else called it "Metrics Timeline". None of that was a decision; it was

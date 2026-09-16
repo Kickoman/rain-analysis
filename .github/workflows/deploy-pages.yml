@@ -8,6 +8,7 @@ on:
       - 'reports/**'
       - 'scripts_utils/**'
       - 'docs_site/**'
+      - 'site/**'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
@@ -118,7 +119,7 @@ jobs:
           git checkout master -- site/
           mkdir -p assets
           cp -r site/assets/. assets/
-          cp site/404.html 404.html
+          python3 scripts_utils/generate_404.py
           # Without this, GitHub Pages runs the tree through Jekyll, which drops
           # any path beginning with an underscore.
           touch .nojekyll
