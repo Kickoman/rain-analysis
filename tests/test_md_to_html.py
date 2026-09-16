@@ -2,6 +2,7 @@
 """
 Tests for md_to_html.py HTML escaping
 """
+import re
 import sys
 from pathlib import Path
 
@@ -43,6 +44,17 @@ def test_escape_in_comparison_expressions():
     assert ">0.5" not in html  # Raw > should not appear
 
 
+def _main_body(html: str) -> str:
+    """Just the converted markdown, without the page chrome.
+
+    The shell legitimately carries a <script> (the pre-paint theme switch) and
+    a stylesheet link. Assertions about escaping are about *content*, so they
+    look only at what the converter produced.
+    """
+    start = html.index("<main")
+    return html[start:html.index("</main>", start)]
+
+
 def test_escape_script_like_content():
     """Test that script-like content is neutralized"""
     md = "Text with <script>alert('xss')</script> attempt"
@@ -51,7 +63,7 @@ def test_escape_script_like_content():
     # Script tags should be escaped
     assert "&lt;script&gt;" in html
     assert "&lt;/script&gt;" in html
-    assert "<script>" not in html
+    assert "<script>" not in _main_body(html)
 
 
 def test_markdown_tags_still_work():
@@ -60,7 +72,7 @@ def test_markdown_tags_still_work():
     html = markdown_to_html(md, "Test")
     
     # Generated HTML tags should exist
-    assert "<h2>Header</h2>" in html
+    assert re.search(r"<h2[^>]*>Header</h2>", html), "heading lost (it now carries a toc id)"
     assert "<strong>Bold text</strong>" in html
     assert "<code>code</code>" in html
 
