@@ -19,7 +19,7 @@ from report_parse import (  # noqa: E402
     leaderboard_f1,
     strip_tags,
 )
-from page_head import head_tags  # noqa: E402
+from page_shell import SUBTITLE_REPORTS, render_page  # noqa: E402
 
 
 def _describe_onset_report(html_content: str) -> str:
@@ -134,7 +134,7 @@ def main():
         cards.append(f'''                <div class="card">
                     <h3>{date}</h3>
                     <p>{best}</p>
-                    <a href="{report.name}">View Report →</a>
+                    <a href="{report.name}">&gt; view report</a>
                 </div>''')
     
     for report in other_reports:
@@ -145,59 +145,40 @@ def main():
         cards.append(f'''                <div class="card">
                     <h3>{date}</h3>
                     <p>{best}</p>
-                    <a href="{report.name}">View Report →</a>
+                    <a href="{report.name}">&gt; view report</a>
                 </div>''')
 
     if not cards:
         # A well-formed page with zero cards used to be written with exit 0, so a
         # run where the report checkout produced nothing would quietly replace the
         # History index with a blank one.
-        print("❌ No reports found in history/ — refusing to write an empty index",
+        print("[x] no reports found in history/ — refusing to write an empty index",
               file=sys.stderr)
         sys.exit(1)
 
-    html = f'''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>History — Rain Analysis</title>
-    {head_tags("Every daily rain-model analysis report, newest first.")}
-    <link rel="stylesheet" href="../assets/style.css">
-</head>
-<body>
-    <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Automated performance tracking and reports</p>
-    </header>
+    body = f"""        <h1>history</h1>
 
-    <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html" class="active">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html">Glossary</a>
-    </nav>
-
-    <main>
         <section>
-            <h2>📅 Historical Reports</h2>
-            <p>Daily analysis reports, newest first.</p>
+            <p>Every daily report, newest first. Nothing is ever removed — a
+            report that named a different model is evidence about the record,
+            not a mistake to tidy away.</p>
 
             <div class="cards">
 {chr(10).join(cards)}
             </div>
-        </section>
-    </main>
+        </section>"""
 
-    <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-    </footer>
-</body>
-</html>'''
+    html = render_page(
+        title="History",
+        description="Every daily rain-model analysis report, newest first.",
+        subtitle=SUBTITLE_REPORTS,
+        body=body,
+        active="history",
+        root="../",
+    )
 
     Path('history/index.html').write_text(html)
-    print('✅ Updated history/index.html')
+    print('[ok] updated history/index.html')
 
 
 if __name__ == '__main__':
