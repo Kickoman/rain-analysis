@@ -5,30 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DATA_SOURCES — Rain Analysis</title>
     <meta name="description" content="DATA_SOURCES — documentation for the rain-analysis project.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
+    <script>(function(){try{if(localStorage.getItem('ra-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+    <script src="../assets/site.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">skip to content</a>
+
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Documentation & ML Metrics Reference</p>
+        <h1>rain-analysis</h1>
+        <p>documentation & ml metrics reference</p>
     </header>
 
     <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+        <a href="../index.html">home</a>
+        <a href="../current/index.html">latest report</a>
+        <a href="../history/index.html">history</a>
+        <a href="../metrics/index.html">metrics timeline</a>
+        <a href="../docs/GLOSSARY.html">glossary</a>
     </nav>
 
-    <main>
+    <main id="main">
         <section class="docs-content">
 <h1>Data Sources &amp; Fetching</h1>
+<div class="toc">
+    <ul>
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#how-good-is-the-ground-truth-really">How good is the ground truth, really?</a></li>
+        <li><a href="#retention-what-you-can-still-get-and-for-how-long">Retention: what you can still get, and for how long</a></li>
+        <li><a href="#1-home-assistant-data">1. Home Assistant Data</a></li>
+        <li><a href="#1b-home-assistant-long-term-statistics">1b. Home Assistant Long-Term Statistics</a></li>
+        <li><a href="#2-open-meteo-data-ground-truth">2. Open-Meteo Data (Ground Truth)</a></li>
+        <li><a href="#3-meteostat-data-ground-truth-2-pressure">3. Meteostat Data (Ground Truth #2 + Pressure)</a></li>
+        <li><a href="#4-yandex-weather-data">4. Yandex Weather Data</a></li>
+        <li><a href="#pipeline-script-putting-it-all-together">Pipeline Script (Putting It All Together)</a></li>
+        <li><a href="#troubleshooting">Troubleshooting</a></li>
+    </ul>
+</div>
 
 <p>How to obtain all three data sources required for the rain analysis pipeline.</p>
 
-<h2>Overview</h2>
+<h2 id="overview">Overview</h2>
 
 <p>The analysis pipeline needs four data sources aligned on one time grid:</p>
 
@@ -72,7 +90,7 @@
 </tr>
 </tbody></table></div>
 
-<h2>How good is the ground truth, really?</h2>
+<h2 id="how-good-is-the-ground-truth-really">How good is the ground truth, really?</h2>
 
 <p>Badly enough that it limits every conclusion, and the reports say so.</p>
 
@@ -84,8 +102,8 @@ quarters of the events they are used to score.
 
 <strong>A local shower can be invisible to all of them.</strong> On 2026-08-24 rain started
 at about 15:30 UTC and was watched from the window. The local sensors record it
-without ambiguity — temperature fell 18.7 → 14.0 °C in three hours, humidity
-rose 54 → 78%. Open-Meteo reports 0.0 mm for every hour of that day. The
+without ambiguity — temperature fell 18.7 -&gt; 14.0 °C in three hours, humidity
+rose 54 -&gt; 78%. Open-Meteo reports 0.0 mm for every hour of that day. The
 Meteostat gauge reports 0.0 mm. The Meteostat condition code, which on
 2026-08-25 read 18 (heavy shower) for 16:00, has since been revised to 3
 (cloudy). The event is absent from every yardstick the project can check
@@ -118,7 +136,7 @@ against, so no model could have been credited for predicting it.
   actually about this roof, and would make every measurement above sharper
   than a station kilometres away can.
 
-<h2>Retention: what you can still get, and for how long</h2>
+<h2 id="retention-what-you-can-still-get-and-for-how-long">Retention: what you can still get, and for how long</h2>
 
 <p>This is the constraint that shapes the whole dataset.</p>
 
@@ -162,53 +180,45 @@ against, so no model could have been credited for predicting it.
    therefore only exists inside the recorder window; beyond that only the<br>
    replica can be recomputed. Reports mark this rather than scoring it as zero.</p>
 
-<p>Prefer sources in this order: <code>data/archive/</code> → statistics → recorder.</p>
+<p>Prefer sources in this order: <code>data/archive/</code> -&gt; statistics -&gt; recorder.</p>
 
-<h2>1. Home Assistant Data</h2>
+<h2 id="1-home-assistant-data">1. Home Assistant Data</h2>
 
 <h3>Required Sensors</h3>
 
-<code>`</code>
-sensor.datchik_klimata_temperatura  → outdoor temperature (°C)
-sensor.datchik_klimata_vlazhnost    → outdoor humidity (%)
-sensor.rain_probability             → live model probability (%)
-sensor.filtered_pressure             → barometric pressure (hPa)
-<code>`</code>
+<pre><code>sensor.datchik_klimata_temperatura  -&gt; outdoor temperature (°C)
+sensor.datchik_klimata_vlazhnost    -&gt; outdoor humidity (%)
+sensor.rain_probability             -&gt; live model probability (%)
+sensor.filtered_pressure             -&gt; barometric pressure (hPa)</code></pre>
 
 <h3>Fetch</h3>
 
-<code>`</code>bash
-python fetch_ha_data.py --days 7 --output data/ha.csv
-<code>`</code>
+<pre><code>python fetch_ha_data.py --days 7 --output data/ha.csv</code></pre>
 
 <h3>Output Format</h3>
 
-<code>`</code>csv
-entity_id,state,last_changed
+<pre><code>entity_id,state,last_changed
 sensor.datchik_klimata_temperatura,17.5,2026-07-05T19:25:05+00:00
 sensor.datchik_klimata_vlazhnost,66,2026-07-05T19:25:05+00:00
-...
-<code>`</code>
+...</code></pre>
 
 <p>See <a href="HA_DATA_FETCHER.html">HA_DATA_FETCHER.md</a> for full details.</p>
 
-<h2>1b. Home Assistant Long-Term Statistics</h2>
+<h2 id="1b-home-assistant-long-term-statistics">1b. Home Assistant Long-Term Statistics</h2>
 
 The recorder purges raw state history after ~10 days, but hourly statistics for
 sensors with a numeric <code>state_class</code> are kept indefinitely. <code>fetch_ha_statistics.py</code>
 reads them over the WebSocket API and writes the same three-column CSV, so
 <code>rainlib.load_ha_csv()</code> reads either interchangeably.
 
-<code>`</code>bash
-python fetch_ha_statistics.py --days 45 --output data/ha_stats.csv
-python archive_ha_data.py --input data/ha_stats.csv
-<code>`</code>
+<pre><code>python fetch_ha_statistics.py --days 45 --output data/ha_stats.csv
+python archive_ha_data.py --input data/ha_stats.csv</code></pre>
 
 <p>The second command merges into <code>data/archive/ha_hourly.csv</code>, keyed on<br>
 (entity_id, timestamp) so re-running never duplicates. Run both regularly: the<br>
 archive is what grows the dataset past whatever Home Assistant still holds.</p>
 
-<h2>2. Open-Meteo Data (Ground Truth)</h2>
+<h2 id="2-open-meteo-data-ground-truth">2. Open-Meteo Data (Ground Truth)</h2>
 
 <h3>Location</h3>
 
@@ -218,54 +228,51 @@ archive is what grows the dataset past whatever Home Assistant still holds.</p>
 
 <h4>Current + Recent Past (recommended)</h4>
 
-<code>`</code>bash
-python fetch_openmeteo.py \
+<pre><code>python fetch_openmeteo.py \
     --use-forecast \
     --days 7 \
-    --output data/openmeteo.json
-<code>`</code>
+    --output data/openmeteo.json</code></pre>
 
 <p>Uses <a href="https://open-meteo.com/en/docs">Open-Meteo Forecast API</a> with <code>past_days</code> parameter.<br>
 Good for: recent data (past 7-92 days).</p>
 
 <h4>Historical Archive</h4>
 
-<code>`</code>bash
-python fetch_openmeteo.py \
+<pre><code>python fetch_openmeteo.py \
     --start 2026-06-30 \
     --end 2026-07-06 \
-    --output data/openmeteo.json
-<code>`</code>
+    --output data/openmeteo.json</code></pre>
 
 <p>Uses <a href="https://archive-api.open-meteo.com/v1/archive">Open-Meteo Archive API</a>.<br>
 Good for: older data, exact date ranges.</p>
 
-<p>&gt; <strong>Note:</strong> The <code>--use-forecast</code> flag uses the forecast API which is meant for recent + future data.<br>
-&gt; For historical analysis, use the archive API with <code>--start</code> and <code>--end</code> dates instead.</p>
+<div class="notice info">
+
+<strong>Note:</strong> The <code>--use-forecast</code> flag uses the forecast API which is meant for recent + future data.
+For historical analysis, use the archive API with <code>--start</code> and <code>--end</code> dates instead.
+
+</div>
 
 <h3>Manual Fetch (Curl)</h3>
 
-<code>`</code>bash
-<h1>Forecast API (recent data + future)</h1>
+<pre><code># Forecast API (recent data + future)
 curl &quot;https://api.open-meteo.com/v1/forecast?\
 latitude=53.930716&amp;longitude=27.596646&amp;\
 hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers&amp;\
 timezone=UTC&amp;past_days=7&quot; \
 -o data/openmeteo.json
 
-<h1>Archive API (historical)</h1>
+# Archive API (historical)
 curl &quot;https://archive-api.open-meteo.com/v1/archive?\
 latitude=53.930716&amp;longitude=27.596646&amp;\
 start_date=2026-07-01&amp;end_date=2026-07-07&amp;\
 hourly=temperature_2m,relative_humidity_2m,precipitation,rain,showers&amp;\
 timezone=UTC&quot; \
--o data/openmeteo.json
-<code>`</code>
+-o data/openmeteo.json</code></pre>
 
 <h3>Output Format</h3>
 
-<code>`</code>json
-{
+<pre><code>{
   &quot;hourly&quot;: {
     &quot;time&quot;: [&quot;2026-07-01T00:00&quot;, &quot;2026-07-01T01:00&quot;, ...],
     &quot;temperature_2m&quot;: [20.5, 20.1, ...],
@@ -276,25 +283,26 @@ timezone=UTC&quot; \
   },
   &quot;utc_offset_seconds&quot;: 0,
   ...
-}
-<code>`</code>
+}</code></pre>
 
-<p>&gt; <strong>Key field:</strong> <code>precipitation</code> is the hourly total (mm) and serves as ground truth<br>
-&gt; for <code>rain_truth</code> labelling.</p>
+<div class="notice info">
+
+<strong>Key field:</strong> <code>precipitation</code> is the hourly total (mm) and serves as ground truth
+for <code>rain_truth</code> labelling.
+
+</div>
 
 <h3>Multiple Files</h3>
 
 <p>You can collect multiple open-meteo responses over time and pass them all:</p>
 
-<code>`</code>bash
-python run_analysis.py \
+<pre><code>python run_analysis.py \
     --om-sources data/om_week1.json data/om_week2.json data/om_week3.json \
-    ...
-<code>`</code>
+    ...</code></pre>
 
 <p>Rainlib concatenates them automatically, deduplicating on time.</p>
 
-<h2>3. Meteostat Data (Ground Truth #2 + Pressure)</h2>
+<h2 id="3-meteostat-data-ground-truth-2-pressure">3. Meteostat Data (Ground Truth #2 + Pressure)</h2>
 
 <h3>Location</h3>
 
@@ -302,16 +310,13 @@ python run_analysis.py \
 
 <h3>Fetch</h3>
 
-<code>`</code>bash
-python fetch_meteostat.py --days 7 --output data/meteostat.json
-<code>`</code>
+<pre><code>python fetch_meteostat.py --days 7 --output data/meteostat.json</code></pre>
 
 <p>Uses <a href="https://dev.meteostat.net/api/">Meteostat API</a> hourly station data.</p>
 
 <h3>Output Format</h3>
 
-<code>`</code>json
-{
+<pre><code>{
   &quot;meta&quot;: { &quot;station&quot;: { &quot;id&quot;: &quot;26850&quot; } },
   &quot;data&quot;: [
     {
@@ -326,8 +331,7 @@ python fetch_meteostat.py --days 7 --output data/meteostat.json
     },
     ...
   ]
-}
-<code>`</code>
+}</code></pre>
 
 <strong>Key fields in rainlib:</strong>
 <ul>
@@ -346,27 +350,21 @@ Unlike Open-Meteo (reanalysis) and Yandex (spot observations), Meteostat provide
 <li><strong>Third vote</strong> — can use majority voting for rain detection</li>
 </ul>
 
-<h2>4. Yandex Weather Data</h2>
+<h2 id="4-yandex-weather-data">4. Yandex Weather Data</h2>
 
 <h3>Archive Location</h3>
 
 <p>The Yandex data is collected hourly by a local process and served as an archive:</p>
 
-<code>`</code>
-http://10.8.0.4:7005/weather.tgz
-<code>`</code>
+<pre><code>http://10.8.0.4:7005/weather.tgz</code></pre>
 
 <h3>Fetch &amp; Extract</h3>
 
-<code>`</code>bash
-python fetch_yandex_archive.py --output data/yandex/
-<code>`</code>
+<pre><code>python fetch_yandex_archive.py --output data/yandex/</code></pre>
 
 <h3>Archive Structure</h3>
 
-<code>`</code>
-year/month/day/HHMMSS.json
-<code>`</code>
+<pre><code>year/month/day/HHMMSS.json</code></pre>
 
 Each JSON is a snapshot containing:
 <ul>
@@ -384,8 +382,7 @@ Each JSON is a snapshot containing:
 
 <h3>Example Snapshot</h3>
 
-<code>`</code>json
-{
+<pre><code>{
   &quot;now&quot;: 1783879201,
   &quot;fact&quot;: {
     &quot;temp&quot;: 18,
@@ -397,8 +394,7 @@ Each JSON is a snapshot containing:
     &quot;pressure_mm&quot;: 740,
     &quot;prec_prob&quot;: 0
   }
-}
-<code>`</code>
+}</code></pre>
 
 <h3>How Rainlib Uses It</h3>
 
@@ -411,40 +407,39 @@ The <code>load_yandex_archive()</code> function in rainlib.py extracts:
 <li><code>yx_is_rain</code> — binary flag (1 if condition contains &quot;rain&quot;)</li>
 </ul>
 
-<h2>Pipeline Script (Putting It All Together)</h2>
+<h2 id="pipeline-script-putting-it-all-together">Pipeline Script (Putting It All Together)</h2>
 
-<code>`</code>bash
-#!/bin/bash
-<h1>collect_all_data.sh — fetch all four sources for analysis</h1>
+<pre><code>#!/bin/bash
+# collect_all_data.sh — fetch all four sources for analysis
 
-<p>DATE=$(date +%Y-%m-%d)<br>
-OUTDIR=&quot;data/${DATE}&quot;<br>
-mkdir -p &quot;${OUTDIR}&quot;</p>
+DATE=$(date +%Y-%m-%d)
+OUTDIR=&quot;data/${DATE}&quot;
+mkdir -p &quot;${OUTDIR}&quot;
 
-<p>echo &quot;=== 1/4: Home Assistant ===&quot;<br>
-python fetch_ha_data.py \<br>
-    --days 7 \<br>
-    --output &quot;${OUTDIR}/ha.csv&quot; \<br>
-    --quiet</p>
+echo &quot;=== 1/4: Home Assistant ===&quot;
+python fetch_ha_data.py \
+    --days 7 \
+    --output &quot;${OUTDIR}/ha.csv&quot; \
+    --quiet
 
-<p>echo &quot;=== 2/4: Open-Meteo ===&quot;<br>
-python fetch_openmeteo.py \<br>
-    --days 7 \<br>
-    --output &quot;${OUTDIR}/openmeteo.json&quot; \<br>
-    --quiet</p>
+echo &quot;=== 2/4: Open-Meteo ===&quot;
+python fetch_openmeteo.py \
+    --days 7 \
+    --output &quot;${OUTDIR}/openmeteo.json&quot; \
+    --quiet
 
-<p>echo &quot;=== 3/4: Meteostat ===&quot;<br>
-python fetch_meteostat.py \<br>
-    --days 7 \<br>
-    --output &quot;${OUTDIR}/meteostat.json&quot; \<br>
-    --quiet</p>
+echo &quot;=== 3/4: Meteostat ===&quot;
+python fetch_meteostat.py \
+    --days 7 \
+    --output &quot;${OUTDIR}/meteostat.json&quot; \
+    --quiet
 
-<p>echo &quot;=== 4/4: Yandex Weather ===&quot;<br>
-python fetch_yandex_archive.py \<br>
-    --output &quot;${OUTDIR}/yandex/&quot; \<br>
-    --quiet</p>
+echo &quot;=== 4/4: Yandex Weather ===&quot;
+python fetch_yandex_archive.py \
+    --output &quot;${OUTDIR}/yandex/&quot; \
+    --quiet
 
-<p>echo &quot;✓ All data collected in ${OUTDIR}/&quot;</p>
+echo &quot;[ok] All data collected in ${OUTDIR}/&quot;
 
 echo &quot;=== Running Analysis ===&quot;
 python run_analysis.py \
@@ -453,10 +448,9 @@ python run_analysis.py \
     --meteostat &quot;${OUTDIR}/meteostat.json&quot; \
     --yandex-dir &quot;${OUTDIR}/yandex/&quot; \
     --output &quot;reports/${DATE}.json&quot; \
-    --plots
-<code>`</code>
+    --plots</code></pre>
 
-<h2>Troubleshooting</h2>
+<h2 id="troubleshooting">Troubleshooting</h2>
 
 <h3>HA returns 401</h3>
 
@@ -491,8 +485,8 @@ rainlib forward-fills temperature/humidity/pressure columns — precipitation co
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-15 00:20 UTC</p>
+        <p>auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> — do not edit the gh-pages branch by hand</p>
+        <p>generated: 2026-09-17 09:06 utc</p>
     </footer>
 </body>
 </html>

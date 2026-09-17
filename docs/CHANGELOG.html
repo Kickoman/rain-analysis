@@ -5,30 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CHANGELOG — Rain Analysis</title>
     <meta name="description" content="CHANGELOG — documentation for the rain-analysis project.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
+    <script>(function(){try{if(localStorage.getItem('ra-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+    <script src="../assets/site.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">skip to content</a>
+
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Documentation & ML Metrics Reference</p>
+        <h1>rain-analysis</h1>
+        <p>documentation & ml metrics reference</p>
     </header>
 
     <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+        <a href="../index.html">home</a>
+        <a href="../current/index.html">latest report</a>
+        <a href="../history/index.html">history</a>
+        <a href="../metrics/index.html">metrics timeline</a>
+        <a href="../docs/GLOSSARY.html">glossary</a>
     </nav>
 
-    <main>
+    <main id="main">
         <section class="docs-content">
 <h1>Changelog</h1>
+<div class="toc">
+    <ul>
+        <li><a href="#2026-09-04">2026-09-04</a></li>
+        <li><a href="#2026-08-21-evening">2026-08-21 (evening)</a></li>
+        <li><a href="#2026-08-14">2026-08-14</a></li>
+        <li><a href="#2026-08-13">2026-08-13</a></li>
+        <li><a href="#2026-07-18">2026-07-18</a></li>
+        <li><a href="#2026-09-15-the-report-answers-one-question-now">2026-09-15 — The report answers one question now</a></li>
+    </ul>
+</div>
 
 <p>Notable changes to rain-analysis.</p>
 
-<h2>2026-09-04</h2>
+<h2 id="2026-09-04">2026-09-04</h2>
 
 <p>The daily reports stopped after 2026-08-22 when the runner that produced them<br>
 stopped; 2026-08-16..08-20 were missing too. Both gaps are filled, and the<br>
@@ -80,7 +94,7 @@ three times as many rain hours over the same period (52 vs 15 over
 and neither are scores that depend on them. Each backfilled report says so in
 its provenance note.
 
-<h2>2026-08-21 (evening)</h2>
+<h2 id="2026-08-21-evening">2026-08-21 (evening)</h2>
 
 <p>The daily report for 2026-08-21 was regenerated after verification found its<br>
 multi-window and front sections resting on starved data, and a new model was<br>
@@ -100,7 +114,7 @@ added for the project&#x27;s actual question.</p>
   statistics + recorder before analysis. Verified effect: front AUCs claimed as
   0.64–0.77 on the starved window measure 0.48–0.62 with full coverage.
 <ul>
-<li><strong>The front table shows per-candidate coverage</strong> (&quot;dry hours seen&quot;, with a ⚠️</li>
+<li><strong>The front table shows per-candidate coverage</strong> (&quot;dry hours seen&quot;, with a [!]</li>
 </ul>
   when a candidate saw well under the window&#x27;s dry hours), so a starved model
   can no longer outrank a fully-scored one unnoticed.
@@ -127,7 +141,7 @@ added for the project&#x27;s actual question.</p>
   0.48–0.61 for every other registered model. On the regenerated 2026-08-21
   report it leads the front section, catching 15 of 18 onsets.
 
-<h2>2026-08-14</h2>
+<h2 id="2026-08-14">2026-08-14</h2>
 
 <p>Implements <code>plans/model-improvements.md</code>. With the harness fixed the day before,<br>
 the models could finally be measured — and the measurement said the project was<br>
@@ -209,7 +223,7 @@ reaches 0.75.</p>
 </ul>
   no longer needs updating for each new model.
 
-<h2>2026-08-13</h2>
+<h2 id="2026-08-13">2026-08-13</h2>
 
 Model scoring rested on ~17 labelled rain hours, which made every reported
 ranking statistical noise. The cause was the measurement harness, not the
@@ -293,7 +307,7 @@ models. Benchmarks published before this date are superseded — see
 <li>Open-Meteo fetches now include <code>surface_pressure</code> and <code>dew_point_2m</code>.</li>
 </ul>
 
-<h2>2026-07-18</h2>
+<h2 id="2026-07-18">2026-07-18</h2>
 
 <h3>Fixed</h3>
 
@@ -302,7 +316,7 @@ models. Benchmarks published before this date are superseded — see
 <li>See <a href="DATA_SOURCES.html">DATA_SOURCES.md</a> for updated forward-fill behavior description.</li>
 </ul>
 
-<h2>2026-09-15 — The report answers one question now</h2>
+<h2 id="2026-09-15-the-report-answers-one-question-now">2026-09-15 — The report answers one question now</h2>
 
 <strong>What changed.</strong> Daily reports scored &quot;is it raining right now&quot; in eleven
 sections and mentioned rain <em>starts</em> in the ninth. Since the product is a
@@ -432,8 +446,8 @@ coming back.
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-15 00:20 UTC</p>
+        <p>auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> — do not edit the gh-pages branch by hand</p>
+        <p>generated: 2026-09-17 09:06 utc</p>
     </footer>
 </body>
 </html>

@@ -5,36 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ALERT_RULE — Rain Analysis</title>
     <meta name="description" content="ALERT_RULE — documentation for the rain-analysis project.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
+    <script>(function(){try{if(localStorage.getItem('ra-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+    <script src="../assets/site.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">skip to content</a>
+
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Documentation & ML Metrics Reference</p>
+        <h1>rain-analysis</h1>
+        <p>documentation & ml metrics reference</p>
     </header>
 
     <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+        <a href="../index.html">home</a>
+        <a href="../current/index.html">latest report</a>
+        <a href="../history/index.html">history</a>
+        <a href="../metrics/index.html">metrics timeline</a>
+        <a href="../docs/GLOSSARY.html">glossary</a>
     </nav>
 
-    <main>
+    <main id="main">
         <section class="docs-content">
 <h1>The rain alert</h1>
+<div class="toc">
+    <ul>
+        <li><a href="#the-rule">The rule</a></li>
+        <li><a href="#re-measured-on-the-onset-target-2026-09-15">Re-measured on the onset target, 2026-09-15</a></li>
+        <li><a href="#what-it-scores">What it scores</a></li>
+        <li><a href="#implementation">Implementation</a></li>
+        <li><a href="#the-rule-this-replaces">The rule this replaces</a></li>
+        <li><a href="#caveats">Caveats</a></li>
+    </ul>
+</div>
 
 <p>What actually runs in the house: a Home Assistant automation that sends a<br>
 Telegram message when rain looks likely. This page documents the rule, what it<br>
 was measured at, and the rule it replaces.</p>
 
-<h2>The rule</h2>
+<h2 id="the-rule">The rule</h2>
 
-<code>`</code>
-pressure_anomaly &lt; −3 hPa   AND   outdoor_humidity &gt; 75 %
-<code>`</code>
+<pre><code>pressure_anomaly &lt; −3 hPa   AND   outdoor_humidity &gt; 75 %</code></pre>
 
 <p>where <code>pressure_anomaly</code> is the current barometer reading minus its own median<br>
 over the previous 30 days.</p>
@@ -60,7 +72,7 @@ nothing.
 station&#x27;s own recent median removes the elevation offset without needing to know<br>
 the elevation, and tracks the seasonal drift for free.</p>
 
-<h2>Re-measured on the onset target, 2026-09-15</h2>
+<h2 id="re-measured-on-the-onset-target-2026-09-15">Re-measured on the onset target, 2026-09-15</h2>
 
 <p>The table below scores this rule on the <em>warning</em> target — rain in any of the<br>
 next three hours — which counts every hour of ongoing rain as a success. On the<br>
@@ -132,7 +144,7 @@ section exists:</p>
 28–62% for the best row — so treat the ordering as the finding and the exact<br>
 numbers as provisional.</p>
 
-<h2>What it scores</h2>
+<h2 id="what-it-scores">What it scores</h2>
 
 <p>Ground truth is Open-Meteo precipitation ≥ 0.1 mm/h; the target is rain in any of<br>
 the next three hours. Measured on two independent datasets:</p>
@@ -221,15 +233,14 @@ person has to be worth believing: the extra 0.09 of recall at −1 costs a third
 more interruptions. Move it to −1 if missing rain matters more to you than being<br>
 interrupted.</p>
 
-<h2>Implementation</h2>
+<h2 id="implementation">Implementation</h2>
 
 <p>Three helpers and one automation. The 30-day median comes from the <code>statistics</code><br>
 integration, so no custom code is needed.</p>
 
-<code>`</code>yaml
-<h1>1. The station&#x27;s own 30-day normal.</h1>
-<h1>   sampling_size must be large: the barometer reports every few minutes, and</h1>
-<h1>   the default of 20 samples would cover about an hour, not a month.</h1>
+<pre><code># 1. The station&#x27;s own 30-day normal.
+#    sampling_size must be large: the barometer reports every few minutes, and
+#    the default of 20 samples would cover about an hour, not a month.
 sensor:
   - platform: statistics
     name: &quot;Pressure median 30d&quot;
@@ -239,7 +250,7 @@ sensor:
       days: 30
     sampling_size: 5000
 
-<h1>2. How far below normal we are, in hPa.</h1>
+# 2. How far below normal we are, in hPa.
 template:
   - sensor:
       - name: &quot;Pressure anomaly&quot;
@@ -255,9 +266,9 @@ template:
             {{ (now - normal) | round(2) }}
           {% endif %}
 
-<h1>3. The rule itself. delay_on debounces a brief dip; delay_off is the re-arm</h1>
-<h1>   interval, so a single weather system produces one alert rather than a</h1>
-<h1>   stream of them as the condition flickers around the threshold.</h1>
+# 3. The rule itself. delay_on debounces a brief dip; delay_off is the re-arm
+#    interval, so a single weather system produces one alert rather than a
+#    stream of them as the condition flickers around the threshold.
   - binary_sensor:
       - name: &quot;Rain likely&quot;
         unique_id: rain_likely
@@ -266,11 +277,9 @@ template:
         delay_off: &quot;02:00:00&quot;
         state: &gt;
           {{ states(&#x27;sensor.pressure_anomaly&#x27;) | float(99) &lt; -3
-             and states(&#x27;sensor.datchik_klimata_vlazhnost&#x27;) | float(0) &gt; 75 }}
-<code>`</code>
+             and states(&#x27;sensor.datchik_klimata_vlazhnost&#x27;) | float(0) &gt; 75 }}</code></pre>
 
-<code>`</code>yaml
-<h1>The automation fires on the transition into the state, never while it holds.</h1>
+<pre><code># The automation fires on the transition into the state, never while it holds.
 alias: Rain likely notification
 triggers:
   - trigger: state
@@ -282,12 +291,11 @@ actions:
     data:
       entity_id: notify.telegram_bot_kastus
       message: &gt;-
-        🌧️ Chutka mažlivy doždž u najbližšyja 3 hadziny.
+        Chutka mažlivy doždž u najbližšyja 3 hadziny.
 
-Cisk {{ states(&#x27;sensor.pressure_anomaly&#x27;) }} hPa niža za narmalny,
+        Cisk {{ states(&#x27;sensor.pressure_anomaly&#x27;) }} hPa niža za narmalny,
         vilhotnaść {{ states(&#x27;sensor.datchik_klimata_vlazhnost&#x27;) }}%.
-mode: single
-<code>`</code>
+mode: single</code></pre>
 
 <h3>Notes on deployment</h3>
 
@@ -307,10 +315,9 @@ mode: single
 </ul>
   Remove it when this one goes in, or you will get both.
 
-<h2>The rule this replaces</h2>
+<h2 id="the-rule-this-replaces">The rule this replaces</h2>
 
-<code>`</code>yaml
-<h1>Deployed until 2026-08-14 — kept here as the reference to beat.</h1>
+<pre><code># Deployed until 2026-08-14 — kept here as the reference to beat.
 triggers:
   - trigger: numeric_state
     entity_id: sensor.outside_dew_point_spread
@@ -319,15 +326,14 @@ triggers:
 conditions:
   - condition: numeric_state
     entity_id: sensor.outside_dew_point_spread_trend
-    below: -0.5
-<code>`</code>
+    below: -0.5</code></pre>
 
 <p>Its measured recall is 0.096–0.109: it missed about nine rain events in ten, and<br>
 around 60% of the alerts it did send were wrong. The trend term is the weakest<br>
 signal available, and firing on a <code>numeric_state</code> crossing with no re-arm made<br>
 it about one alert per day.</p>
 
-<h2>Caveats</h2>
+<h2 id="caveats">Caveats</h2>
 
 <ul>
 <li>Ground truth is Open-Meteo, which agrees with Meteostat at only κ = 0.495. A</li>
@@ -335,7 +341,7 @@ it about one alert per day.</p>
   meaningful share of the measured error belongs to the yardstick rather than to
   the rule; a local rain gauge would settle it.
 <ul>
-<li>The thresholds were fitted on 2021-01 → 2025-03 and measured on 2025-03 →</li>
+<li>The thresholds were fitted on 2021-01 -&gt; 2025-03 and measured on 2025-03 -&gt;</li>
 </ul>
   2026-08. They are not tuned to the local barometer, which has too little
   history for that yet — re-check them once a full year of local pressure has
@@ -346,15 +352,17 @@ it about one alert per day.</p>
   ROC AUC 0.753 against this rule&#x27;s inputs and would do better, but it cannot
   run as a Home Assistant template; deploying it needs the backend to serve
   predictions.
+
 <hr>
-_Measured 2026-08-14. Reproduce with <code>data/archive/ha_hourly.csv</code> and the
-Open-Meteo archive; see <code>plans/model-improvements.md</code> for the method._
+
+<p>_Measured 2026-08-14. Reproduce with <code>data/archive/ha_hourly.csv</code> and the<br>
+Open-Meteo archive; see <code>plans/model-improvements.md</code> for the method._</p>
         </section>
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-15 00:20 UTC</p>
+        <p>auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> — do not edit the gh-pages branch by hand</p>
+        <p>generated: 2026-09-17 09:06 utc</p>
     </footer>
 </body>
 </html>

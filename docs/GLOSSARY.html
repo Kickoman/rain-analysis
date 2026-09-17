@@ -5,30 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GLOSSARY — Rain Analysis</title>
     <meta name="description" content="GLOSSARY — documentation for the rain-analysis project.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
+    <script>(function(){try{if(localStorage.getItem('ra-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+    <script src="../assets/site.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">skip to content</a>
+
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Documentation & ML Metrics Reference</p>
+        <h1>rain-analysis</h1>
+        <p>documentation & ml metrics reference</p>
     </header>
 
     <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
+        <a href="../index.html">home</a>
+        <a href="../current/index.html">latest report</a>
+        <a href="../history/index.html">history</a>
+        <a href="../metrics/index.html">metrics timeline</a>
+        <a href="../docs/GLOSSARY.html" class="active">glossary</a>
     </nav>
 
-    <main>
+    <main id="main">
         <section class="docs-content">
 <h1>GLOSSARY.md — Machine Learning Metrics</h1>
+<div class="toc">
+    <ul>
+        <li><a href="#section">Словарь ежедневного отчёта</a></li>
+        <li><a href="#section-2">Метрики архивных отчётов</a></li>
+        <li><a href="#confusion-matrix">Confusion Matrix (Матрица ошибок)</a></li>
+        <li><a href="#precision">Precision (Точность)</a></li>
+        <li><a href="#recall-sensitivity">Recall (Полнота, Sensitivity)</a></li>
+        <li><a href="#f1-score-f1">F1 Score (F1-мера)</a></li>
+        <li><a href="#f-beta-score-f">F-beta Score (F-β мера)</a></li>
+        <li><a href="#specificity">Specificity (Специфичность)</a></li>
+        <li><a href="#threshold">Threshold (Порог срабатывания)</a></li>
+        <li><a href="#support">Support</a></li>
+        <li><a href="#section-3">Примечания</a></li>
+        <li><a href="#section-4">См. также</a></li>
+    </ul>
+</div>
 
-Определения метрик качества моделей машинного обучения, используемых в этом проекте.
+<p>Определения метрик качества моделей машинного обучения, используемых в этом проекте.</p>
+
 <hr>
-<h2>Словарь ежедневного отчёта</h2>
+
+<h2 id="section">Словарь ежедневного отчёта</h2>
 
 <p>Отчёт намеренно оперирует шестью понятиями и ни одним больше. Всё остальное<br>
 ниже — из архивных отчётов, которые оценивали другую задачу («идёт ли дождь<br>
@@ -69,16 +91,18 @@
 
 <h3>Front AUC и доверительный интервал</h3>
 
-Вероятность, что в случайной паре «час перед дождём» / «просто сухой час»
-модель даст первому больший балл. 0.5 — монетка. Интервал в скобках — 95%
-доверительный: на нескольких десятках событий он широкий, и если интервалы
-двух моделей перекрываются, разницы между ними не измерено. Отчёт называет
-модель рабочей только когда интервал не задевает 0.5 **на двух независимых
-эталонах** и выигрыш больше 1.
-<hr>
-<h2>Метрики архивных отчётов</h2>
+<p>Вероятность, что в случайной паре «час перед дождём» / «просто сухой час»<br>
+модель даст первому больший балл. 0.5 — монетка. Интервал в скобках — 95%<br>
+доверительный: на нескольких десятках событий он широкий, и если интервалы<br>
+двух моделей перекрываются, разницы между ними не измерено. Отчёт называет<br>
+модель рабочей только когда интервал не задевает 0.5 **на двух независимых<br>
+эталонах** и выигрыш больше 1.</p>
 
-<h2>Confusion Matrix (Матрица ошибок)</h2>
+<hr>
+
+<h2 id="section-2">Метрики архивных отчётов</h2>
+
+<h2 id="confusion-matrix">Confusion Matrix (Матрица ошибок)</h2>
 
 <p>Таблица, показывающая соотношение правильных и неправильных предсказаний модели по сравнению с реальностью.</p>
 
@@ -99,13 +123,15 @@
 <h3>В контексте предсказания дождя:</h3>
 
 <ul>
-<li><strong>TP (True Positive)</strong> — модель предсказала дождь, и он действительно пошёл ✅</li>
-<li><strong>TN (True Negative)</strong> — модель предсказала отсутствие дождя, и его не было ✅</li>
-<li><strong>FP (False Positive)</strong> — модель предсказала дождь, но его не было ❌ (ложная тревога)</li>
-<li><strong>FN (False Negative)</strong> — модель не предсказала дождь, но он пошёл ❌ (пропущенный дождь)</li>
+<li><strong>TP (True Positive)</strong> — модель предсказала дождь, и он действительно пошёл [ok]</li>
+<li><strong>TN (True Negative)</strong> — модель предсказала отсутствие дождя, и его не было [ok]</li>
+<li><strong>FP (False Positive)</strong> — модель предсказала дождь, но его не было [x] (ложная тревога)</li>
+<li><strong>FN (False Negative)</strong> — модель не предсказала дождь, но он пошёл [x] (пропущенный дождь)</li>
 </ul>
+
 <hr>
-<h2>Precision (Точность)</h2>
+
+<h2 id="precision">Precision (Точность)</h2>
 
 <strong>Формула:</strong> <code>Precision = TP / (TP + FP)</code>
 
@@ -121,8 +147,10 @@
 <strong>Пример:</strong>  
 Модель 100 раз предсказала дождь. Из них 70 раз дождь действительно пошёл (TP=70), 30 раз его не было (FP=30).  
 <code>Precision = 70/(70+30) = 0.70</code> (70%)
+
 <hr>
-<h2>Recall (Полнота, Sensitivity)</h2>
+
+<h2 id="recall-sensitivity">Recall (Полнота, Sensitivity)</h2>
 
 <strong>Формула:</strong> <code>Recall = TP / (TP + FN)</code>
 
@@ -138,8 +166,10 @@
 <strong>Пример:</strong>  
 Было 100 реальных дождей. Модель предсказала 60 из них (TP=60), остальные 40 пропустила (FN=40).  
 <code>Recall = 60/(60+40) = 0.60</code> (60%)
+
 <hr>
-<h2>F1 Score (F1-мера)</h2>
+
+<h2 id="f1-score-f1">F1 Score (F1-мера)</h2>
 
 <strong>Формула:</strong> <code>F1 = 2 × (Precision × Recall) / (Precision + Recall)</code>
 
@@ -159,8 +189,10 @@
 <strong>Пример:</strong>  
 Precision = 0.70, Recall = 0.60  
 <code>F1 = 2 × (0.70 × 0.60) / (0.70 + 0.60) = 0.65</code>
+
 <hr>
-<h2>F-beta Score (F-β мера)</h2>
+
+<h2 id="f-beta-score-f">F-beta Score (F-β мера)</h2>
 
 <strong>Формула:</strong> <code>F-beta = (1 + β²) × (Precision × Recall) / (β² × Precision + Recall)</code>
 
@@ -169,7 +201,7 @@ Precision = 0.70, Recall = 0.60
 <strong>Параметр β:</strong>
 
 <ul>
-<li><strong>β = 1</strong>: равный вес precision и recall → <strong>F1 Score</strong></li>
+<li><strong>β = 1</strong>: равный вес precision и recall -&gt; <strong>F1 Score</strong></li>
 <li><strong>β &lt; 1</strong> (например, 0.5): больший вес <strong>precision</strong> — штрафуем ложные тревоги сильнее</li>
 <li><strong>β &gt; 1</strong> (например, 2): больший вес <strong>recall</strong> — штрафуем пропущенные дожди сильнее</li>
 </ul>
@@ -184,8 +216,8 @@ Precision = 0.70, Recall = 0.60
 Для задачи предсказания дождя <strong>пропустить реальный дождь хуже</strong>, чем дать ложную тревогу:
 
 <ul>
-<li>Пропущенный дождь (FN) → человек остался без зонта/одежды ❌❌</li>
-<li>Ложная тревога (FP) → человек взял зонт, но не понадобился ❌</li>
+<li>Пропущенный дождь (FN) -&gt; человек остался без зонта/одежды [x][x]</li>
+<li>Ложная тревога (FP) -&gt; человек взял зонт, но не понадобился [x]</li>
 </ul>
 
 <p>Поэтому <strong>F2 предпочтительнее F1</strong> для оценки моделей предсказания дождя.</p>
@@ -194,9 +226,11 @@ Precision = 0.70, Recall = 0.60
 Precision = 0.60, Recall = 0.80  
 <code>F2 = 5 × (0.60 × 0.80) / (4 × 0.60 + 0.80) = 0.74</code>
 
-Несмотря на невысокий precision (0.60), F2 остаётся относительно высоким (0.74) благодаря отличному recall (0.80).
+<p>Несмотря на невысокий precision (0.60), F2 остаётся относительно высоким (0.74) благодаря отличному recall (0.80).</p>
+
 <hr>
-<h2>Specificity (Специфичность)</h2>
+
+<h2 id="specificity">Specificity (Специфичность)</h2>
 
 <strong>Формула:</strong> <code>Specificity = TN / (TN + FP)</code>
 
@@ -211,8 +245,10 @@ Precision = 0.60, Recall = 0.80
 
 <strong>Применение:</strong>  
 Менее важна в задаче предсказания дождя по сравнению с recall, но полезна для оценки &quot;спокойствия&quot; модели.
+
 <hr>
-<h2>Threshold (Порог срабатывания)</h2>
+
+<h2 id="threshold">Threshold (Порог срабатывания)</h2>
 
 <strong>Значение:</strong> Минимальное значение выходной вероятности модели, при котором модель считает, что будет дождь.
 
@@ -222,14 +258,16 @@ Precision = 0.60, Recall = 0.80
 <strong>Компромисс:</strong>
 
 <ul>
-<li><strong>Низкий threshold (0.3–0.4)</strong>: больше TP, но и больше FP → <strong>высокий recall, низкий precision</strong></li>
-<li><strong>Высокий threshold (0.6–0.7)</strong>: меньше FP, но и меньше TP → <strong>высокий precision, низкий recall</strong></li>
+<li><strong>Низкий threshold (0.3–0.4)</strong>: больше TP, но и больше FP -&gt; <strong>высокий recall, низкий precision</strong></li>
+<li><strong>Высокий threshold (0.6–0.7)</strong>: меньше FP, но и меньше TP -&gt; <strong>высокий precision, низкий recall</strong></li>
 </ul>
 
 <strong>Применение:</strong>  
 Подбирается так, чтобы максимизировать нужную метрику (F1, F2) на тестовых данных.
+
 <hr>
-<h2>Support</h2>
+
+<h2 id="support">Support</h2>
 
 <strong>Значение:</strong> Количество реальных случаев в данных для данного класса.
 
@@ -238,8 +276,10 @@ Support для класса &quot;Rain&quot; = 150 означает, что в �
 
 <strong>Применение:</strong>  
 Помогает понять, насколько репрезентативны данные. Низкий support (например, 10 дождей) делает метрики менее надёжными.
+
 <hr>
-<h2>Примечания</h2>
+
+<h2 id="section-3">Примечания</h2>
 
 <h3>Trade-off между Precision и Recall</h3>
 
@@ -247,21 +287,21 @@ Support для класса &quot;Rain&quot; = 150 означает, что в �
 
 <strong>Визуализация:</strong>
 
-<code>`</code>
-High Threshold (0.8):    Precision ↑↑  Recall ↓↓  (мало тревог, но надёжные)
-Optimal Threshold (0.5): Precision ↑   Recall ↑   (баланс)
-Low Threshold (0.2):     Precision ↓↓  Recall ↑↑  (много тревог, много ложных)
-<code>`</code>
+<pre><code>High Threshold (0.8):    Precision ^^  Recall vv  (мало тревог, но надёжные)
+Optimal Threshold (0.5): Precision ^   Recall ^   (баланс)
+Low Threshold (0.2):     Precision vv  Recall ^^  (много тревог, много ложных)</code></pre>
 
 <h3>Выбор метрики для оптимизации</h3>
 
 <ul>
 <li><strong>Precision важнее</strong>: используй F0.5 или просто отслеживай precision</li>
-<li><strong>Recall важнее</strong>: используй <strong>F2</strong> ← <strong>наш случай для дождя</strong></li>
+<li><strong>Recall важнее</strong>: используй <strong>F2</strong> &lt;- <strong>наш случай для дождя</strong></li>
 <li><strong>Баланс</strong>: используй F1</li>
 </ul>
+
 <hr>
-<h2>См. также</h2>
+
+<h2 id="section-4">См. также</h2>
 
 <ul>
 <li><a href="https://github.com/Kickoman/rain-analysis/blob/master/docs_site/MODELS.md">MODELS.md</a> — документация моделей и их параметры</li>
@@ -272,8 +312,8 @@ Low Threshold (0.2):     Precision ↓↓  Recall ↑↑  (много трево
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-15 00:20 UTC</p>
+        <p>auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> — do not edit the gh-pages branch by hand</p>
+        <p>generated: 2026-09-17 09:06 utc</p>
     </footer>
 </body>
 </html>

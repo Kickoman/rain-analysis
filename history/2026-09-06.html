@@ -5,34 +5,52 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>2026/09/06 — Rain Analysis</title>
     <meta name="description" content="Daily rain prediction model analysis report.">
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%A7%EF%B8%8F%3C/text%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%23000'/%3E%3Ctext x='2' y='12' font-family='monospace' font-size='11' fill='%2300ff00'%3E~%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="../assets/style.css">
+    <script>(function(){try{if(localStorage.getItem('ra-theme')==='dark')document.documentElement.setAttribute('data-theme','dark');}catch(e){}})();</script>
+    <script src="../assets/site.js" defer></script>
 </head>
 <body>
+    <a class="skip-link" href="#main">skip to content</a>
+
     <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Automated performance tracking and reports</p>
+        <h1>rain-analysis</h1>
+        <p>automated performance tracking and reports</p>
     </header>
 
     <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html" class="active">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html">Glossary</a>
+        <a href="../index.html">home</a>
+        <a href="../current/index.html">latest report</a>
+        <a href="../history/index.html" class="active">history</a>
+        <a href="../metrics/index.html">metrics timeline</a>
+        <a href="../docs/GLOSSARY.html">glossary</a>
     </nav>
 
-    <main>
+    <main id="main">
         <section class="report-content">
 <h1>Rain Onset Report — 2026-09-06</h1>
+<div class="toc">
+    <ul>
+        <li><a href="#verdict">Verdict</a></li>
+        <li><a href="#onset-scoreboard">Onset scoreboard</a></li>
+        <li><a href="#last-24-hours">Last 24 hours</a></li>
+        <li><a href="#data-health">Data health</a></li>
+    </ul>
+</div>
 
 <strong>Generated:</strong> 2026-09-14T23:40:45.476051+00:00
 
-<p>&gt; <strong>Regenerated 2026-09-15 with the onset-first harness.</strong> Every report in this series scores one question — does anything warn before rain <em>starts</em> — over the whole record up to its own date, against the Open-Meteo forecast series with the Meteostat station as an independent check. Earlier reports (2026-07-13..17) predate that series and remain in the previous format.</p>
+<div class="notice info">
+
+<strong>Regenerated 2026-09-15 with the onset-first harness.</strong> Every report in this series scores one question — does anything warn before rain <em>starts</em> — over the whole record up to its own date, against the Open-Meteo forecast series with the Meteostat station as an independent check. Earlier reports (2026-07-13..17) predate that series and remain in the previous format.
+
+</div>
 
 <strong>The question:</strong> standing in a dry hour, does anything warn that rain will start within 3 hours? Everything else — rain that is already falling, when it stops, how much fell — is out of scope.
+
 <hr>
-<h2>Verdict</h2>
+
+<h2 id="verdict">Verdict</h2>
 
 <strong>Run <code>pressure_primary</code> at 80%.</strong> It warns before 12 of 26 rain starts (46%, 95% CI 29–65%), costs 20 alert-hours a week, and gives 3.0 h of warning.
 
@@ -42,9 +60,11 @@
 
 <strong>The deployed sensor <code>rain_probability</code> is not distinguishable from a coin</strong> — front AUC 0.50 (95% CI 0.41–0.59). It reaches 9 of 26 starts, but alerting at random for as many hours (15 h/week) would have reached 6.9.
 
-<p>The other 12 candidates are indistinguishable from chance on 26 onsets; differences between them are smaller than their error bars and should not be acted on.<br>
-<hr><br>
-<h2>Onset scoreboard</h2></p>
+<p>The other 12 candidates are indistinguishable from chance on 26 onsets; differences between them are smaller than their error bars and should not be acted on.</p>
+
+<hr>
+
+<h2 id="onset-scoreboard">Onset scoreboard</h2>
 
 <p>From a known-dry hour: does rain <em>begin</em> within 3 h? Hours during rain are excluded, so recognising ongoing rain earns nothing. An onset is a rain hour after ≥3 known-dry hours.</p>
 
@@ -72,7 +92,7 @@
 <td>3.0</td>
 <td>0.70 (0.65–0.75)</td>
 <td>0.69</td>
-<td>✅</td>
+<td>[ok]</td>
 </tr>
 <tr>
 <td><code>onset_gate</code></td>
@@ -83,7 +103,7 @@
 <td>3.0</td>
 <td>0.64 (0.58–0.70)</td>
 <td>0.66</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>combined</code></td>
@@ -94,7 +114,7 @@
 <td>3.0</td>
 <td>0.58 (0.52–0.65)</td>
 <td>0.56</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>pressure_combined</code></td>
@@ -105,7 +125,7 @@
 <td>3.0</td>
 <td>0.57 (0.51–0.64)</td>
 <td>0.56</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>pressure_lagged</code></td>
@@ -116,7 +136,7 @@
 <td>3.0</td>
 <td>0.57 (0.51–0.63)</td>
 <td>0.55</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>pressure_absolute</code></td>
@@ -127,7 +147,7 @@
 <td>3.0</td>
 <td>0.57 (0.51–0.64)</td>
 <td>0.55</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>pressure_long_window</code></td>
@@ -138,7 +158,7 @@
 <td>3.0</td>
 <td>0.57 (0.50–0.63)</td>
 <td>0.55</td>
-<td>◐</td>
+<td>[~]</td>
 </tr>
 <tr>
 <td><code>pressure_aware</code></td>
@@ -230,32 +250,38 @@
 </tr>
 </tbody></table></div>
 
-<em><strong>Catches</strong> — rain starts with an alert in the hours before them. <strong>If random</strong> — how many the same number of alert-hours would catch scattered at random; <strong>lift</strong> is the ratio, and anything at or below 1.0 is noise however good its other columns look. <strong>Lead</strong> — median hours of warning. ✅ = deployable: clears chance on both yardsticks <em>and</em> beats random at its own threshold; ◐ = ranks above chance but has no such threshold; — = indistinguishable from a coin.</em>
+<em><strong>Catches</strong> — rain starts with an alert in the hours before them. <strong>If random</strong> — how many the same number of alert-hours would catch scattered at random; <strong>lift</strong> is the ratio, and anything at or below 1.0 is noise however good its other columns look. <strong>Lead</strong> — median hours of warning. [ok] = deployable: clears chance on both yardsticks <em>and</em> beats random at its own threshold; [~] = ranks above chance but has no such threshold; — = indistinguishable from a coin.</em>
+
 <hr>
-<h2>Last 24 hours</h2>
+
+<h2 id="last-24-hours">Last 24 hours</h2>
 
 <ul>
-<li><strong>07:00 UTC</strong> — rain started. <code>pressure_primary</code>: ✅ warned.</li>
-<li><strong>22:00 UTC</strong> — rain started. <code>pressure_primary</code>: ❌ no warning.</li>
+<li><strong>07:00 UTC</strong> — rain started. <code>pressure_primary</code>: [ok] warned.</li>
+<li><strong>22:00 UTC</strong> — rain started. <code>pressure_primary</code>: [x] no warning.</li>
 </ul>
 
 <code>pressure_primary</code> held the alert for 7 of 24 hours at its 80% threshold.
+
 <hr>
-<h2>Data health</h2>
+
+<h2 id="data-health">Data health</h2>
 
 <p>Coverage over the window: local sensors 97%, Open-Meteo 100%, Meteostat 100%, Yandex 0% — absent.</p>
 
 <p>Ground truth: 109 rain hours of 1222 labelled (8.9% of the window), source <code>open-meteo</code>.</p>
 
 <em>A local shower can be invisible to every source here: on 2026-08-24 rain seen from the window, and plain in the sensors, was logged as 0.0 mm by both Open-Meteo and the Meteostat gauge. Precision figures are therefore a floor, not an estimate.</em>
+
 <hr>
+
 <em>Full detail for this run — nowcast scores, temporal metrics, source agreement, sensor diagnostics — is in <code>analysis_report.json</code> beside this file. It is kept out of the report because none of it answers the question above.</em>
         </section>
     </main>
 
     <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: 2026-09-15 00:20 UTC</p>
+        <p>auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> — do not edit the gh-pages branch by hand</p>
+        <p>generated: 2026-09-17 09:06 utc</p>
     </footer>
 </body>
 </html>
