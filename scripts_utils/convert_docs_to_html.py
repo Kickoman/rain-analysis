@@ -9,8 +9,19 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from markdown_lite import apply_inline, convert_horizontal_rules, convert_lists  # noqa: E402
-from page_head import head_tags  # noqa: E402
+from glyphs import to_ascii  # noqa: E402
+from markdown_lite import (  # noqa: E402
+    add_heading_ids,
+    apply_inline,
+    build_toc,
+    convert_horizontal_rules,
+    convert_lists,
+    lift_blockquotes,
+    protect_fences,
+    render_notices,
+    restore_fences,
+)
+from page_shell import SUBTITLE_DOCS, render_page  # noqa: E402
 
 def _rewrite_link(target: str) -> str:
     """Point relative links at sibling documents to their generated pages.
@@ -32,8 +43,21 @@ def _rewrite_link(target: str) -> str:
     return f"{path[:-3]}.html" + (f"#{fragment}" if fragment else "")
 
 
-def markdown_to_html(md_content, title="Documentation"):
+def markdown_to_html(md_content, title="Documentation", active=""):
     """Convert markdown to HTML with doc-specific styling"""
+    # Fenced code comes out first. It used to be handled last, long after the
+    # inline-code pass had eaten its backticks and the heading pass had turned
+    # every "# comment" line inside it into an <h1>: MODELS.md has seventeen
+    # fenced blocks and produced zero <pre> elements and thirty-five bogus
+    # headings.
+    # Glyphs first, fences second. Code samples here quote real automation
+    # YAML and real report output, emoji and all — and the design has no
+    # exemption for "inside a code block". Substitution never touches
+    # whitespace, so the samples keep their indentation.
+    md_content = to_ascii(md_content)
+    md_content, fences = protect_fences(md_content)
+    md_content = lift_blockquotes(md_content)
+
     # Escape HTML entities in raw content first
     html_content = html.escape(md_content)
     
@@ -111,13 +135,6 @@ def markdown_to_html(md_content, title="Documentation"):
     # Bullet lists
     html_content = convert_lists(html_content)
 
-    # Code blocks (```...```)
-    html_content = re.sub(
-        r'```([^\n]*)\n(.*?)```',
-        r'<pre><code>\2</code></pre>',
-        html_content,
-        flags=re.DOTALL
-    )
     
     # Paragraphs - split by double newlines, but preserve existing HTML tags
     paragraphs = html_content.split('\n\n')
@@ -136,43 +153,29 @@ def markdown_to_html(md_content, title="Documentation"):
     
     html_content = '\n\n'.join(processed)
     
-    # Build full HTML
-    full_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{html.escape(title)} — Rain Analysis</title>
-    {head_tags(f"{html.escape(title)} — documentation for the rain-analysis project.")}
-    <link rel="stylesheet" href="../assets/style.css">
-</head>
-<body>
-    <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Documentation & ML Metrics Reference</p>
-    </header>
+    html_content, headings = add_heading_ids(html_content)
+    toc = build_toc(headings)
+    if toc:
+        marker = "</h1>"
+        cut = html_content.find(marker)
+        if cut == -1:
+            html_content = f"{toc}\n{html_content}"
+        else:
+            cut += len(marker)
+            html_content = f"{html_content[:cut]}\n{toc}{html_content[cut:]}"
 
-    <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html" class="active">Glossary</a>
-    </nav>
+    html_content = render_notices(html_content)
+    html_content = restore_fences(html_content, fences, html.escape)
 
-    <main>
-        <section class="docs-content">
-{html_content}
-        </section>
-    </main>
-
-    <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
-    </footer>
-</body>
-</html>
-"""
+    full_html = render_page(
+        title=title,
+        description=f"{title} — documentation for the rain-analysis project.",
+        subtitle=SUBTITLE_DOCS,
+        body=html_content,
+        section_class="docs-content",
+        active=active,
+        root="../",
+    )
     return full_html
 
 
@@ -191,9 +194,12 @@ if __name__ == '__main__':
     md_content = input_file.read_text()
     title = input_file.stem
     
-    html_output = markdown_to_html(md_content, title)
+    # Only the glossary is in the nav, so only it may claim to be current —
+    # every documentation page used to highlight it.
+    active = "docs" if input_file.stem == "GLOSSARY" else ""
+    html_output = markdown_to_html(md_content, title, active=active)
     
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(html_output)
     
-    print(f"✅ Generated: {output_file}")
+    print(f"[ok] generated: {output_file}")

@@ -39,6 +39,12 @@ REQUIRED_PAGES = {
     "history/index.html": 1000,
     "metrics/index.html": 1000,
     "metrics/data.json": 200,
+    "404.html": 500,
+    # The pages render as unstyled markup without these, which no other check
+    # would notice: every count and every byte floor above would still pass.
+    "assets/style.css": 2000,
+    "assets/site.js": 1000,
+    "assets/metrics-charts.js": 1000,
 }
 
 CARD_RE = re.compile(r'<div class="card">', re.IGNORECASE)

@@ -9,12 +9,33 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from markdown_lite import apply_inline, convert_horizontal_rules, convert_lists  # noqa: E402
-from page_head import head_tags  # noqa: E402
+from glyphs import to_ascii  # noqa: E402
+from markdown_lite import (  # noqa: E402
+    add_heading_ids,
+    apply_inline,
+    build_toc,
+    convert_horizontal_rules,
+    convert_lists,
+    lift_blockquotes,
+    protect_fences,
+    render_notices,
+    restore_fences,
+)
+from page_shell import SUBTITLE_REPORTS, render_page  # noqa: E402
 
 
-def markdown_to_html(md_content, title="Report"):
+def markdown_to_html(md_content, title="Report", active="history"):
     """Convert simple markdown to HTML"""
+    # Fenced code first, so nothing downstream sees its backticks or its "#"
+    # comment lines, and glyph substitution leaves code verbatim.
+    # Emoji become ASCII here, on raw markdown and before escaping, so a
+    # replacement can never introduce an unescaped angle bracket. Fences are
+    # protected after that, so nothing downstream sees their backticks or the
+    # "#" comment lines inside them.
+    md_content = to_ascii(md_content)
+    md_content, fences = protect_fences(md_content)
+    md_content = lift_blockquotes(md_content)
+
     # Escape HTML entities in raw content first
     html_content = html.escape(md_content)
     
@@ -97,43 +118,31 @@ def markdown_to_html(md_content, title="Report"):
     
     html_content = '\n\n'.join(processed)
     
-    # Build full HTML
-    full_html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{html.escape(title)} — Rain Analysis</title>
-    {head_tags("Daily rain prediction model analysis report.")}
-    <link rel="stylesheet" href="../assets/style.css">
-</head>
-<body>
-    <header>
-        <h1>🌧️ Rain Prediction Model Analysis</h1>
-        <p>Automated performance tracking and reports</p>
-    </header>
+    # Contents block and heading anchors. `report_parse` matches headings as
+    # `<h2[^>]*>`, so the added id is invisible to it.
+    html_content, headings = add_heading_ids(html_content)
+    toc = build_toc(headings)
+    if toc:
+        marker = "</h1>"
+        cut = html_content.find(marker)
+        if cut == -1:
+            html_content = f"{toc}\n{html_content}"
+        else:
+            cut += len(marker)
+            html_content = f"{html_content[:cut]}\n{toc}{html_content[cut:]}"
 
-    <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html" class="active">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="../metrics/index.html">Metrics Timeline</a>
-        <a href="../docs/GLOSSARY.html">Glossary</a>
-    </nav>
+    html_content = render_notices(html_content)
+    html_content = restore_fences(html_content, fences, html.escape)
 
-    <main>
-        <section class="report-content">
-{html_content}
-        </section>
-    </main>
-
-    <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a> repository</p>
-        <p>Generated: {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}</p>
-    </footer>
-</body>
-</html>
-"""
+    full_html = render_page(
+        title=title,
+        description="Daily rain prediction model analysis report.",
+        subtitle=SUBTITLE_REPORTS,
+        body=html_content,
+        section_class="report-content",
+        active=active,
+        root="../",
+    )
     return full_html
 
 
@@ -152,9 +161,12 @@ if __name__ == '__main__':
     md_content = input_file.read_text()
     title = input_file.stem.replace('-', '/')
     
-    html_output = markdown_to_html(md_content, title)
+    # current/index.html is the same render as a history page; only the nav
+    # differs, and it used to claim "latest report" was current on both.
+    active = "current" if output_file.parent.name == "current" else "history"
+    html_output = markdown_to_html(md_content, title, active=active)
     
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.write_text(html_output)
     
-    print(f"✅ Generated: {output_file}")
+    print(f"[ok] generated: {output_file}")

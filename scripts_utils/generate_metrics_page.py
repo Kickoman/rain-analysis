@@ -30,7 +30,8 @@ from report_parse import (  # noqa: E402
     is_onset_report,
     strip_tags,
 )
-from page_head import head_tags  # noqa: E402
+from glyphs import to_ascii  # noqa: E402
+from page_shell import render_page  # noqa: E402
 
 # Validated categorical palette, light/dark pairs.
 SERIES_COLOURS = {
@@ -101,18 +102,18 @@ def trace(name: str, dates: list[str], values: list, colour: str) -> dict:
 def main() -> int:
     history_dir = Path("history")
     if not history_dir.exists():
-        print("❌ history/ not found — nothing to build metrics from", file=sys.stderr)
+        print("[x] history/ not found — nothing to build metrics from", file=sys.stderr)
         return 1
 
     dates, series, latest_rows, skipped = collect(history_dir)
     if not dates:
-        print("❌ No onset-format reports found in history/", file=sys.stderr)
+        print("[x] no onset-format reports found in history/", file=sys.stderr)
         for name, why in skipped:
             print(f"   • {name}: {why}", file=sys.stderr)
         return 1
 
     if skipped:
-        print(f"ℹ️  {len(dates)} onset reports plotted; {len(skipped)} older reports skipped")
+        print(f"[i] {len(dates)} onset reports plotted; {len(skipped)} older reports skipped")
 
     auc_traces = [trace(n, dates, series[n]["auc"], SERIES_COLOURS[n])
                   for n in TRACKED if any(v is not None for v in series.get(n, {}).get("auc", []))]
@@ -142,7 +143,9 @@ def main() -> int:
         return dash if value is None else f"{value:.{digits}f}"
 
     def table_rows() -> str:
-        marks = {"works": "✅", "ranks_only": "◐", "one_label_only": "⚠️", "chance": "—"}
+        # ASCII marks; report_parse._VERDICT_MARK reads both spellings, so the
+        # pages already on gh-pages keep parsing.
+        marks = {"works": "[ok]", "ranks_only": "[~]", "one_label_only": "[!]", "chance": "—"}
         cells = []
         for r in sorted(latest_rows, key=lambda row: -(row.get("roc_auc") or 0)):
             ci = r.get("roc_auc_ci") or [None, None]
@@ -150,7 +153,7 @@ def main() -> int:
             mark = marks.get(r.get("verdict"), "—")
             caught = f"{r['caught']}/{r['onsets']}"
             cells.append(
-                f"<tr><td><code>{r['model']}</code></td>"
+                f"                    <tr><td><code>{r['model']}</code></td>"
                 f"<td>{caught}</td>"
                 f"<td>{fmt(r.get('lift'))}</td>"
                 f"<td>{fmt(r.get('alert_hours_per_week'), 0)}</td>"
@@ -159,33 +162,19 @@ def main() -> int:
             )
         return "\n".join(cells)
 
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rain Onset Metrics — Over Time</title>
-    {head_tags("How well anything predicts the start of rain, tracked day by day.")}
-    <link rel="stylesheet" href="../assets/style.css">
-    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-</head>
-<body>
-    <header>
-        <h1>🌧️ Onset prediction over time</h1>
-        <p>{headline}</p>
-    </header>
+    # The page carries data, not code: assets/metrics-charts.js reads this
+    # block, picks its axis and legend colours out of the stylesheet and
+    # redraws them when the theme switch flips. `</script>` cannot appear in
+    # the payload — every model name matches [\w_]+ — but the escape is free.
+    charts = [
+        {"target": "auc-chart", "yTitle": "front AUC", "refLine": 0.5, "traces": auc_traces},
+        {"target": "lift-chart", "yTitle": "lift over random", "refLine": 1.0, "traces": lift_traces},
+        {"target": "cost-chart", "yTitle": "alert-hours / week", "refLine": None, "traces": cost_traces},
+    ]
+    chart_json = json.dumps({"charts": charts}).replace("<", "\\u003c")
 
-    <nav>
-        <a href="../index.html">Home</a>
-        <a href="../current/index.html">Latest Report</a>
-        <a href="../history/index.html">History</a>
-        <a href="index.html" class="active">Metrics</a>
-        <a href="../docs/GLOSSARY.html">Glossary</a>
-    </nav>
-
-    <main>
-        <section class="intro">
-            <h2>What these charts answer</h2>
+    body = f"""        <section class="intro">
+            <h1>onset prediction over time</h1>
             <p>Every point is one report, scored on the whole record up to that day:
             standing in a dry hour, did anything warn that rain would start within
             three hours? Rain already falling is excluded, so a model that merely
@@ -193,7 +182,7 @@ def main() -> int:
         </section>
 
         <section>
-            <h2>Skill — front AUC</h2>
+            <h2>skill — front AUC</h2>
             <p>0.5 is a coin toss; the dashed line marks it. A series that hugs
             that line has no ability to anticipate rain, however well it scores
             on other targets.</p>
@@ -201,7 +190,7 @@ def main() -> int:
         </section>
 
         <section>
-            <h2>Is it aiming, or just yelling? — lift over random</h2>
+            <h2>is it aiming, or just yelling? — lift over random</h2>
             <p>How many rain starts the model caught, divided by how many the
             same number of alert-hours would catch scattered at random. At or
             below 1.0 the alerts carry no information.</p>
@@ -209,53 +198,41 @@ def main() -> int:
         </section>
 
         <section>
-            <h2>What it costs — alert-hours per week</h2>
+            <h2>what it costs — alert-hours per week</h2>
             <p>Hours a week the alert would be raised at the threshold each model
             is scored at. This is the number a person actually pays.</p>
             <div id="cost-chart"></div>
         </section>
 
         <section>
-            <h2>Latest report — {latest}</h2>
+            <h2>latest report — {latest}</h2>
+            <div class="table-wrap">
             <table>
-                <thead><tr><th>Candidate</th><th>Catches</th><th>Lift</th>
-                <th>Alert h/wk</th><th>Front AUC (95% CI)</th><th></th></tr></thead>
+                <thead><tr><th>candidate</th><th>catches</th><th>lift</th>
+                <th>alert h/wk</th><th>front auc (95% ci)</th><th></th></tr></thead>
                 <tbody>
 {table_rows()}
                 </tbody>
             </table>
-        </section>
-    </main>
+            </div>
+            <p><a href="data.json">data.json</a> holds every series in full ·
+            generated {data['generated_at'][:19]}Z</p>
+        </section>"""
 
-    <footer>
-        <p>Auto-generated from <a href="https://github.com/Kickoman/rain-analysis">rain-analysis</a></p>
-        <p>Data: <a href="data.json">data.json</a> · generated {data['generated_at'][:19]}Z</p>
-    </footer>
+    html = render_page(
+        title="Rain Onset Metrics",
+        description="How well anything predicts the start of rain, tracked day by day.",
+        subtitle=headline,
+        body=to_ascii(body),
+        active="metrics",
+        root="../",
+        extra_head='    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>\n'
+                   '    <script src="../assets/metrics-charts.js" defer></script>',
+        extra_body=f'    <script id="chart-data" type="application/json">{chart_json}</script>',
+    )
 
-    <script>
-    const layout = (title, yTitle, refLine) => ({{
-        margin: {{t: 10, r: 10, b: 40, l: 50}},
-        height: 340,
-        xaxis: {{title: '', type: 'date'}},
-        yaxis: {{title: yTitle}},
-        legend: {{orientation: 'h', y: -0.2}},
-        shapes: refLine === null ? [] : [{{
-            type: 'line', xref: 'paper', x0: 0, x1: 1,
-            y0: refLine, y1: refLine,
-            line: {{dash: 'dash', width: 1, color: '#8a8f98'}}
-        }}],
-        paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)'
-    }});
-    const config = {{responsive: true, displayModeBar: false}};
-    Plotly.newPlot('auc-chart', {json.dumps(auc_traces)}, layout('', 'front AUC', 0.5), config);
-    Plotly.newPlot('lift-chart', {json.dumps(lift_traces)}, layout('', 'lift over random', 1.0), config);
-    Plotly.newPlot('cost-chart', {json.dumps(cost_traces)}, layout('', 'alert-hours / week', null), config);
-    </script>
-</body>
-</html>
-"""
     (out_dir / "index.html").write_text(html)
-    print(f"✅ metrics/index.html — {len(dates)} onset reports, {len(latest_rows)} candidates")
+    print(f"[ok] metrics/index.html — {len(dates)} onset reports, {len(latest_rows)} candidates")
     return 0
 
 

@@ -19,7 +19,17 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["apply_inline", "convert_horizontal_rules", "convert_lists"]
+__all__ = [
+    "apply_inline",
+    "convert_horizontal_rules",
+    "convert_lists",
+    "protect_fences",
+    "restore_fences",
+    "lift_blockquotes",
+    "render_notices",
+    "add_heading_ids",
+    "build_toc",
+]
 
 
 # Opening marker: not preceded by a word character, followed by non-space.
@@ -27,7 +37,12 @@ __all__ = ["apply_inline", "convert_horizontal_rules", "convert_lists"]
 _EM_UNDERSCORE = re.compile(r"(?<![\w\\])_(?=\S)(.+?)(?<=\S)_(?![\w])")
 _EM_STAR = re.compile(r"(?<![\w*\\])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])")
 
-_HR = re.compile(r"^\s*---+\s*$", re.MULTILINE)
+# ``[ \t]``, not ``\s``: ``\s`` matches newlines, so with MULTILINE this ate the
+# blank lines on either side of the rule. "para.\n\n---\n\n## Heading" collapsed
+# to "para.\n<hr>\n## Heading", and the paragraph pass then glued the heading
+# into the preceding <p> — which is why report pages carried <h2> elements
+# nested inside paragraphs, with stray </p> and <br> around them.
+_HR = re.compile(r"^[ \t]*---+[ \t]*$", re.MULTILINE)
 
 _LIST_ITEM = re.compile(r"^[-*] +(.+)$", re.MULTILINE)
 _LIST_BLOCK = re.compile(r"(?:^<li>.*</li>\n?)+", re.MULTILINE)
@@ -55,3 +70,154 @@ def convert_lists(text: str) -> str:
     """Bullet lists to ``<ul>``. Nesting is not supported and not used."""
     text = _LIST_ITEM.sub(r"<li>\1</li>", text)
     return _LIST_BLOCK.sub(lambda m: f"<ul>\n{m.group(0).rstrip()}\n</ul>\n", text)
+
+
+# ---------------------------------------------------------------------------
+# Fenced code
+# ---------------------------------------------------------------------------
+
+_FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
+_FENCE_TOKEN = "[[FENCE:%d]]"
+
+
+def protect_fences(text: str) -> tuple[str, list[str]]:
+    """Lift fenced code out of the way and leave a token behind.
+
+    This has to run *first*. The documentation converter used to handle fences
+    last, long after the inline-code pass had eaten their backticks: MODELS.md
+    has seventeen fenced blocks and produced exactly zero ``<pre>`` elements,
+    rendering shell transcripts as running prose. Under a design where ``pre``
+    is the green-on-black machine surface, that is the most visible content on
+    the page.
+
+    Returns the text with tokens and the captured block bodies, still raw —
+    the caller escapes them when it puts them back.
+    """
+    blocks: list[str] = []
+
+    def take(match: re.Match) -> str:
+        blocks.append(match.group(1))
+        return _FENCE_TOKEN % (len(blocks) - 1)
+
+    return _FENCE.sub(take, text), blocks
+
+
+def restore_fences(html_content: str, blocks: list[str], escape) -> str:
+    """Put the captured blocks back as ``<pre><code>``, escaped by ``escape``."""
+    for index, body in enumerate(blocks):
+        token = _FENCE_TOKEN % index
+        rendered = f"<pre><code>{escape(body.rstrip())}</code></pre>"
+        html_content = html_content.replace(f"<p>{token}</p>", rendered)
+        html_content = html_content.replace(token, rendered)
+    return html_content
+
+
+# ---------------------------------------------------------------------------
+# Blockquotes -> notices
+# ---------------------------------------------------------------------------
+
+_QUOTE_LINE = re.compile(r"^>[ \t]?(.*)$")
+_NOTICE_OPEN = "[[NOTICE:%s]]"
+_NOTICE_CLOSE = "[[/NOTICE]]"
+
+# The glyph a quote opens with decides which box it gets. Checked before the
+# glyph pass runs, so both spellings are listed.
+_NOTICE_KIND = (
+    ("⛔", "error"), ("❌", "error"), ("[x]", "error"),
+    ("⚠️", "warn"), ("⚠", "warn"), ("[!]", "warn"),
+    ("✅", "ok"), ("[ok]", "ok"),
+)
+
+
+def lift_blockquotes(text: str) -> str:
+    """Un-prefix ``> `` blocks and fence them with sentinels.
+
+    Run on raw markdown, before escaping. Two phases rather than one regex
+    because a quote can wrap a table — ``docs_site/MODELS.md`` opens with one —
+    and the ordinary table, list and paragraph passes should handle the
+    contents once the markers are gone.
+
+    Without this the marker survived escaping and every quoted line rendered
+    as a literal ``&gt;``, which is what the provenance note at the top of each
+    regenerated report has been doing.
+    """
+    out: list[str] = []
+    block: list[str] = []
+
+    def flush() -> None:
+        if not block:
+            return
+        body = "\n".join(block).strip("\n")
+        first = next((line for line in block if line.strip()), "")
+        kind = next((k for glyph, k in _NOTICE_KIND if glyph in first), "info")
+        out.extend(["", _NOTICE_OPEN % kind, "", body, "", _NOTICE_CLOSE, ""])
+        block.clear()
+
+    for line in text.split("\n"):
+        match = _QUOTE_LINE.match(line)
+        if match:
+            block.append(match.group(1))
+        else:
+            flush()
+            out.append(line)
+    flush()
+    return "\n".join(out)
+
+
+def render_notices(html_content: str) -> str:
+    """Turn the sentinels into notice boxes. Run last, after paragraphs."""
+    html_content = re.sub(r"(?:<p>\s*)?\[\[NOTICE:(\w+)\]\](?:\s*</p>)?",
+                          r'<div class="notice \1">', html_content)
+    return re.sub(r"(?:<p>\s*)?\[\[/NOTICE\]\](?:\s*</p>)?",
+                  "</div>", html_content)
+
+
+# ---------------------------------------------------------------------------
+# Table of contents
+# ---------------------------------------------------------------------------
+
+_H2 = re.compile(r"<h2([^>]*)>(.*?)</h2>", re.DOTALL)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def _slug(text: str, taken: set[str]) -> str:
+    import html as _html
+
+    plain = _html.unescape(_TAG.sub("", text)).lower()
+    base = re.sub(r"[^a-z0-9]+", "-", plain).strip("-") or "section"
+    slug, n = base, 2
+    while slug in taken:
+        slug, n = f"{base}-{n}", n + 1
+    taken.add(slug)
+    return slug
+
+
+def add_heading_ids(html_content: str) -> tuple[str, list[tuple[str, str]]]:
+    """Give every ``<h2>`` a stable id. Returns the html and ``[(id, text)]``.
+
+    Ids are added as an extra attribute, never replacing what is there, and
+    ``report_parse`` anchors its headings as ``<h2[^>]*>`` — so this is
+    invisible to the parsers that read these pages back.
+    """
+    taken: set[str] = set()
+    headings: list[tuple[str, str]] = []
+
+    def stamp(match: re.Match) -> str:
+        attrs, inner = match.group(1), match.group(2)
+        if "id=" in attrs:
+            return match.group(0)
+        slug = _slug(inner, taken)
+        headings.append((slug, _TAG.sub("", inner).strip()))
+        return f'<h2{attrs} id="{slug}">{inner}</h2>'
+
+    return _H2.sub(stamp, html_content), headings
+
+
+def build_toc(headings: list[tuple[str, str]], minimum: int = 3) -> str:
+    """The design's contents block, or nothing when the page is short."""
+    if len(headings) < minimum:
+        return ""
+    items = "\n".join(
+        f'        <li><a href="#{slug}">{text}</a></li>' for slug, text in headings
+    )
+    return f'<div class="toc">\n    <ul>\n{items}\n    </ul>\n</div>'

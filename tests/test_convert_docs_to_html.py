@@ -6,6 +6,8 @@ their cross-references: `[MODELS.md](MODELS.md)` works on GitHub and 404s on the
 site, so relative sibling links are rewritten to the generated pages.
 """
 
+import re
+
 import pytest
 
 from convert_docs_to_html import _rewrite_link, markdown_to_html
@@ -57,7 +59,7 @@ def test_external_links_survive_conversion():
 def test_headings_and_emphasis():
     html = markdown_to_html("# Title\n\n## Section\n\n**bold** and `code`", "Doc")
     assert "<h1>Title</h1>" in html
-    assert "<h2>Section</h2>" in html
+    assert re.search(r"<h2[^>]*>Section</h2>", html), "heading lost (it now carries a toc id)"
     assert "<strong>bold</strong>" in html
     assert "<code>code</code>" in html
 

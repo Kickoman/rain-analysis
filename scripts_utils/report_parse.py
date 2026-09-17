@@ -258,13 +258,23 @@ _ONSET_TITLE = re.compile(
 
 _ONSET_HEADING = re.compile(r"<h2[^>]*>\s*Onset scoreboard\b", re.IGNORECASE)
 
+# Both spellings on purpose. The markdown reports carry emoji; the published
+# HTML carries the design system's ASCII glyphs (scripts_utils/glyphs.py runs
+# at render time). Pages on gh-pages predate that change and must keep parsing,
+# so this reads either — the site is re-parsed from whatever is on disk, and a
+# half-migrated tree is the normal state during a deploy.
 _VERDICT_MARK = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only",
-                 "—": "chance", "…": "insufficient_evidence", "?": "unknown"}
+                 "—": "chance", "…": "insufficient_evidence", "?": "unknown",
+                 "[ok]": "works", "[~]": "ranks_only", "[!]": "one_label_only"}
 
 # candidate | catches | if random | lift | alert h/wk | lead | AUC (CI) | cross | mark
 _ONSET_ROW = re.compile(
     r"<tr>\s*<td[^>]*>\s*<code>([\w_]+)</code>[^<]*(?:<em>[^<]*</em>)?\s*</td>\s*"
-    r"<td[^>]*>\s*(\d+)\s*/\s*(\d+)\s*</td>\s*"
+    # "13/29", or a dash when the candidate had no usable operating point in
+    # this window. Requiring digits here silently dropped `ha_live_actual` — the
+    # deployed sensor, the row a reader most wants — from the parsed scoreboard
+    # of 28 of the 61 reports, while the markdown parser kept it.
+    r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"
     r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # expected if random
     r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # lift
     r"<td[^>]*>\s*([^<]*?)\s*</td>\s*"      # alert hours per week
@@ -276,6 +286,14 @@ _ONSET_ROW = re.compile(
 )
 
 _AUC_WITH_CI = re.compile(rf"({_NUMBER})\s*\(({_NUMBER})[–-]({_NUMBER})\)")
+
+_CAUGHT = re.compile(r"^\s*(\d+)\s*/\s*(\d+)\s*$")
+
+
+def _parse_caught(cell: str) -> tuple[int | None, int | None]:
+    """``"13/29"`` as a pair; ``(None, None)`` for a dash or anything else."""
+    m = _CAUGHT.match(strip_tags(cell))
+    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
 
 def is_onset_report(text: str) -> bool:
@@ -305,24 +323,25 @@ def extract_onset_scoreboard(html: str) -> list[dict]:
     rows = []
     for m in _ONSET_ROW.finditer(table.group(0)):
         auc, lo, hi = None, None, None
-        ci = _AUC_WITH_CI.search(m.group(8))
+        ci = _AUC_WITH_CI.search(m.group(7))
         if ci:
             auc, lo, hi = (float(ci.group(1)), float(ci.group(2)), float(ci.group(3)))
         else:
-            auc = _parse_cell(m.group(8))
+            auc = _parse_cell(m.group(7))
+        caught, onsets = _parse_caught(m.group(2))
         rows.append({
             "model": m.group(1),
-            "caught": int(m.group(2)),
-            "onsets": int(m.group(3)),
-            "event_recall": int(m.group(2)) / int(m.group(3)) if int(m.group(3)) else None,
-            "expected_if_random": _parse_cell(m.group(4)),
-            "lift": _parse_cell(m.group(5)),
-            "alert_hours_per_week": _parse_cell(m.group(6)),
-            "median_lead_hours": _parse_cell(m.group(7)),
+            "caught": caught,
+            "onsets": onsets,
+            "event_recall": caught / onsets if caught is not None and onsets else None,
+            "expected_if_random": _parse_cell(m.group(3)),
+            "lift": _parse_cell(m.group(4)),
+            "alert_hours_per_week": _parse_cell(m.group(5)),
+            "median_lead_hours": _parse_cell(m.group(6)),
             "roc_auc": auc,
             "roc_auc_ci": [lo, hi] if lo is not None else None,
-            "cross_label_auc": _parse_cell(m.group(9)),
-            "verdict": _VERDICT_MARK.get(strip_tags(m.group(10)).strip(), None),
+            "cross_label_auc": _parse_cell(m.group(8)),
+            "verdict": _VERDICT_MARK.get(strip_tags(m.group(9)).strip(), None),
         })
     return rows
 
@@ -360,8 +379,11 @@ def extract_onset_scoreboard_md(text: str) -> list[dict]:
         return []
 
     rows = []
+    # "?" is the report's own mark for a candidate that could not be scored at
+    # all; without it here the markdown side returned None where the HTML side
+    # said "unknown", and the two parsers disagreed about the deployed sensor.
     marks = {"✅": "works", "◐": "ranks_only", "⚠️": "one_label_only", "—": "chance",
-             "…": "insufficient_evidence"}
+             "…": "insufficient_evidence", "?": "unknown"}
     for raw in parse_markdown_table(body):
         name = raw.get("Candidate", "")
         m = re.search(r"`([\w_]+)`", name)
