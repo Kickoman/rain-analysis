@@ -311,7 +311,9 @@ The `load_yandex_archive()` function in rainlib.py extracts:
 - `yx_condition` — weather condition string
 - `yx_prec_prob`, `yx_prec_strength` — precipitation data
 - `yx_pressure_mm` — barometric pressure (useful for pressure-aware model!)
-- `yx_is_rain` — binary flag (1 if condition contains "rain")
+- `yx_is_rain` — binary flag (1 for rain conditions; see `YX_RAIN_CONDITIONS` in `rainlib.py`)
+
+Rain conditions are a single shared set (`YX_RAIN_CONDITIONS` / `is_rain_condition()` in `rainlib.py`) used by both `load_yandex_archive()` and `cross_check()`. Liquid precipitation and the thunderstorm family count as rain: `drizzle`, `light-rain`, `rain`, `heavy-rain`, `showers`, `thunderstorm`, `thunderstorm-with-rain`, `thunderstorm-with-hail`. Frozen and mixed precipitation is deliberately excluded: `hail`, `wet-snow`, `light-snow`, `snow`, `snow-showers`.
 
 ## Pipeline Script (Putting It All Together)
 

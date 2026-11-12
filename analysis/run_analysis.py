@@ -1078,7 +1078,7 @@ def cross_check(grid: pd.DataFrame) -> dict:
             .max()
         )
         yx_rain_conds = cmp["yx_condition"].apply(
-            lambda c: 1 if isinstance(c, str) and c in ("rain", "rainy", "shower", "drizzle", "thunderstorm") else 0
+            lambda c: 1 if rl.is_rain_condition(c) else 0
         )
         
         yx_rain_hours = set(str(t) for t in yx_rain_conds[yx_rain_conds == 1].index)
