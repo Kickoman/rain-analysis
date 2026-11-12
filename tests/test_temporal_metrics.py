@@ -18,7 +18,7 @@ def test_perfect_prediction_no_window():
     
     result = confusion_with_windows(pred, truth, threshold=50, lead_hours=0, lag_hours=0)
     
-    assert result["tp"] == 2  # Two rain hours predicted correctly
+    assert result["tp"] == 2  # Two predictions matched the rain episode
     assert result["fp"] == 0
     assert result["fn"] == 0
     assert result["precision"] == 1.0
@@ -34,7 +34,7 @@ def test_early_prediction_within_lead_window():
     result = confusion_with_windows(pred, truth, threshold=50, lead_hours=3, lag_hours=1)
     
     # Predictions at hour 1 and 2 are within window of rain at hours 3-4
-    assert result["tp"] == 2  # Both rain events matched
+    assert result["tp"] == 2  # Both predictions matched
     assert result["fp"] == 0  # Early predictions count as TP, not FP
     assert result["fn"] == 0
     assert result["recall"] == 1.0
@@ -51,7 +51,7 @@ def test_too_early_prediction_outside_window():
     # Prediction at hour 0 is >3 hours before rain at hours 4-5
     assert result["tp"] == 0
     assert result["fp"] == 1  # Too early = false positive
-    assert result["fn"] == 2  # Missed both rain events
+    assert result["fn"] == 1  # The single rain episode was missed
     assert result["recall"] == 0.0
 
 
@@ -83,18 +83,19 @@ def test_too_late_prediction_outside_lag_window():
     assert result["fn"] == 1
 
 
-def test_multiple_predictions_one_event():
-    """Multiple predictions in window count as single TP."""
+def test_multiple_predictions_one_episode_all_match():
+    """Multiple predictions in one window all count as matched alerts."""
     index = pd.date_range("2024-01-01", periods=10, freq="h")
     pred = pd.Series([0, 80, 80, 80, 80, 0, 0, 0, 0, 0], index=index)
     truth = pd.Series([0, 0, 0, 1, 0, 0, 0, 0, 0, 0], index=index)
     
     result = confusion_with_windows(pred, truth, threshold=50, lead_hours=3, lag_hours=1)
     
-    # All 4 predictions are within window of the single rain event
-    assert result["tp"] == 1  # One rain event matched
-    assert result["fp"] == 0  # All predictions matched to this event
-    assert result["fn"] == 0
+    # All 4 predictions are within window of the single rain episode
+    assert result["tp"] == 4  # Four predictions matched
+    assert result["fp"] == 0
+    assert result["fn"] == 0  # The episode was detected
+    assert result["precision"] == 1.0
 
 
 def test_no_predictions():
@@ -107,7 +108,7 @@ def test_no_predictions():
     
     assert result["tp"] == 0
     assert result["fp"] == 0
-    assert result["fn"] == 2
+    assert result["fn"] == 1  # The single rain episode was missed
     assert result["recall"] == 0.0
     assert np.isnan(result["precision"])  # No predictions made
 
@@ -125,6 +126,29 @@ def test_no_rain():
     assert result["fn"] == 0
     assert np.isnan(result["recall"])  # No rain to recall
     assert result["precision"] == 0.0
+
+
+def test_long_rain_single_in_rain_alert_precision():
+    """A long rain spell does not inflate precision (regression for #455).
+
+    Five consecutive rainy hours form a single episode.  The model raises
+    two alerts: one inside the rain, one in dry weather outside the window.
+    Precision must be 1 correct alert out of 2 (0.5), not 5/6, which is
+    what the old rainy-hour-based tp produced.
+    """
+    index = pd.date_range("2024-01-01", periods=10, freq="h")
+    pred = pd.Series([0, 0, 0, 0, 0, 80, 0, 0, 0, 80], index=index)
+    truth = pd.Series([0, 0, 0, 1, 1, 1, 1, 1, 0, 0], index=index)
+
+    result = confusion_with_windows(pred, truth, threshold=50, lead_hours=3, lag_hours=1)
+
+    # Episode hours 3-7 -> window [0, 8]. Alert at hour 5 is matched; the
+    # dry alert at hour 9 is outside the window and stays a false positive.
+    assert result["tp"] == 1
+    assert result["fp"] == 1
+    assert result["fn"] == 0  # The episode was detected
+    assert result["precision"] == 0.5
+    assert result["recall"] == 1.0
 
 
 def test_sweep_threshold_temporal():
@@ -181,8 +205,8 @@ def test_f2_calculation():
     result = confusion_with_windows(pred, truth, threshold=50, lead_hours=3, lag_hours=1)
     
     # Manual calculation:
-    # Pred at hour 0,1,2 with rain at 1,2,3
-    # All 3 rain events are within lead window of the predictions
+    # Pred at hour 0,1,2 with rain at 1,2,3 (one episode, hours 1-3)
+    # All 3 predictions are within the episode window
     # tp=3, fp=0, fn=0
     # precision = 1.0, recall = 1.0
     # F2 = 5 * 1.0 * 1.0 / (4 * 1.0 + 1.0) = 5/5 = 1.0

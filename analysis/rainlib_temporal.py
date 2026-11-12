@@ -22,12 +22,29 @@ def confusion_with_windows(
     end_lag_hours: Optional[int] = None,
 ) -> dict:
     """Confusion matrix with temporal windows for prediction tolerance.
-    
+
+    Two quantities are computed with different, well-defined units:
+
+    * **Precision is alert-based.** tp counts *prediction* timesteps that
+      fall inside a tolerance window around some rain episode; fp counts
+      prediction timesteps that fall outside every window.  So
+      precision = tp / (tp + fp) is the fraction of raised alerts that
+      actually landed near rain - "of the alerts we raised, how many were
+      correct".  (Previously tp counted rainy timesteps while fp counted
+      prediction timesteps, which inflated precision inside long rain
+      spells - see #455.)
+
+    * **Recall is episode-based.** Consecutive rainy timesteps are grouped
+      into *episodes* (rain events).  An episode is *detected* when at least
+      one prediction falls inside [start - lead_hours, end + lag_hours].
+      recall = detected_episodes / total_episodes is the fraction of rain
+      events the model caught, regardless of how many alerts each triggered.
+
     A prediction is considered a True Positive if:
-    - The model predicts rain (pred >= threshold) within a window around 
-      an actual rain event
-    - Window: [rain_time - lead_hours, rain_time + lag_hours]
-    
+    - The model predicts rain (pred >= threshold) within the window
+      [episode_start - lead_hours, episode_end + lag_hours] around a
+      rain episode.
+
     This accounts for the practical use case where predicting rain 
     3 hours early is still useful (and correct), not a false positive.
     
@@ -35,14 +52,15 @@ def confusion_with_windows(
         pred: Series of model predictions (e.g., humidity %)
         truth: Series of ground truth (1=rain, 0=no rain, NaN=unknown)
         threshold: Prediction threshold for classifying as "rain"
-        lead_hours: Hours before rain that a prediction still counts as TP
-        lag_hours: Hours after rain start that a prediction still counts as TP
+        lead_hours: Hours before an episode start that a prediction still counts as TP
+        lag_hours: Hours after an episode end that a prediction still counts as TP
         drop_unknown: If True, drop NaN truth rows; if False, treat as no-rain
         end_lead_hours: (Future) Hours before rain end to detect end (not used yet)
         end_lag_hours: (Future) Hours after rain end tolerance (not used yet)
     
     Returns:
-        Dict with: threshold, tp, fp, tn, fn, precision, recall, f1, f2, n
+        Dict with: threshold, tp, fp, tn, fn, precision, recall, f1, f2, n,
+        lead_hours, lag_hours
     """
     df = pd.DataFrame({"pred": pred, "truth": truth})
     
@@ -66,50 +84,54 @@ def confusion_with_windows(
     yhat = (df["pred"] >= threshold).astype(int)
     y = df["truth"].astype(int)
     
-    # Find rain events (truth=1)
-    rain_indices = df.index[y == 1]
+    # Group consecutive rainy timesteps into episodes: (start, end) inclusive.
+    rain_flags = (y == 1).to_numpy()
+    episodes = []  # list of (start_idx, end_idx)
+    i = 0
+    n = len(rain_flags)
+    while i < n:
+        if rain_flags[i]:
+            j = i
+            while j + 1 < n and rain_flags[j + 1]:
+                j += 1
+            episodes.append((df.index[i], df.index[j]))
+            i = j + 1
+        else:
+            i += 1
     
-    # Track which predictions and truth hours we've matched
+    # Match predictions to episodes and detect episodes.  A prediction is
+    # "matched" if it falls inside the window of at least one episode; an
+    # episode is "detected" if at least one prediction falls in its window.
     matched_predictions = set()
-    matched_truth = set()
+    detected_episodes = 0
     
-    # For each rain event, look for predictions in the window
-    for rain_idx in rain_indices:
-        # Define the window: [rain - lead, rain + lag]
-        window_start = rain_idx - pd.Timedelta(hours=lead_hours)
-        window_end = rain_idx + pd.Timedelta(hours=lag_hours)
+    for start, end in episodes:
+        window_start = start - pd.Timedelta(hours=lead_hours)
+        window_end = end + pd.Timedelta(hours=lag_hours)
         
-        # Find predictions in this window
         window_mask = (df.index >= window_start) & (df.index <= window_end)
         window_preds = df.index[window_mask & (yhat == 1)]
         
-        # If we found at least one prediction in the window, it's a TP
         if len(window_preds) > 0:
-            matched_truth.add(rain_idx)
-            # Mark all predictions in this window as matched (to avoid counting as FP)
+            detected_episodes += 1
             for pred_idx in window_preds:
                 matched_predictions.add(pred_idx)
     
-    # Calculate confusion matrix components
-    tp = len(matched_truth)  # Rain events we successfully predicted
-    fn = len(rain_indices) - tp  # Rain events we missed
-
-    # False positives: predictions not matched to any rain event
     all_predictions = set(df.index[yhat == 1])
+    
+    # TP/FP are alert (prediction) counts; FN is a missed-episode count.
+    tp = len(matched_predictions)
     fp = len(all_predictions - matched_predictions)
-
-    # True negatives: timesteps with no rain AND no prediction.
-    # NOTE: tp and fn are counted in *rain events* (groups of consecutive
-    # rainy timesteps), while fp is counted in *timesteps*.  Mixing them
-    # in the naive formula  tn = len(df) - tp - fp - fn  produces a
-    # meaningless number.  Instead we compute TN purely in timesteps:
-    #   no-rain timesteps  −  false-positive timesteps  = TN timesteps
+    fn = len(episodes) - detected_episodes
+    
+    # True negatives in timesteps: no-rain timesteps minus false-positive
+    # timesteps (every FP is itself a no-rain timestep).
     no_rain_timesteps = int((y == 0).sum())
     tn = no_rain_timesteps - fp
     
-    # Calculate metrics
+    # Precision is alert-based; recall is episode-based.
     precision = tp / (tp + fp) if (tp + fp) > 0 else float("nan")
-    recall = tp / (tp + fn) if (tp + fn) > 0 else float("nan")
+    recall = detected_episodes / len(episodes) if len(episodes) > 0 else float("nan")
     
     if precision != precision or recall != recall:  # NaN check
         f1 = float("nan")
@@ -214,7 +236,7 @@ def recommend_threshold_temporal(
     r = candidates["recall"]
     b2 = beta * beta
     
-    # F-beta = (1 + β²) · precision · recall / (β² · precision + recall)
+    # F-beta = (1 + b^2) * precision * recall / (b^2 * precision + recall)
     denom = (b2 * p) + r
     fbeta = (1 + b2) * p * r / denom
     fbeta = fbeta.fillna(0)  # Handle division by zero
