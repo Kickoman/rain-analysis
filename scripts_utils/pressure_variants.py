@@ -22,7 +22,8 @@ from __future__ import annotations
 import math
 import numpy as np
 import pandas as pd
-from analysis.rainlib import ModelContext, ModelParams, derivative, _clamp
+from analysis.rainlib import (ModelContext, ModelParams, derivative, _clamp,
+                             _bounded_ffill, STATE_FFILL_LIMIT)
 
 
 # ---------------------------------------------------------------------------
@@ -68,7 +69,7 @@ def _align_pressure(ctx: ModelContext, df: pd.DataFrame) -> tuple[pd.Series | No
     use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
     if not use_pressure:
         return None, False
-    return ctx.pressure.reindex(df.index).ffill(), True
+    return _bounded_ffill(ctx.pressure.reindex(df.index), STATE_FFILL_LIMIT), True
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +115,8 @@ def _pressure_variant_base(
 
         # ── NaN guard for required inputs ──────────────────────────
         if _is_invalid(s):
-            out[i] = prev if prev is not None else np.nan
+            out[i] = np.nan
+            prev = None
             continue
         if _is_invalid(d):
             d = 0.0
