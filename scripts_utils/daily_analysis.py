@@ -37,6 +37,20 @@ def run_cmd(cmd, cwd):
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, shell=isinstance(cmd, str))
     return result.returncode, result.stdout, result.stderr
 
+def _newest_report(matches):
+    """Select the most recent analysis_report.json from several candidates.
+
+    run_full_analysis.py writes each run into a timestamped directory
+    reports/daily/<date>/<Nd>/<YYYYmmdd_HHMMSS>/analysis_report.json, so a
+    re-run of the same date leaves several candidate directories behind. The
+    directory name is a zero-padded %Y%m%d_%H%M%S timestamp, which sorts
+    lexicographically, so max on the parent name is the newest run.
+
+    The previous matches[0] picked whatever order the filesystem returned,
+    which for a re-run is often the *oldest* (stale) report (#456).
+    """
+    return max(matches, key=lambda p: p.parent.name)
+
 def run_analysis_window(days: int, timestamp: str, workspace: Path, venv_python: str):
     """Run full analysis for a specific time window."""
     print(f"\n{'='*70}")
@@ -63,7 +77,10 @@ def run_analysis_window(days: int, timestamp: str, workspace: Path, venv_python:
         print(f"✗ Could not find {days}d report JSON")
         return None
     
-    report_path = matches[0]
+    report_path = _newest_report(matches)
+    if len(matches) > 1:
+        print(f"⚠ {days}d: {len(matches)} report runs found (date re-run); "
+              f"using newest {report_path.parent.name}")
     with open(report_path) as f:
         data = json.load(f)
     
