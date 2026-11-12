@@ -390,7 +390,7 @@ def model_tuned(ctx: ModelContext,
 
     # align the two inputs on a common index, forward-fill gaps
     df = pd.DataFrame({"spread": ctx.spread, "deriv": ctx.spread_deriv}).sort_index()
-    df["spread"] = df["spread"].ffill()
+    df["spread"] = _bounded_ffill(df["spread"], SPREAD_FFILL_LIMIT)
     df["deriv"] = df["deriv"].fillna(0.0)
 
     out = np.full(len(df), np.nan)
@@ -404,7 +404,8 @@ def model_tuned(ctx: ModelContext,
 
         # skip samples with no spread yet (leading gaps / dead sensor)
         if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
+            out[i] = np.nan
+            prev = None
             continue
         if d is None or (isinstance(d, float) and math.isnan(d)):
             d = 0.0
@@ -441,7 +442,7 @@ def model_trend_dominant(ctx: ModelContext,
         p = ModelParams()
 
     df = pd.DataFrame({"spread": ctx.spread, "deriv": ctx.spread_deriv}).sort_index()
-    df["spread"] = df["spread"].ffill()
+    df["spread"] = _bounded_ffill(df["spread"], SPREAD_FFILL_LIMIT)
     df["deriv"] = df["deriv"].fillna(0.0)
 
     out = np.full(len(df), np.nan)
@@ -454,7 +455,8 @@ def model_trend_dominant(ctx: ModelContext,
         d = deriv_v[i]
 
         if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
+            out[i] = np.nan
+            prev = None
             continue
         if d is None or (isinstance(d, float) and math.isnan(d)):
             d = 0.0
@@ -529,12 +531,12 @@ def model_pressure_aware(ctx: ModelContext,
         "spread": ctx.spread,
         "deriv": ctx.spread_deriv,
     }).sort_index()
-    df["spread"] = df["spread"].ffill()
+    df["spread"] = _bounded_ffill(df["spread"], SPREAD_FFILL_LIMIT)
     df["deriv"] = df["deriv"].fillna(0.0)
 
     use_pressure = ctx.pressure is not None and not ctx.pressure.dropna().empty
     if use_pressure:
-        p_aligned = ctx.pressure.reindex(df.index).ffill()
+        p_aligned = _bounded_ffill(ctx.pressure.reindex(df.index), STATE_FFILL_LIMIT)
         df["pres_deriv"] = derivative(p_aligned, window=p.pressure_window)
         df["pres_deriv"] = df["pres_deriv"].fillna(0.0)
 
@@ -550,7 +552,8 @@ def model_pressure_aware(ctx: ModelContext,
         pd_val = pres_v[i]
 
         if s is None or (isinstance(s, float) and math.isnan(s)):
-            out[i] = prev if prev is not None else np.nan
+            out[i] = np.nan
+            prev = None
             continue
         if d is None or (isinstance(d, float) and math.isnan(d)):
             d = 0.0
@@ -896,6 +899,30 @@ YX_STATE_COLUMNS = {
 }
 # How stale an observation may be and still describe the current grid point.
 STATE_FFILL_LIMIT = pd.Timedelta(hours=6)
+# How stale a dew-point *spread* reading may be before the model stops
+# treating it as current. The rainlib models previously forward-filled
+# spread without bound (issue #453): a dead spread sensor kept feeding
+# the model for days.
+SPREAD_FFILL_LIMIT = pd.Timedelta(hours=3)
+
+
+def _bounded_ffill(series: pd.Series, limit: pd.Timedelta) -> pd.Series:
+    """Forward-fill *series* but leave gaps older than *limit* as NaN.
+
+    A dead sensor's last value must not be carried through the rest of
+    the run: once a gap exceeds *limit*, the cell becomes NaN so
+    downstream scoring (``confusion_at_threshold`` / ``roc_auc``) drops
+    the row instead of trusting a stale reading. Only meaningful for
+    time-like indexes; for other index types it falls back to a plain
+    forward-fill so synthetic-index callers (e.g. unit tests with
+    integer indexes) keep the old behaviour.
+    """
+    if not isinstance(series.index, (pd.DatetimeIndex, pd.TimedeltaIndex)):
+        return series.ffill()
+    valid = series.dropna()
+    if valid.empty:
+        return series
+    return valid.reindex(series.index, method="ffill", tolerance=limit)
 
 
 def _ffill_onto_grid(df: pd.DataFrame, grid: pd.DatetimeIndex,
