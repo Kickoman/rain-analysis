@@ -27,6 +27,25 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 
 
+# Resolve the pipeline's sibling scripts relative to this file, not the process
+# CWD. The repository has no tracked root entry points, so a bare filename only
+# resolves by accident (untracked symlinks in a local checkout) and breaks on a
+# clean clone. See issue #452.
+ANALYSIS_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = ANALYSIS_DIR.parent / "scripts_utils"
+
+# name -> absolute Path of every script this pipeline shells out to.
+STAGE_SCRIPTS = {
+    "fetch_ha_data": SCRIPTS_DIR / "fetch_ha_data.py",
+    "fetch_ha_statistics": SCRIPTS_DIR / "fetch_ha_statistics.py",
+    "archive_ha_data": SCRIPTS_DIR / "archive_ha_data.py",
+    "fetch_yandex_archive": SCRIPTS_DIR / "fetch_yandex_archive.py",
+    "fetch_openmeteo": SCRIPTS_DIR / "fetch_openmeteo.py",
+    "fetch_meteostat": SCRIPTS_DIR / "fetch_meteostat.py",
+    "run_analysis": ANALYSIS_DIR / "run_analysis.py",
+}
+
+
 def run_command(cmd: list, description: str, allow_fail: bool = False) -> bool:
     """Run a command and handle errors."""
     print(f"\n=== {description} ===")
@@ -108,7 +127,7 @@ def main():
 
     # Step 1: Home Assistant
     run_command([
-        args.python, "fetch_ha_data.py",
+        args.python, str(STAGE_SCRIPTS["fetch_ha_data"]),
         "--days", str(args.days),
         "--output", str(ha_csv),
     ], "1/5: Fetching Home Assistant data")
@@ -127,7 +146,7 @@ def main():
     # baseline *before* the window's first hour to be defined from day one.
     stats_days = max(args.days + 35, 45)
     stats_success = run_command([
-        args.python, "fetch_ha_statistics.py",
+        args.python, str(STAGE_SCRIPTS["fetch_ha_statistics"]),
         "--days", str(stats_days),
         "--output", str(stats_csv),
     ], "1b/5: Fetching HA long-term statistics", allow_fail=True)
@@ -135,7 +154,7 @@ def main():
     archive_csv = Path("data/archive/ha_hourly.csv")
     if stats_success and stats_csv.exists():
         run_command([
-            args.python, "archive_ha_data.py",
+            args.python, str(STAGE_SCRIPTS["archive_ha_data"]),
             "--input", str(stats_csv),
             "--archive", str(archive_csv),
         ], "1c/5: Merging statistics into the durable archive", allow_fail=True)
@@ -167,13 +186,13 @@ def main():
 
     # Step 2: Yandex Weather
     run_command([
-        args.python, "fetch_yandex_archive.py",
+        args.python, str(STAGE_SCRIPTS["fetch_yandex_archive"]),
         "--output", str(yandex_dir),
     ], "2/5: Downloading Yandex Weather archive")
 
     # Step 3: Open-Meteo
     om_success = run_command([
-        args.python, "fetch_openmeteo.py",
+        args.python, str(STAGE_SCRIPTS["fetch_openmeteo"]),
         "--days", str(args.days),
         "--output", str(om_json),
     ], "3/5: Fetching Open-Meteo data", allow_fail=True)
@@ -181,7 +200,7 @@ def main():
     # Step 4: Meteostat
     ms_json = data_dir / f"meteostat_{timestamp}.json"
     ms_success = run_command([
-        args.python, "fetch_meteostat.py",
+        args.python, str(STAGE_SCRIPTS["fetch_meteostat"]),
         "--days", str(args.days),
         "--output", str(ms_json),
     ], "4/5: Fetching Meteostat data", allow_fail=True)
@@ -203,7 +222,7 @@ def main():
     window_start = window_end - timedelta(days=args.days)
 
     analysis_cmd = [
-        args.python, "run_analysis.py",
+        args.python, str(STAGE_SCRIPTS["run_analysis"]),
         "--ha-csv", str(ha_csv),
         "--yandex-dir", str(yandex_dir),
         "--window-start", window_start.isoformat(),
