@@ -743,6 +743,33 @@ def load_open_meteo(obj) -> pd.DataFrame:
     return out
 
 
+# Yandex condition codes that mean rain (liquid precipitation) is falling.
+# See docs_site/DATA_SOURCES.md section 4 for the full code list and rationale.
+#
+# Included: liquid precipitation (drizzle, light-rain, rain, heavy-rain),
+# showers, and the thunderstorm family (thunderstorms are convective rain
+# events, whether or not hail is mixed in).
+#
+# Excluded (deliberately NOT rain):
+#   - hail          -- frozen pellets, no liquid precipitation
+#   - wet-snow      -- mixed winter precipitation, not rain
+#   - light-snow, snow, snow-showers -- snow
+#   - clear, partly-cloudy, cloudy, overcast -- dry
+YX_RAIN_CONDITIONS = {
+    "drizzle", "light-rain", "rain", "heavy-rain", "showers",
+    "thunderstorm", "thunderstorm-with-rain", "thunderstorm-with-hail",
+}
+
+
+def is_rain_condition(cond) -> bool:
+    """True if a Yandex condition code means rain is falling.
+
+    Returns False for non-strings (e.g. NaN/None) and for dry, snowy or
+    frozen (hail/wet-snow) conditions.
+    """
+    return isinstance(cond, str) and cond in YX_RAIN_CONDITIONS
+
+
 def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
     """Load a folder of Yandex JSON snapshots into a DataFrame.
 
@@ -780,7 +807,7 @@ def load_yandex_archive(folder_or_glob: str) -> pd.DataFrame:
             "yx_prec_strength": fact.get("prec_strength"),
             "yx_pressure_mm": fact.get("pressure_mm"),
             "yx_wind_speed": fact.get("wind_speed"),
-            "yx_is_rain": 1 if "rain" in cond else 0,
+            "yx_is_rain": 1 if is_rain_condition(cond) else 0,
         }
     
     if skipped > 0:
