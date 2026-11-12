@@ -15,7 +15,7 @@ The output is a **JSON report** designed to be readable by both humans and LLMs.
 ```bash
 pip install pandas numpy matplotlib   # same deps as the notebook
 
-python run_analysis.py \
+python analysis/run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \
@@ -215,7 +215,7 @@ This script is designed to be run by an AI assistant (or cron job):
 
 ```bash
 # Daily run
-python run_analysis.py \
+python analysis/run_analysis.py \
     --ha-csv data/ha_full.csv \
     --om-sources data/om.json \
     --yandex-dir data/2026/ \

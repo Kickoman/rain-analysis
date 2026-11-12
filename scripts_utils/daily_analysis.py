@@ -32,6 +32,12 @@ from pathlib import Path
 import subprocess
 import argparse
 
+# run_full_analysis.py lives in analysis/, not the repo root; resolve it from
+# this file so a clean clone (no untracked root entry points) still works.
+REPO_ROOT = Path(__file__).resolve().parent.parent
+RUN_FULL_ANALYSIS = REPO_ROOT / "analysis" / "run_full_analysis.py"
+
+
 def run_cmd(cmd, cwd):
     """Run command and return output."""
     result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, shell=isinstance(cmd, str))
@@ -44,7 +50,7 @@ def run_analysis_window(days: int, timestamp: str, workspace: Path, venv_python:
     print(f"{'='*70}")
     
     ret, out, err = run_cmd([
-        venv_python, "run_full_analysis.py",
+        venv_python, str(RUN_FULL_ANALYSIS),
         "--days", str(days),
         "--output-dir", f"reports/daily/{timestamp}/{days}d",
         "--data-dir", f"data/daily/{timestamp}/{days}d",
@@ -1031,8 +1037,8 @@ Examples:
         print(f"✗ Workspace directory not found: {workspace}")
         return 1
     
-    if not (workspace / "run_full_analysis.py").exists():
-        print(f"✗ run_full_analysis.py not found in {workspace}")
+    if not RUN_FULL_ANALYSIS.exists():
+        print(f"✗ run_full_analysis.py not found at {RUN_FULL_ANALYSIS}")
         return 1
     
     reports_dir.mkdir(exist_ok=True)
